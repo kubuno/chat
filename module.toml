@@ -1,0 +1,35 @@
+[module]
+id            = "chat"
+display_name  = "Chat"
+version       = "0.1.0"
+description   = "Messagerie chiffrée de bout en bout — protocole Signal (X3DH + Double Ratchet)"
+author        = "Kubuno Contributors"
+license       = "AGPL-3.0"
+homepage_url  = "https://github.com/kubuno/kubuno"
+runtime       = "rust"
+settings_path = "/chat/settings"
+
+[process]
+entrypoint = "kubuno-chat"
+args       = []
+
+[server]
+host = "127.0.0.1"
+port = 3109
+
+[routes]
+patterns = [
+    { method = "*", path = "/*" },
+]
+
+[[sidebar_items]]
+id       = "chat"
+label    = "Messages"
+icon     = "MessageSquare"
+path     = "/chat"
+position = 50
+section  = "main"
+
+[events]
+subscribed = ["UserDeleted", "UserUpdated"]
+publishes  = ["MessageSent", "MessageReceived"]

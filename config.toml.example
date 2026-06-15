@@ -1,0 +1,40 @@
+# ── Kubuno Chat — configuration exemple ─────────────────────────────────────
+# Copier ce fichier vers config.toml et remplir les valeurs.
+# Variables d'environnement : préfixe KCHAT__
+# Ex: KCHAT__SERVER__PORT=3109
+
+[server]
+host = "127.0.0.1"
+port = 3109
+
+[core]
+# URL du core Kubuno (pour l'enregistrement du module)
+url             = "http://127.0.0.1:8080"
+# Secret partagé — injecté automatiquement par le superviseur via KUBUNO_INTERNAL_SECRET
+internal_secret = "change_me"
+
+# ── Base de données ───────────────────────────────────────────────────────────
+# Les paramètres de connexion sont injectés par le superviseur Kubuno via
+# KUBUNO_DB_HOST / KUBUNO_DB_PORT / KUBUNO_DB_USER / KUBUNO_DB_PASSWORD / KUBUNO_DB_NAME.
+# Pour un démarrage hors superviseur, exporter ces variables manuellement.
+
+[storage]
+local_path = "/var/lib/kubuno/modules/chat/media"
+temp_path  = "/var/lib/kubuno/modules/chat/temp"
+# Taille max des médias (Mo)
+max_media_mb = 50
+
+[chat]
+# Nombre max de messages à retourner par page
+messages_page_size = 50
+# Durée max de conservation des messages (0 = illimité)
+retention_days = 0
+# Nombre d'OPK à maintenir dans le pool (rechargement automatique si en dessous)
+opk_pool_min = 20
+opk_pool_initial = 100
+# Timeout de présence (secondes sans heartbeat avant de marquer "offline")
+presence_timeout_secs = 120
+
+[logging]
+level  = "info"
+format = "pretty"
