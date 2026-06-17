@@ -19,6 +19,14 @@ pub struct Message {
     pub nonce:           String,
     pub sequence_num:    i64,
     pub created_at:      DateTime<Utc>,
+    #[serde(default)]
+    pub is_pinned:       bool,
+    #[serde(default)]
+    pub pinned_at:       Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub scheduled_at:    Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub expires_at:      Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -44,6 +52,15 @@ pub struct SendMessageDto {
     pub ephemeral_key:  Option<String>,
     /// ID clé d'identité publique de l'expéditeur
     pub sender_ik_pub:  Option<String>,
+    /// Envoi programmé (futur) — le message reste invisible aux autres jusqu'à l'échéance.
+    pub scheduled_at:   Option<DateTime<Utc>>,
+    /// Message éphémère : durée de vie en secondes (auto-suppression après).
+    pub expires_in_secs: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct VoteDto {
+    pub option_index: i32,
 }
 
 #[derive(Debug, Deserialize)]

@@ -159,6 +159,14 @@ async fn main() -> Result<()> {
         storage,
     };
 
+    // Worker de fond : livraison des messages programmés + purge des éphémères.
+    {
+        let worker_state = Arc::new(state.clone());
+        tokio::spawn(async move {
+            kubuno_chat::workers::run(worker_state).await;
+        });
+    }
+
     // Enregistrement auprès du core
     let http = Client::new();
     register_with_core(&http, &settings).await;
