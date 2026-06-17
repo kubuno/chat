@@ -13,6 +13,7 @@ export interface Conversation {
   created_by:  string | null
   created_at:  string
   updated_at:  string
+  is_meeting?: boolean
 }
 
 export interface OtherUser {
@@ -55,11 +56,41 @@ export interface Message {
   deleted_at:      string | null
   nonce:           string
   created_at:      string
+  is_pinned?:      boolean
+  pinned_at?:      string | null
 }
+
+export interface ReactionLite {
+  message_id: string
+  user_id:    string
+  emoji:      string
+}
+
+// Media descriptor carried inside a message's encrypted envelope (never seen
+// by the server in clear — key/iv let the recipient decrypt the uploaded blob).
+export interface MediaPayload {
+  media_id:  string
+  key:       string   // base64url AES-GCM key
+  iv:        string   // base64url IV
+  mime:      string
+  name:      string
+  size:      number
+  kind:      'image' | 'video' | 'audio' | 'file'
+  width?:    number
+  height?:   number
+  duration?: number   // seconds (audio/video)
+  voice?:    boolean  // true → voice message (recorded clip)
+  waveform?: number[] // normalized peaks [0..1] for voice rendering
+}
+
+export interface PollPayload { question: string; options: string[] }
 
 // Decoded message (after client-side decryption)
 export interface DecodedMessage extends Message {
-  plaintext: string | null  // null if decryption failed or not available
+  plaintext: string | null         // null if decryption failed or not available
+  media?:    MediaPayload | null    // present for media messages
+  poll?:     PollPayload | null     // present for poll messages
+  reactions?: { emoji: string; user_id: string }[]  // aggregated client-side
 }
 
 export interface PreKeyBundle {
@@ -99,6 +130,15 @@ export const chatApi = {
       member_ids: memberIds,
     }).then(r => r.data.conversation),
 
+  // Meeting room = open-join group conversation (scheduled video meetings).
+  createMeeting: (name: string, memberIds: string[] = []) =>
+    api.post<{ conversation: Conversation }>('/chat/conversations', {
+      conv_type: 'group', name, member_ids: memberIds, is_meeting: true,
+    }).then(r => r.data.conversation),
+
+  joinMeeting: (convId: string) =>
+    api.post<{ ok: boolean }>(`/chat/conversations/${convId}/join`).then(r => r.data),
+
   getConversation: (id: string) =>
     api.get<{ conversation: Conversation; members: ConvMember[] }>(
       `/chat/conversations/${id}`
@@ -131,9 +171,31 @@ export const chatApi = {
   // ── Messages ────────────────────────────────────────────────────────────────
 
   listMessages: (convId: string, limit?: number, before?: string) =>
-    api.get<{ messages: Message[] }>(`/chat/conversations/${convId}/messages`, {
+    api.get<{ messages: Message[]; reactions?: ReactionLite[] }>(`/chat/conversations/${convId}/messages`, {
       params: { limit, before },
-    }).then(r => r.data.messages),
+    }).then(r => r.data),
+
+  getPinned: (convId: string) =>
+    api.get<{ messages: Message[] }>(`/chat/conversations/${convId}/pinned`).then(r => r.data.messages),
+
+  pinMessage: (msgId: string) =>
+    api.post<{ message: Message }>(`/chat/messages/${msgId}/pin`).then(r => r.data.message),
+
+  votePoll: (msgId: string, optionIndex: number) =>
+    api.post<{ counts: Record<string, number>; my_vote: number }>(`/chat/messages/${msgId}/vote`, { option_index: optionIndex }).then(r => r.data),
+
+  getPoll: (msgId: string) =>
+    api.get<{ counts: Record<string, number>; my_vote: number | null }>(`/chat/messages/${msgId}/poll`).then(r => r.data),
+
+  unfurl: (url: string) =>
+    api.get<{ url: string; title: string | null; description: string | null; image: string | null; site_name?: string | null }>(
+      '/chat/unfurl', { params: { url } }
+    ).then(r => r.data),
+
+  getReadState: (convId: string) =>
+    api.get<{ members: { user_id: string; last_read_message_id: string | null; last_read_at: string }[] }>(
+      `/chat/conversations/${convId}/read-state`
+    ).then(r => r.data.members),
 
   sendMessage: (convId: string, payload: {
     encrypted_data:  string
@@ -145,6 +207,8 @@ export const chatApi = {
     sender_ik_pub?:  string
     ratchet_header?: string
     used_opk_id?:    string
+    scheduled_at?:    string   // ISO — future send
+    expires_in_secs?: number   // ephemeral TTL
   }) =>
     api.post<{ message: Message }>(`/chat/conversations/${convId}/messages`, payload)
       .then(r => r.data.message),
@@ -204,6 +268,12 @@ export const chatApi = {
       headers: { 'Content-Type': 'multipart/form-data' },
     }).then(r => r.data)
   },
+
+  // Fetch the encrypted blob with auth (axios attaches the bearer); the caller
+  // decrypts it client-side. A plain <img src> can't be used because the proxy
+  // needs the Authorization header.
+  downloadMedia: (mediaId: string) =>
+    api.get<ArrayBuffer>(`/chat/media/${mediaId}`, { responseType: 'arraybuffer' }).then(r => r.data),
 
   getMediaUrl: (mediaId: string) => `/api/v1/chat/media/${mediaId}`,
 }

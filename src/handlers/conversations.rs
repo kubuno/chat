@@ -189,14 +189,15 @@ pub async fn create_conversation(
                 .ok_or_else(|| ChatError::Validation("name requis pour un groupe".into()))?;
 
             let conv: Conversation = sqlx::query_as(
-                "INSERT INTO chat.conversations (conv_type, name, description, created_by)
-                 VALUES ($1, $2, $3, $4)
+                "INSERT INTO chat.conversations (conv_type, name, description, created_by, is_meeting)
+                 VALUES ($1, $2, $3, $4, $5)
                  RETURNING *",
             )
             .bind(conv_type)
             .bind(&name)
             .bind(&dto.description)
             .bind(user.id)
+            .bind(dto.is_meeting.unwrap_or(false))
             .fetch_one(&st.db)
             .await?;
 
@@ -230,6 +231,37 @@ pub async fn create_conversation(
             Ok(Json(json!({ "conversation": conv })))
         }
         _ => Err(ChatError::Validation(format!("Type de conversation invalide: {conv_type}"))),
+    }
+}
+
+/// POST /conversations/:id/join — rejoindre une SALLE DE RÉUNION par son lien.
+/// Jointure ouverte réservée aux conversations `is_meeting` (sinon 403).
+pub async fn join_meeting(
+    State(st): State<AppState>,
+    user: ChatUser,
+    Path(conv_id): Path<Uuid>,
+) -> ChatResult<Json<Value>> {
+    let is_meeting: Option<bool> =
+        sqlx::query_scalar("SELECT is_meeting FROM chat.conversations WHERE id = $1")
+            .bind(conv_id)
+            .fetch_optional(&st.db)
+            .await?;
+
+    match is_meeting {
+        Some(true) => {
+            sqlx::query(
+                "INSERT INTO chat.conversation_members (conversation_id, user_id, role)
+                 VALUES ($1, $2, 'member')
+                 ON CONFLICT (conversation_id, user_id) DO UPDATE SET left_at = NULL",
+            )
+            .bind(conv_id)
+            .bind(user.id)
+            .execute(&st.db)
+            .await?;
+            Ok(Json(json!({ "ok": true, "conversation_id": conv_id })))
+        }
+        Some(false) => Err(ChatError::Forbidden),
+        None => Err(ChatError::NotFound(conv_id.to_string())),
     }
 }
 

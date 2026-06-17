@@ -15,6 +15,8 @@ pub struct Conversation {
     pub created_by:  Option<Uuid>,
     pub created_at:  DateTime<Utc>,
     pub updated_at:  DateTime<Utc>,
+    #[serde(default)]
+    pub is_meeting:  bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -37,6 +39,7 @@ pub struct CreateConversationDto {
     pub name:         Option<String>,
     pub description:  Option<String>,
     pub member_ids:   Option<Vec<Uuid>>,
+    pub is_meeting:   Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]

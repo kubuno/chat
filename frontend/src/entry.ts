@@ -1,8 +1,9 @@
 /** Bundle MODULE chat — chargé à l'exécution (cf. vite.module.config). */
 import { lazy } from 'react'
-import { RouteRegistry, WaffleAppRegistry, SlotRegistry, FaviconRegistry, useToolbarStore, useSidebarStore, useSearchStore, SDK_VERSION } from '@kubuno/sdk'
+import { RouteRegistry, WaffleAppRegistry, SlotRegistry, FaviconRegistry, useToolbarStore, useSidebarStore, useSearchStore, ModuleServiceRegistry, SDK_VERSION } from '@kubuno/sdk'
 import './index.css'
 import './i18n'
+import { chatApi } from './api'
 import ChatLogo from './ChatLogo'
 import CallManager from './CallWindow'
 import ChatGlobalService from './ChatGlobalService'
@@ -43,8 +44,20 @@ export function register() {
   const ChatPage         = lazy(() => import('./ChatPage'))
   const ChatSettingsPage = lazy(() => import('./ChatSettingsPage'))
 
+  const ChatMeetingPage  = lazy(() => import('./ChatMeetingPage'))
+
   RouteRegistry.register('chat',          ChatPage)
   RouteRegistry.register('chat/settings', ChatSettingsPage)
+  RouteRegistry.register('chat/meet/:id', ChatMeetingPage)
+
+  // Inter-module service: other modules (e.g. calendar) can create a video
+  // meeting without any hard dependency on chat. Discovery is dynamic.
+  ModuleServiceRegistry.publish('chat', {
+    createMeeting: async (title: string, attendeeIds: string[] = []) => {
+      const conv = await chatApi.createMeeting(title || 'Réunion', attendeeIds)
+      return { link: `/chat/meet/${conv.id}`, roomId: conv.id, provider: 'chat' }
+    },
+  })
 
   // Overlay appels (entrants + actifs) — rendu partout via le slot global app-dialogs
   SlotRegistry.register('app-dialogs',     'chat', CallManager)
