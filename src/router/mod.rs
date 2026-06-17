@@ -6,7 +6,7 @@ use axum::{
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
-    handlers::{conversations, keys, media, messages, presence, websocket},
+    handlers::{conversations, keys, media, messages, presence, unfurl, websocket},
     state::AppState,
 };
 
@@ -16,6 +16,7 @@ pub fn build(state: AppState) -> Router {
         .route("/conversations",                       get(conversations::list_conversations).post(conversations::create_conversation))
         .route("/conversations/:id",                   get(conversations::get_conversation).patch(conversations::update_conversation))
         .route("/conversations/:id/leave",             post(conversations::leave_conversation))
+        .route("/conversations/:id/join",              post(conversations::join_meeting))
         .route("/conversations/:id/member-settings",   patch(conversations::update_member_settings))
         .route("/conversations/:id/clear",             post(conversations::clear_messages))
         .route("/conversations/:id/members",           post(conversations::add_members))
@@ -23,7 +24,13 @@ pub fn build(state: AppState) -> Router {
         // Messages
         .route("/conversations/:id/messages",          get(messages::list_messages).post(messages::send_message))
         .route("/conversations/:id/read",              post(messages::mark_read))
+        .route("/conversations/:id/read-state",        get(messages::read_state))
+        .route("/conversations/:id/pinned",            get(messages::list_pinned))
+        .route("/unfurl",                              get(unfurl::unfurl))
         .route("/messages/:id",                        patch(messages::edit_message).delete(messages::delete_message))
+        .route("/messages/:id/pin",                    post(messages::pin_message))
+        .route("/messages/:id/vote",                   post(messages::vote_poll))
+        .route("/messages/:id/poll",                   get(messages::poll_results))
         .route("/messages/:id/reactions",              post(messages::add_reaction))
         .route("/messages/:id/reactions/:emoji",       delete(messages::remove_reaction))
         // Keys (X3DH)

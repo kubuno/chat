@@ -26,6 +26,7 @@ pub enum WsEvent {
     KeyDistribution,
     PreKeyRefillNeeded,
     ConversationCreated,
+    PollUpdate,
 }
 
 #[derive(Clone)]

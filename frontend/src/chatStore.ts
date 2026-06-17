@@ -1,12 +1,11 @@
 import { create } from 'zustand'
-import { chatApi, Conversation, ConversationSummary, DecodedMessage, Message, OtherUser } from './api'
+import { chatApi, Conversation, ConversationSummary, DecodedMessage, MediaPayload, Message, OtherUser, PollPayload } from './api'
 
 export interface IncomingCall {
-  convId:      string
+  room:        string   // conversation id (or meeting room)
   fromUserId:  string
   fromName:    string
   type:        'audio' | 'video'
-  sdpOffer:    RTCSessionDescriptionInit
 }
 
 export interface CallParticipant {
@@ -14,14 +13,14 @@ export interface CallParticipant {
   name:   string
 }
 
+// A call is a full-mesh session bound to a conversation/meeting room. A 1:1 call
+// is simply a 2-participant mesh. Peers discover each other via signaling.
 export interface ActiveCall {
-  convId:       string
-  type:         'audio' | 'video'
-  isInitiator:  boolean
-  participants: CallParticipant[]
-  // kept for legacy 1:1 signal compatibility
-  peerUserId:   string
-  peerName:     string
+  room:        string             // conversation id (or meeting room id)
+  title:       string             // display title
+  type:        'audio' | 'video'
+  isInitiator: boolean
+  ring:        CallParticipant[]  // members to ring when starting (empty when joining)
 }
 
 export interface PreCallState {
@@ -54,6 +53,7 @@ interface ChatState {
   appendMessage:        (convId: string, msg: DecodedMessage) => void
   updateMessage:        (convId: string, msg: Partial<Message> & { id: string }) => void
   removeMessage:        (convId: string, msgId: string) => void
+  applyReaction:        (convId: string, msgId: string, emoji: string, userId: string, add: boolean) => void
   setTyping:            (convId: string, userId: string, isTyping: boolean) => void
   setUserOnline:        (userId: string, online: boolean) => void
   setWsStatus:          (status: 'disconnected' | 'connecting' | 'connected') => void
@@ -101,11 +101,10 @@ export const useChatStore = create<ChatState>((set, get) => ({
   fetchMessages: async (convId, before) => {
     set({ isLoadingMsgs: true })
     try {
-      const msgs = await chatApi.listMessages(convId, 50, before)
-      const decoded: DecodedMessage[] = msgs.map(m => ({
-        ...m,
-        plaintext: tryDecodeText(m.encrypted_data),
-      }))
+      const { messages: rawMsgs, reactions } = await chatApi.listMessages(convId, 50, before)
+      const byMsg: Record<string, { emoji: string; user_id: string }[]> = {}
+      ;(reactions ?? []).forEach(r => { (byMsg[r.message_id] ??= []).push({ emoji: r.emoji, user_id: r.user_id }) })
+      const decoded: DecodedMessage[] = rawMsgs.map(m => ({ ...decodeMessage(m), reactions: byMsg[m.id] ?? [] }))
       set(s => ({
         messages: {
           ...s.messages,
@@ -122,17 +121,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 
   appendMessage: (convId, msg) => {
-    set(s => ({
-      messages: {
-        ...s.messages,
-        [convId]: [...(s.messages[convId] ?? []), msg],
-      },
-      conversations: s.conversations.map(c =>
-        c.conversation.id === convId
-          ? { ...c, conversation: { ...c.conversation, updated_at: msg.created_at } }
-          : c
-      ),
-    }))
+    set(s => {
+      const existing = s.messages[convId] ?? []
+      // Idempotent: a message may arrive twice (optimistic send + WS, or a
+      // scheduled message delivered later). Replace in place rather than dup.
+      const list = existing.some(m => m.id === msg.id)
+        ? existing.map(m => (m.id === msg.id ? { ...m, ...msg } : m))
+        : [...existing, msg]
+      return {
+        messages: {
+          ...s.messages,
+          [convId]: list,
+        },
+        conversations: s.conversations.map(c =>
+          c.conversation.id === convId
+            ? { ...c, conversation: { ...c.conversation, updated_at: msg.created_at } }
+            : c
+        ),
+      }
+    })
   },
 
   updateMessage: (convId, partial) => {
@@ -153,6 +160,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
         [convId]: (s.messages[convId] ?? []).map(m =>
           m.id === msgId ? { ...m, message_type: 'deleted', plaintext: null } : m
         ),
+      },
+    }))
+  },
+
+  applyReaction: (convId, msgId, emoji, userId, add) => {
+    set(s => ({
+      messages: {
+        ...s.messages,
+        [convId]: (s.messages[convId] ?? []).map(m => {
+          if (m.id !== msgId) return m
+          const list = (m.reactions ?? []).filter(r => !(r.emoji === emoji && r.user_id === userId))
+          if (add) list.push({ emoji, user_id: userId })
+          return { ...m, reactions: list }
+        }),
       },
     }))
   },
@@ -198,27 +219,55 @@ export const useChatStore = create<ChatState>((set, get) => ({
   },
 }))
 
-// Tente de décoder un message texte simple (non-chiffré ou JSON simple)
-function tryDecodeText(encrypted: string): string | null {
+// Décode l'enveloppe d'un message : texte clair + descripteur média éventuel.
+export function decodeEnvelope(encrypted: string): { text: string | null; media: MediaPayload | null; poll: PollPayload | null } {
   try {
-    // Si c'est du JSON avec un champ "text", on l'affiche directement
-    const parsed = JSON.parse(atob(encrypted.replace(/-/g, '+').replace(/_/g, '/')))
-    if (typeof parsed?.text === 'string') return parsed.text
+    const parsed = JSON.parse(decodeURIComponent(escape(atob(encrypted.replace(/-/g, '+').replace(/_/g, '/')))))
+    const text  = typeof parsed?.text === 'string' ? parsed.text : null
+    const media = parsed?.media && typeof parsed.media?.media_id === 'string' ? parsed.media as MediaPayload : null
+    const poll  = parsed?.poll && Array.isArray(parsed.poll?.options)
+      ? { question: typeof parsed.poll.question === 'string' ? parsed.poll.question : (text ?? ''), options: parsed.poll.options as string[] }
+      : null
+    if (text !== null || media !== null || poll !== null) return { text, media, poll }
   } catch {}
-  // Si c'est du texte base64 simple
+  // Repli : texte base64 simple
   try {
-    return atob(encrypted.replace(/-/g, '+').replace(/_/g, '/'))
+    return { text: atob(encrypted.replace(/-/g, '+').replace(/_/g, '/')), media: null, poll: null }
   } catch {}
-  return null
+  return { text: null, media: null, poll: null }
+}
+
+// Construit un DecodedMessage à partir d'un message brut serveur.
+export function decodeMessage(m: Message): DecodedMessage {
+  const { text, media, poll } = decodeEnvelope(m.encrypted_data)
+  return { ...m, plaintext: text, media, poll }
+}
+
+// Encode un sondage : question + options voyagent chiffrés dans l'enveloppe ;
+// le serveur ne voit que les index de vote.
+export function encodePollMessage(question: string, options: string[]): { encrypted_data: string; nonce: string } {
+  return { encrypted_data: b64urlEncode(JSON.stringify({ text: question, poll: { question, options } })), nonce: randomNonce() }
+}
+
+function b64urlEncode(s: string): string {
+  // unescape(encodeURIComponent(...)) → UTF-8 safe avant btoa
+  return btoa(unescape(encodeURIComponent(s))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
+}
+
+function randomNonce(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(24))
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
 }
 
 // Helper: encoder un message texte avant envoi
 export function encodeTextMessage(text: string): { encrypted_data: string; nonce: string } {
-  const payload = JSON.stringify({ text })
-  const b64     = btoa(payload).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
-  const nonceBytes = crypto.getRandomValues(new Uint8Array(24))
-  const nonce   = btoa(String.fromCharCode(...nonceBytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '')
-  return { encrypted_data: b64, nonce }
+  return { encrypted_data: b64urlEncode(JSON.stringify({ text })), nonce: randomNonce() }
+}
+
+// Helper: encoder un message média (image/vidéo/audio/fichier/vocal) avant envoi.
+// La clé/iv du blob voyagent ici, dans l'enveloppe — invisibles au serveur.
+export function encodeMediaMessage(media: MediaPayload, caption?: string): { encrypted_data: string; nonce: string } {
+  return { encrypted_data: b64urlEncode(JSON.stringify({ text: caption ?? '', media })), nonce: randomNonce() }
 }
 
 export function getConvName(conv: Conversation, currentUserId: string, otherUser?: OtherUser | null): string {
