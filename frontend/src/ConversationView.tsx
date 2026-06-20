@@ -215,7 +215,7 @@ export default function ConversationView({ convId, onBack, sendTyping }: Props) 
   return (
     <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* Header conversation */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 bg-white flex-shrink-0">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-gray-200 bg-white flex-shrink-0 no-print">
         {onBack && (
           <button onClick={onBack} className="p-1 rounded-full hover:bg-gray-100 mr-1">
             <ArrowLeft className="w-5 h-5 text-gray-600" />
@@ -389,6 +389,7 @@ export default function ConversationView({ convId, onBack, sendTyping }: Props) 
       {pollOpen && <PollComposer onCreate={sendPoll} onClose={() => setPollOpen(false)} />}
 
       {/* Saisie */}
+      <div className="no-print contents">
       <MessageInput
         onSend={sendMessage}
         onSendFiles={sendFiles}
@@ -401,6 +402,7 @@ export default function ConversationView({ convId, onBack, sendTyping }: Props) 
         replyTo={replyTo}
         onCancelReply={() => setReplyTo(null)}
       />
+      </div>
     </div>
   )
 }
