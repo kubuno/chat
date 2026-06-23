@@ -1,6 +1,6 @@
 /** Bundle MODULE chat — chargé à l'exécution (cf. vite.module.config). */
 import { lazy } from 'react'
-import { RouteRegistry, WaffleAppRegistry, SlotRegistry, FaviconRegistry, useToolbarStore, useSidebarStore, useSearchStore, ModuleServiceRegistry, SDK_VERSION } from '@kubuno/sdk'
+import { RouteRegistry, WaffleAppRegistry, SlotRegistry, FaviconRegistry, useToolbarStore, useSidebarStore, useSearchStore, ModuleServiceRegistry, ModuleSettingsRegistry, NotificationRegistry, SDK_VERSION } from '@kubuno/sdk'
 import './index.css'
 import './i18n'
 import { chatApi } from './api'
@@ -18,6 +18,21 @@ export function register() {
   WaffleAppRegistry.register('chat', 'Chat', [
     { id: 'chat', label: 'Chat', Icon: ChatLogo, path: '/chat' },
   ])
+
+  // The header gear button opens the per-user Chat settings while in /chat.
+  ModuleSettingsRegistry.register('chat')
+
+  // Declare the notification activities shown in the core Settings → Notifications matrix.
+  NotificationRegistry.register({
+    moduleId: 'chat',
+    title: 'Messages',
+    order: 40,
+    activities: [
+      { id: 'direct_message', label: 'Nouveau message direct', pushDefault: true },
+      { id: 'mention', label: 'Vous êtes mentionné', emailDefault: true, pushDefault: true },
+      { id: 'call_invite', label: 'Invitation à un appel', pushDefault: true },
+    ],
+  })
 
   useToolbarStore.getState().register({
     moduleId:    'chat',

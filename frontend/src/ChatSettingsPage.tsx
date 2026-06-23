@@ -1,8 +1,159 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import React, { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { MessageSquare, Clock } from 'lucide-react'
-import { api } from '@kubuno/sdk'
-import { Input } from '@ui'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { api, useAuthStore } from '@kubuno/sdk'
+import { MessageSquare, Save, ArrowLeft, ExternalLink, Check } from 'lucide-react'
+import { Toggle, Button, Radio, Input } from '@ui'
+import { useModulePrefs } from './userPrefs'
+
+// ── Per-user preferences (backend, cross-device via core users.preferences) ─────
+
+interface ChatPrefs {
+  density:       string   // 'compact' | 'cozy' | 'comfortable'
+  enterToSend:   boolean  // Enter sends (Shift+Enter = newline) vs the opposite
+  linkPreviews:  boolean
+  notifSounds:   boolean
+  readReceipts:  boolean
+  bubbleTheme:   string   // 'default' | 'rounded' | 'minimal'
+}
+
+const DEFAULT_PREFS: ChatPrefs = {
+  density: 'cozy', enterToSend: true, linkPreviews: true,
+  notifSounds: true, readReceipts: true, bubbleTheme: 'default',
+}
+
+// ── Mail-style layout helpers ───────────────────────────────────────────────────
+
+function SettingsRow({ label, description, children }: {
+  label: string; description?: string; children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-start gap-8 py-4 border-b border-[#e8eaed] last:border-0">
+      <div className="w-60 flex-shrink-0">
+        <p className="text-sm text-[#202124] font-normal">{label}</p>
+        {description && <p className="text-xs text-text-tertiary mt-0.5 leading-relaxed">{description}</p>}
+      </div>
+      <div className="flex-1">{children}</div>
+    </div>
+  )
+}
+
+function RadioGroup({ options, value, onChange }: {
+  options: { value: string; label: string }[]; value: string; onChange: (v: string) => void
+}) {
+  return (
+    <div className="flex flex-col items-start gap-2">
+      {options.map(opt => (
+        <Radio key={opt.value} checked={value === opt.value} onChange={() => onChange(opt.value)} label={opt.label} />
+      ))}
+    </div>
+  )
+}
+
+// ── Préférences tab (per-user) ──────────────────────────────────────────────────
+
+function PreferencesTab() {
+  const { t } = useTranslation('chat')
+  const { prefs: saved, update } = useModulePrefs<ChatPrefs>('chat', DEFAULT_PREFS)
+  const [prefs, setPrefs] = useState<ChatPrefs>(saved)
+  const [savedFlag, setSavedFlag] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  const set = <K extends keyof ChatPrefs>(key: K, value: ChatPrefs[K]) =>
+    setPrefs(p => ({ ...p, [key]: value }))
+
+  const save = async () => {
+    setBusy(true)
+    try {
+      await update(prefs)
+      setSavedFlag(true)
+      setTimeout(() => setSavedFlag(false), 2500)
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div>
+      <SettingsRow
+        label={t('chat_pref_density', { defaultValue: 'Densité des messages' })}
+        description={t('chat_pref_density_desc', { defaultValue: 'Espacement vertical entre les messages.' })}
+      >
+        <RadioGroup
+          value={prefs.density}
+          onChange={v => set('density', v)}
+          options={[
+            { value: 'compact',     label: t('chat_pref_density_compact',     { defaultValue: 'Compacte (plus de messages)' }) },
+            { value: 'cozy',        label: t('chat_pref_density_cozy',        { defaultValue: 'Normale' }) },
+            { value: 'comfortable', label: t('chat_pref_density_comfortable', { defaultValue: 'Aérée' }) },
+          ]}
+        />
+      </SettingsRow>
+
+      <SettingsRow
+        label={t('chat_pref_enter', { defaultValue: 'Envoi des messages' })}
+        description={t('chat_pref_enter_desc', { defaultValue: 'Choisissez quelle touche envoie le message.' })}
+      >
+        <RadioGroup
+          value={prefs.enterToSend ? 'enter' : 'mod'}
+          onChange={v => set('enterToSend', v === 'enter')}
+          options={[
+            { value: 'enter', label: t('chat_pref_enter_send',    { defaultValue: 'Entrée envoie (Maj+Entrée = nouvelle ligne)' }) },
+            { value: 'mod',   label: t('chat_pref_enter_newline', { defaultValue: 'Maj+Entrée envoie (Entrée = nouvelle ligne)' }) },
+          ]}
+        />
+      </SettingsRow>
+
+      <SettingsRow
+        label={t('chat_pref_bubble', { defaultValue: 'Thème des bulles' })}
+        description={t('chat_pref_bubble_desc', { defaultValue: 'Apparence des bulles de message.' })}
+      >
+        <RadioGroup
+          value={prefs.bubbleTheme}
+          onChange={v => set('bubbleTheme', v)}
+          options={[
+            { value: 'default', label: t('chat_pref_bubble_default', { defaultValue: 'Par défaut' }) },
+            { value: 'rounded', label: t('chat_pref_bubble_rounded', { defaultValue: 'Arrondi' }) },
+            { value: 'minimal', label: t('chat_pref_bubble_minimal', { defaultValue: 'Minimal' }) },
+          ]}
+        />
+      </SettingsRow>
+
+      <SettingsRow label={t('chat_pref_link_previews', { defaultValue: 'Aperçus de liens' })}>
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <Toggle checked={prefs.linkPreviews} onChange={() => set('linkPreviews', !prefs.linkPreviews)} />
+          <span className="text-sm text-text-primary">{t('chat_pref_link_previews_on', { defaultValue: 'Afficher un aperçu des liens partagés' })}</span>
+        </label>
+      </SettingsRow>
+
+      <SettingsRow label={t('chat_pref_sounds', { defaultValue: 'Sons de notification' })}>
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <Toggle checked={prefs.notifSounds} onChange={() => set('notifSounds', !prefs.notifSounds)} />
+          <span className="text-sm text-text-primary">{t('chat_pref_sounds_on', { defaultValue: 'Jouer un son aux nouveaux messages' })}</span>
+        </label>
+      </SettingsRow>
+
+      <SettingsRow label={t('chat_pref_receipts', { defaultValue: 'Accusés de lecture' })}>
+        <label className="flex items-center gap-2 cursor-pointer select-none">
+          <Toggle checked={prefs.readReceipts} onChange={() => set('readReceipts', !prefs.readReceipts)} />
+          <span className="text-sm text-text-primary">{t('chat_pref_receipts_on', { defaultValue: 'Afficher les accusés de lecture' })}</span>
+        </label>
+      </SettingsRow>
+
+      <div className="pt-5 flex items-center gap-3">
+        <Button onClick={save} loading={busy}>
+          {savedFlag
+            ? <><Check size={14} className="mr-1.5 inline" />{t('chat_settings_saved', { defaultValue: 'Enregistré' })}</>
+            : t('chat_settings_save_changes', { defaultValue: 'Enregistrer les modifications' })}
+        </Button>
+        <Button variant="ghost" onClick={() => setPrefs(saved)}>
+          {t('common_cancel', { defaultValue: 'Annuler' })}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Admin-only global settings (instance, via /admin/settings) ──────────────────
 
 interface ChatSettings {
   retention_days: number
@@ -22,7 +173,7 @@ function useAdminSettings() {
   })
 }
 
-export default function ChatSettingsPage() {
+function ModerationTab() {
   const { t } = useTranslation('chat')
   const qc = useQueryClient()
   const { data, isLoading } = useAdminSettings()
@@ -37,84 +188,117 @@ export default function ChatSettingsPage() {
   })
 
   if (isLoading || !data) {
-    return <div className="p-8 text-sm text-gray-400">{t('common_loading')}</div>
+    return <div className="py-6 text-sm text-text-tertiary">{t('common_loading')}</div>
   }
 
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-          <MessageSquare className="w-5 h-5 text-blue-600" />
+    <div>
+      <SettingsRow
+        label={t('chat_settings_retention_label', { defaultValue: 'Durée de rétention (jours)' })}
+        description={t('chat_settings_retention_desc', { defaultValue: '0 pour conserver les messages indéfiniment.' })}
+      >
+        <Input
+          type="number" min={0} max={3650} defaultValue={data.retention_days}
+          className="w-32 text-right"
+          onBlur={e => { const v = Number(e.target.value); if (!isNaN(v)) save.mutate({ ...data, retention_days: v }) }}
+        />
+      </SettingsRow>
+
+      <SettingsRow
+        label={t('chat_settings_maxsize_label', { defaultValue: 'Taille média maximale (Mo)' })}
+        description={t('chat_settings_maxsize_desc', { defaultValue: 'Taille maximale des fichiers partagés.' })}
+      >
+        <Input
+          type="number" min={1} max={500} defaultValue={data.max_media_mb}
+          className="w-32 text-right"
+          onBlur={e => { const v = Number(e.target.value); if (!isNaN(v)) save.mutate({ ...data, max_media_mb: v }) }}
+        />
+      </SettingsRow>
+
+      {save.isPending && (
+        <div className="pt-4 flex items-center gap-2 text-sm text-text-tertiary">
+          <Save size={14} /> {t('chat_saving', { defaultValue: 'Enregistrement…' })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function AboutTab() {
+  const { t } = useTranslation('chat')
+  return (
+    <div className="rounded-xl border border-border overflow-hidden">
+      <div className="flex items-center gap-3 px-5 py-4 border-b border-border bg-surface-1">
+        <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center shrink-0">
+          <MessageSquare size={20} className="text-blue-600" />
         </div>
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">{t('chat_settings_title')}</h1>
-          <p className="text-sm text-gray-500">{t('chat_settings_subtitle')}</p>
+          <p className="text-sm font-semibold text-text-primary">Kubuno Chat</p>
+          <p className="text-xs text-text-tertiary">v0.1.0 · {t('chat_official_module', { defaultValue: 'Module officiel' })}</p>
+        </div>
+        <span className="ml-auto text-xs font-medium px-2 py-0.5 rounded-full bg-orange-100 text-orange-700">Rust</span>
+      </div>
+      <div className="px-5 py-4">
+        <a href="https://github.com/kubuno/kubuno" target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">
+          <ExternalLink size={13} /> github.com/kubuno/kubuno
+        </a>
+      </div>
+    </div>
+  )
+}
+
+// ── Main page (mail-style breadcrumb + tab bar) ─────────────────────────────────
+
+type Tab = 'preferences' | 'moderation' | 'about'
+
+export default function ChatSettingsPage() {
+  const { t } = useTranslation('chat')
+  const isAdmin = useAuthStore(s => s.user?.role === 'admin')
+  const [tab, setTab] = useState<Tab>('preferences')
+
+  // Admin-only tabs (instance-wide settings) are hidden for non-admins.
+  const tabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
+    { id: 'preferences', label: t('chat_tab_preferences', { defaultValue: 'Préférences' }) },
+    { id: 'moderation',  label: t('chat_tab_moderation', { defaultValue: 'Modération' }), adminOnly: true },
+    { id: 'about',       label: t('chat_tab_about', { defaultValue: 'À propos' }) },
+  ]
+  const visibleTabs = tabs.filter(tb => !tb.adminOnly || isAdmin)
+
+  return (
+    <div className="flex flex-col h-full bg-white overflow-hidden">
+      {/* Breadcrumb header */}
+      <div className="flex items-center gap-2 px-6 py-2.5 border-b border-[#e8eaed] flex-shrink-0" style={{ background: '#f8f9fa' }}>
+        <Link to="/chat" className="flex items-center gap-1.5 text-sm text-[#1a73e8] hover:underline">
+          <ArrowLeft size={14} />
+          Chat
+        </Link>
+        <span className="text-text-tertiary text-sm">/</span>
+        <div className="flex items-center gap-1.5">
+          <MessageSquare size={15} className="text-text-secondary" />
+          <span className="text-sm text-text-primary">{t('chat_settings_title', { defaultValue: 'Réglages' })}</span>
         </div>
       </div>
 
-      <SettingsCard title={t('chat_settings_storage')} icon={<Clock className="w-4 h-4" />}>
-        <Field
-          label={t('chat_settings_retention_label')}
-          description={t('chat_settings_retention_desc')}
-          defaultValue={data.retention_days}
-          min={0} max={3650}
-          name="retention_days"
-          onSave={v => save.mutate({ ...data, retention_days: v })}
-        />
-        <Field
-          label={t('chat_settings_maxsize_label')}
-          description={t('chat_settings_maxsize_desc')}
-          defaultValue={data.max_media_mb}
-          min={1} max={500}
-          name="max_media_mb"
-          onSave={v => save.mutate({ ...data, max_media_mb: v })}
-        />
-      </SettingsCard>
-    </div>
-  )
-}
-
-function SettingsCard({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-3 border-b border-gray-100 bg-gray-50">
-        <span className="text-gray-500">{icon}</span>
-        <span className="text-sm font-medium text-gray-700">{title}</span>
+      {/* Tab bar (Gmail-style) */}
+      <div className="flex items-end border-b border-[#e8eaed] px-4 flex-shrink-0 overflow-x-auto" style={{ background: '#fff' }}>
+        {visibleTabs.map(tb => (
+          <button key={tb.id} onClick={() => setTab(tb.id)}
+            className={`px-4 py-3 text-sm border-b-2 -mb-px transition-colors whitespace-nowrap ${
+              tab === tb.id ? 'border-[#1a73e8] text-[#1a73e8] font-medium' : 'border-transparent text-[#5f6368] hover:text-[#202124] hover:bg-[#f1f3f4]'}`}>
+            {tb.label}
+          </button>
+        ))}
       </div>
-      <div className="divide-y divide-gray-100">{children}</div>
-    </div>
-  )
-}
 
-function Field({
-  label, description, defaultValue, min, max, name, onSave,
-}: {
-  label:        string
-  description:  string
-  defaultValue: number
-  min?:         number
-  max?:         number
-  name:         string
-  onSave:       (v: number) => void
-}) {
-  return (
-    <div className="flex items-center justify-between px-5 py-3 gap-4">
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-800">{label}</p>
-        <p className="text-xs text-gray-400 mt-0.5">{description}</p>
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-3xl mx-auto px-8 py-6">
+          {tab === 'preferences' && <PreferencesTab />}
+          {tab === 'moderation' && isAdmin && <ModerationTab />}
+          {tab === 'about'      && <AboutTab />}
+        </div>
       </div>
-      <Input
-        type="number"
-        defaultValue={defaultValue}
-        min={min}
-        max={max}
-        name={name}
-        className="w-28 text-right"
-        onBlur={e => {
-          const v = Number(e.target.value)
-          if (!isNaN(v)) onSave(v)
-        }}
-      />
     </div>
   )
 }
