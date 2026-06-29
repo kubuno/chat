@@ -1,7 +1,7 @@
 [module]
 id            = "chat"
 display_name  = "Chat"
-version       = "0.1.0"
+version       = "0.1.2"
 description   = "Messagerie chiffrée de bout en bout — protocole Signal (X3DH + Double Ratchet)"
 author        = "Kubuno Contributors"
 license       = "AGPL-3.0"
@@ -29,6 +29,30 @@ icon     = "MessageSquare"
 path     = "/chat"
 position = 50
 section  = "main"
+
+# ── Settings manifest ───────────────────────────────────────────────────────────
+# Declarative source of truth for the module's parameters. The core seeds the
+# instance-level rows (scope global|overridable) into core.settings and resolves the
+# effective value (user override ?? global default) per user.
+#   scope = "global"      → admin only, instance-wide
+#   scope = "user"        → per-user only
+#   scope = "overridable" → admin default, each user may override it
+
+[[settings]]
+key     = "retention_days"
+scope   = "global"
+type    = "int"
+default = 0
+label   = "Durée de rétention (jours)"
+description = "Nombre de jours avant suppression automatique des messages. 0 pour les conserver indéfiniment."
+
+[[settings]]
+key     = "max_media_mb"
+scope   = "global"
+type    = "int"
+default = 50
+label   = "Taille média maximale (Mo)"
+description = "Taille maximale des fichiers partagés dans les conversations."
 
 [events]
 subscribed = ["UserDeleted", "UserUpdated"]

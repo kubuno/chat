@@ -3,7 +3,7 @@ use clap::Parser;
 use kubuno_chat::{config::Settings, router, state::AppState};
 use kubuno_storage::LocalStorage;
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
@@ -17,6 +17,30 @@ struct Manifest {
     #[serde(default)]
     sidebar_items: Vec<SidebarItemRaw>,
     events:        Option<ManifestEvents>,
+    /// Declarative settings manifest pushed to the core at registration.
+    #[serde(default)]
+    settings:      Vec<SettingDefRaw>,
+}
+
+/// One `[[settings]]` entry from module.toml. Serialized verbatim into the
+/// registration payload (`type` is renamed to match the core's `SettingDef`).
+#[derive(Deserialize, Serialize)]
+struct SettingDefRaw {
+    key:         String,
+    scope:       String,
+    #[serde(rename = "type")]
+    value_type:  String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    values:      Option<Vec<Value>>,
+    default:     Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    label:       Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    category:    Option<String>,
+    #[serde(default)]
+    public:      bool,
 }
 
 #[derive(Deserialize)]
@@ -245,6 +269,10 @@ async fn register_with_core(http: &Client, settings: &Settings) {
         .map(|e| e.subscribed.clone())
         .unwrap_or_else(|| vec!["UserDeleted".into()]);
 
+    let settings_schema: Value = manifest.as_ref()
+        .map(|m| serde_json::to_value(&m.settings).unwrap_or_else(|_| json!([])))
+        .unwrap_or_else(|| json!([]));
+
     let payload = json!({
         "module_id":         "chat",
         "display_name":      display_name,
@@ -255,6 +283,7 @@ async fn register_with_core(http: &Client, settings: &Settings) {
         "routes":            [{ "method": "*", "path": "/*" }],
         "sidebar_items":     sidebar_items,
         "subscribed_events": subscribed_events,
+        "settings_schema":   settings_schema,
     });
 
     for attempt in 1u32.. {

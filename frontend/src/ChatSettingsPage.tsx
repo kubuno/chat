@@ -1,15 +1,15 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { api, useAuthStore } from '@kubuno/sdk'
-import { MessageSquare, Save, ArrowLeft, ExternalLink, Check } from 'lucide-react'
-import { Toggle, Button, Radio, Input } from '@ui'
+import { MessageSquare, ArrowLeft, ExternalLink, Check } from 'lucide-react'
+import { Toggle, Button, Radio } from '@ui'
 import { useModulePrefs } from './userPrefs'
 
 // ── Per-user preferences (backend, cross-device via core users.preferences) ─────
 
-interface ChatPrefs {
+// A `type` alias (not `interface`) so it carries an implicit index signature and
+// satisfies the `Record<string, unknown>` constraint of `useModulePrefs`.
+type ChatPrefs = {
   density:       string   // 'compact' | 'cozy' | 'comfortable'
   enterToSend:   boolean  // Enter sends (Shift+Enter = newline) vs the opposite
   linkPreviews:  boolean
@@ -153,76 +153,7 @@ function PreferencesTab() {
   )
 }
 
-// ── Admin-only global settings (instance, via /admin/settings) ──────────────────
-
-interface ChatSettings {
-  retention_days: number
-  max_media_mb:   number
-}
-
-function useAdminSettings() {
-  return useQuery({
-    queryKey: ['admin-settings-chat'],
-    queryFn: () => api.get<{ settings: Record<string, unknown> }>('/admin/settings').then(r => {
-      const s = r.data.settings
-      return {
-        retention_days: Number(s['chat.retention_days'] ?? 0),
-        max_media_mb:   Number(s['chat.max_media_mb']   ?? 50),
-      } as ChatSettings
-    }),
-  })
-}
-
-function ModerationTab() {
-  const { t } = useTranslation('chat')
-  const qc = useQueryClient()
-  const { data, isLoading } = useAdminSettings()
-
-  const save = useMutation({
-    mutationFn: (vals: ChatSettings) =>
-      api.patch('/admin/settings', {
-        'chat.retention_days': vals.retention_days,
-        'chat.max_media_mb':   vals.max_media_mb,
-      }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['admin-settings-chat'] }),
-  })
-
-  if (isLoading || !data) {
-    return <div className="py-6 text-sm text-text-tertiary">{t('common_loading')}</div>
-  }
-
-  return (
-    <div>
-      <SettingsRow
-        label={t('chat_settings_retention_label', { defaultValue: 'Durée de rétention (jours)' })}
-        description={t('chat_settings_retention_desc', { defaultValue: '0 pour conserver les messages indéfiniment.' })}
-      >
-        <Input
-          type="number" min={0} max={3650} defaultValue={data.retention_days}
-          className="w-32 text-right"
-          onBlur={e => { const v = Number(e.target.value); if (!isNaN(v)) save.mutate({ ...data, retention_days: v }) }}
-        />
-      </SettingsRow>
-
-      <SettingsRow
-        label={t('chat_settings_maxsize_label', { defaultValue: 'Taille média maximale (Mo)' })}
-        description={t('chat_settings_maxsize_desc', { defaultValue: 'Taille maximale des fichiers partagés.' })}
-      >
-        <Input
-          type="number" min={1} max={500} defaultValue={data.max_media_mb}
-          className="w-32 text-right"
-          onBlur={e => { const v = Number(e.target.value); if (!isNaN(v)) save.mutate({ ...data, max_media_mb: v }) }}
-        />
-      </SettingsRow>
-
-      {save.isPending && (
-        <div className="pt-4 flex items-center gap-2 text-sm text-text-tertiary">
-          <Save size={14} /> {t('chat_saving', { defaultValue: 'Enregistrement…' })}
-        </div>
-      )}
-    </div>
-  )
-}
+// ── About tab ───────────────────────────────────────────────────────────────────
 
 function AboutTab() {
   const { t } = useTranslation('chat')
@@ -250,20 +181,18 @@ function AboutTab() {
 
 // ── Main page (mail-style breadcrumb + tab bar) ─────────────────────────────────
 
-type Tab = 'preferences' | 'moderation' | 'about'
+type Tab = 'preferences' | 'about'
 
 export default function ChatSettingsPage() {
   const { t } = useTranslation('chat')
-  const isAdmin = useAuthStore(s => s.user?.role === 'admin')
   const [tab, setTab] = useState<Tab>('preferences')
 
-  // Admin-only tabs (instance-wide settings) are hidden for non-admins.
-  const tabs: { id: Tab; label: string; adminOnly?: boolean }[] = [
+  // Instance-wide settings now live in the core admin console; only per-user
+  // preferences remain here.
+  const visibleTabs: { id: Tab; label: string }[] = [
     { id: 'preferences', label: t('chat_tab_preferences', { defaultValue: 'Préférences' }) },
-    { id: 'moderation',  label: t('chat_tab_moderation', { defaultValue: 'Modération' }), adminOnly: true },
     { id: 'about',       label: t('chat_tab_about', { defaultValue: 'À propos' }) },
   ]
-  const visibleTabs = tabs.filter(tb => !tb.adminOnly || isAdmin)
 
   return (
     <div className="flex flex-col h-full bg-white overflow-hidden">
@@ -295,7 +224,6 @@ export default function ChatSettingsPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-8 py-6">
           {tab === 'preferences' && <PreferencesTab />}
-          {tab === 'moderation' && isAdmin && <ModerationTab />}
           {tab === 'about'      && <AboutTab />}
         </div>
       </div>
