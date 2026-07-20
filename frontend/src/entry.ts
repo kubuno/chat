@@ -7,6 +7,8 @@ import { chatApi } from './api'
 import ChatLogo from './ChatLogo'
 import CallManager from './CallWindow'
 import ChatGlobalService from './ChatGlobalService'
+import ChatPopups from './ChatPopups'
+import ChatStatusMenu from './ChatStatusMenu'
 import ChatSidebarBody from './ChatSidebarBody'
 
 export const sdkVersion = SDK_VERSION
@@ -76,6 +78,10 @@ export function register() {
 
   // Overlay appels (entrants + actifs) — rendu partout via le slot global app-dialogs
   SlotRegistry.register('app-dialogs',     'chat', CallManager)
+  // Fenêtres pop-up de conversation — flottantes, survivent au changement de module
+  SlotRegistry.register('app-dialogs',     'chat', ChatPopups)
+  // Sélecteur de statut (Actif / Ne pas déranger / Absent) dans la barre du haut
+  SlotRegistry.register('topbar-actions',  'chat', ChatStatusMenu)
   // Connexion WebSocket globale — active peu importe le module affiché
   SlotRegistry.register('global-services', 'chat', ChatGlobalService)
 }

@@ -6,7 +6,7 @@ use axum::{
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
-    handlers::{conversations, keys, media, messages, presence, unfurl, websocket},
+    handlers::{conversations, gifs, keys, media, messages, presence, unfurl, websocket},
     state::AppState,
 };
 
@@ -21,6 +21,7 @@ pub fn build(state: AppState) -> Router {
         .route("/conversations/:id/clear",             post(conversations::clear_messages))
         .route("/conversations/:id/members",           post(conversations::add_members))
         .route("/conversations/:id/members/:uid",      delete(conversations::remove_member))
+        .route("/channels/browse",                     get(conversations::browse_channels))
         // Messages
         .route("/conversations/:id/messages",          get(messages::list_messages).post(messages::send_message))
         .route("/conversations/:id/read",              post(messages::mark_read))
@@ -44,6 +45,10 @@ pub fn build(state: AppState) -> Router {
         // Média
         .route("/media/upload",                        post(media::upload_media))
         .route("/media/:media_id",                     get(media::download_media))
+        // GIF (proxy GIPHY — la clé API reste côté serveur)
+        .route("/gifs/status",                         get(gifs::status))
+        .route("/gifs/search",                         get(gifs::search))
+        .route("/gifs/fetch",                          get(gifs::fetch))
         // WebSocket
         .route("/ws",                                  get(websocket::ws_handler))
         .with_state(state.clone());

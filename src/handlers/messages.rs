@@ -463,7 +463,7 @@ pub async fn mark_read(
     // Mettre à jour last_read
     sqlx::query(
         "UPDATE chat.conversation_members
-         SET last_read_at = NOW(), last_read_message_id = $3
+         SET last_read_at = NOW(), last_read_message_id = $3, marked_unread = FALSE
          WHERE conversation_id = $1 AND user_id = $2",
     )
     .bind(conv_id)

@@ -54,6 +54,14 @@ default = 50
 label   = "Taille média maximale (Mo)"
 description = "Taille maximale des fichiers partagés dans les conversations."
 
+[[settings]]
+key     = "giphy_api_key"
+scope   = "global"
+type    = "string"
+default = ""
+label   = "Clé API GIPHY"
+description = "Clé serveur utilisée pour la recherche de GIF dans la barre de saisie. Laisser vide pour désactiver l'onglet GIF."
+
 [events]
 subscribed = ["UserDeleted", "UserUpdated"]
 publishes  = ["MessageSent", "MessageReceived"]

@@ -67,6 +67,10 @@ pub struct OtherUserInfo {
 pub struct ConversationSummary {
     pub conversation:  Conversation,
     pub unread_count:  i64,
+    /// True when anything (including one's own messages) postdates `last_read_at`.
+    /// Needed by "mark as unread": a conversation with no message from anyone else
+    /// would otherwise stay at unread_count = 0 and look untouched.
+    pub is_unread:     bool,
     pub member_count:  i64,
     pub is_pinned:     bool,
     pub is_archived:   bool,
