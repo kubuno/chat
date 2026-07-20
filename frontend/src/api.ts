@@ -1,4 +1,5 @@
 import { api } from '@kubuno/sdk'
+import type { KubunoDataEnvelope } from './kubunoData'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -35,6 +36,8 @@ export interface ConvMember {
 export interface ConversationSummary {
   conversation:  Conversation
   unread_count:  number
+  /** Anything past last_read_at — true as well when the user marked it unread by hand. */
+  is_unread:     boolean
   member_count:  number
   is_pinned:     boolean
   is_archived:   boolean
@@ -75,12 +78,25 @@ export interface MediaPayload {
   mime:      string
   name:      string
   size:      number
-  kind:      'image' | 'video' | 'audio' | 'file'
+  // 'sticker' and 'gif' are rendered bare (no bubble) but travel as regular
+  // encrypted media; the server-side message_type stays 'image' for them.
+  kind:      'image' | 'video' | 'audio' | 'file' | 'sticker' | 'gif'
   width?:    number
   height?:   number
   duration?: number   // seconds (audio/video)
   voice?:    boolean  // true → voice message (recorded clip)
   waveform?: number[] // normalized peaks [0..1] for voice rendering
+}
+
+// A GIF as returned by the server-side GIPHY proxy (the API key never reaches
+// the browser; `url` is fetched back through /chat/gifs/fetch before sending).
+export interface GifResult {
+  id:      string
+  title:   string
+  preview: string
+  url:     string
+  width:   number
+  height:  number
 }
 
 export interface PollPayload { question: string; options: string[] }
@@ -90,6 +106,7 @@ export interface DecodedMessage extends Message {
   plaintext: string | null         // null if decryption failed or not available
   media?:    MediaPayload | null    // present for media messages
   poll?:     PollPayload | null     // present for poll messages
+  card?:     KubunoDataEnvelope | null  // cross-module data card (pasted JSON envelope)
   reactions?: { emoji: string; user_id: string }[]  // aggregated client-side
 }
 
@@ -126,6 +143,14 @@ export const chatApi = {
   createGroup: (name: string, memberIds: string[]) =>
     api.post<{ conversation: Conversation }>('/chat/conversations', {
       conv_type: 'group',
+      name,
+      member_ids: memberIds,
+    }).then(r => r.data.conversation),
+
+  // A space is a public channel: discoverable in /channels/browse, open join.
+  createSpace: (name: string, memberIds: string[] = []) =>
+    api.post<{ conversation: Conversation }>('/chat/conversations', {
+      conv_type: 'channel',
       name,
       member_ids: memberIds,
     }).then(r => r.data.conversation),
@@ -192,6 +217,26 @@ export const chatApi = {
       '/chat/unfurl', { params: { url } }
     ).then(r => r.data),
 
+  // GIF search — proxied by the module (GIPHY key stays server-side). `enabled`
+  // is false when no key is configured, in which case the GIF tab is hidden.
+  // Public spaces (channels) discovery — powers the "browse spaces" page.
+  browseChannels: (q = '', joined = false) =>
+    api.get<{ channels: { id: string; name: string | null; description: string | null; created_at: string; member_count: number; is_member: boolean }[] }>(
+      '/chat/channels/browse', { params: { q, joined } }
+    ).then(r => r.data.channels),
+
+  gifStatus: () =>
+    api.get<{ enabled: boolean; provider: string }>('/chat/gifs/status').then(r => r.data),
+
+  searchGifs: (q: string, limit = 24, offset = 0, lang?: string) =>
+    api.get<{ gifs: GifResult[] }>('/chat/gifs/search', { params: { q, limit, offset, lang } })
+      .then(r => r.data.gifs),
+
+  // Pull the GIF bytes back through the module so they can be encrypted and
+  // uploaded like any other media (the recipient never contacts GIPHY).
+  fetchGif: (url: string) =>
+    api.get<Blob>('/chat/gifs/fetch', { params: { url }, responseType: 'blob' }).then(r => r.data),
+
   getReadState: (convId: string) =>
     api.get<{ members: { user_id: string; last_read_message_id: string | null; last_read_at: string }[] }>(
       `/chat/conversations/${convId}/read-state`
@@ -252,7 +297,7 @@ export const chatApi = {
   // ── Présence ────────────────────────────────────────────────────────────────
 
   getPresence: (userId: string) =>
-    api.get<{ presence: { status: string; custom_status: string | null; last_seen_at: string } }>(
+    api.get<{ presence: { status: string; custom_status: string | null; manual_status: string | null; last_seen_at: string } }>(
       `/chat/presence/${userId}`
     ).then(r => r.data.presence),
 

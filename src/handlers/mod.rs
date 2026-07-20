@@ -1,4 +1,5 @@
 pub mod conversations;
+pub mod gifs;
 pub mod keys;
 pub mod media;
 pub mod messages;

@@ -35,20 +35,25 @@ async fn handle_socket(socket: WebSocket, st: AppState, user: ChatUser) {
     // Abonner ce client au hub
     let mut rx = st.ws_hub.connect(user_id).await;
 
-    // Mettre à jour la présence en ligne
-    sqlx::query(
+    // Mettre à jour la présence — un statut choisi à la main (absent / ne pas
+    // déranger) prime sur le « en ligne » impliqué par la connexion.
+    let effective: String = sqlx::query_scalar(
         "INSERT INTO chat.presence (user_id, status, last_seen_at)
          VALUES ($1, 'online', NOW())
          ON CONFLICT (user_id) DO UPDATE
-         SET status = 'online', last_seen_at = NOW()",
+         SET status = COALESCE(chat.presence.manual_status, 'online'), last_seen_at = NOW()
+         RETURNING status",
     )
     .bind(user_id)
-    .execute(&st.db)
+    .fetch_one(&st.db)
     .await
-    .ok();
+    .unwrap_or_else(|e| {
+        tracing::error!(error = %e, "ws presence upsert");
+        "online".to_string()
+    });
 
-    // Notifier les contacts que l'user est en ligne
-    broadcast_presence(&st, user_id, "online").await;
+    // Notifier les contacts du statut effectif
+    broadcast_presence(&st, user_id, &effective).await;
 
     // Task: recevoir du hub et envoyer au client
     let mut send_task = tokio::spawn(async move {

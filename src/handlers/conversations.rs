@@ -15,96 +15,85 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 
 /// GET /conversations — liste des conversations de l'utilisateur
+///
+/// One aggregated query instead of ~5 per conversation: the list is refetched
+/// often (WebSocket events, actions), so the N+1 shape was the hot path.
 pub async fn list_conversations(
     State(st): State<AppState>,
     user: ChatUser,
 ) -> ChatResult<Json<Value>> {
-    let convs = sqlx::query_as::<_, Conversation>(
-        "SELECT c.* FROM chat.conversations c
-         JOIN chat.conversation_members m ON m.conversation_id = c.id
-         WHERE m.user_id = $1 AND m.left_at IS NULL
+    #[derive(sqlx::FromRow)]
+    struct SummaryRow {
+        #[sqlx(flatten)]
+        conv:           Conversation,
+        unread_count:   i64,
+        marked_unread:  bool,
+        member_count:   i64,
+        is_pinned:      bool,
+        is_archived:    bool,
+        is_favorite:    bool,
+        muted_until:    Option<chrono::DateTime<chrono::Utc>>,
+        other_id:       Option<Uuid>,
+        other_name:     Option<String>,
+        other_username: Option<String>,
+        other_avatar:   Option<String>,
+    }
+
+    let rows = sqlx::query_as::<_, SummaryRow>(
+        "SELECT c.*,
+                m.marked_unread, m.is_pinned, m.is_archived, m.is_favorite, m.muted_until,
+                (SELECT COUNT(*) FROM chat.messages msg
+                 WHERE msg.conversation_id = c.id
+                   AND msg.sender_id != $1
+                   AND msg.created_at > m.last_read_at
+                   AND msg.deleted_at IS NULL)                           AS unread_count,
+                (SELECT COUNT(*) FROM chat.conversation_members cm
+                 WHERE cm.conversation_id = c.id AND cm.left_at IS NULL) AS member_count,
+                u.id AS other_id, u.display_name AS other_name,
+                u.username AS other_username, u.avatar_url AS other_avatar
+         FROM chat.conversations c
+         JOIN chat.conversation_members m
+           ON m.conversation_id = c.id AND m.user_id = $1 AND m.left_at IS NULL
+         LEFT JOIN core.users u
+           ON c.conv_type = 'direct'
+          AND u.id = CASE WHEN c.user_a_id = $1 THEN c.user_b_id ELSE c.user_a_id END
          ORDER BY c.updated_at DESC",
     )
     .bind(user.id)
     .fetch_all(&st.db)
-    .await?;
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "list_conversations");
+        e
+    })?;
 
-    let mut summaries = Vec::with_capacity(convs.len());
-    for conv in convs {
-        let unread: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM chat.messages msg
-             WHERE msg.conversation_id = $1
-               AND msg.sender_id != $2
-               AND msg.created_at > (
-                   SELECT last_read_at FROM chat.conversation_members
-                   WHERE conversation_id = $1 AND user_id = $2
-               )
-               AND msg.deleted_at IS NULL",
-        )
-        .bind(conv.id)
-        .bind(user.id)
-        .fetch_one(&st.db)
-        .await
-        .unwrap_or(0);
-
-        let member_count: i64 = sqlx::query_scalar(
-            "SELECT COUNT(*) FROM chat.conversation_members
-             WHERE conversation_id = $1 AND left_at IS NULL",
-        )
-        .bind(conv.id)
-        .fetch_one(&st.db)
-        .await
-        .unwrap_or(0);
-
-        #[derive(sqlx::FromRow)]
-        struct MemberPrefs {
-            is_pinned:   bool,
-            is_archived: bool,
-            is_favorite: bool,
-            muted_until: Option<chrono::DateTime<chrono::Utc>>,
-        }
-        let prefs = sqlx::query_as::<_, MemberPrefs>(
-            "SELECT is_pinned, is_archived, is_favorite, muted_until
-             FROM chat.conversation_members
-             WHERE conversation_id = $1 AND user_id = $2",
-        )
-        .bind(conv.id)
-        .bind(user.id)
-        .fetch_optional(&st.db)
-        .await
-        .ok()
-        .flatten()
-        .unwrap_or(MemberPrefs { is_pinned: false, is_archived: false, is_favorite: false, muted_until: None });
-
-        // Pour les conv directes, récupérer le profil de l'interlocuteur
-        let other_user = if conv.conv_type == "direct" {
-            let other_id = if conv.user_a_id == Some(user.id) { conv.user_b_id } else { conv.user_a_id };
-            if let Some(oid) = other_id {
-                #[derive(sqlx::FromRow)]
-                struct UserRow { id: uuid::Uuid, display_name: Option<String>, username: String, avatar_url: Option<String> }
-                sqlx::query_as::<_, UserRow>(
-                    "SELECT id, display_name, username, avatar_url FROM core.users WHERE id = $1",
-                )
-                .bind(oid)
-                .fetch_optional(&st.db)
-                .await
-                .ok()
-                .flatten()
-                .map(|u| OtherUserInfo { id: u.id, display_name: u.display_name, username: u.username, avatar_url: u.avatar_url })
-            } else { None }
-        } else { None };
-
-        summaries.push(ConversationSummary {
-            conversation: conv,
-            unread_count: unread,
-            member_count,
-            is_pinned:   prefs.is_pinned,
-            is_archived: prefs.is_archived,
-            is_favorite: prefs.is_favorite,
-            muted_until: prefs.muted_until,
-            other_user,
-        });
-    }
+    let summaries: Vec<ConversationSummary> = rows
+        .into_iter()
+        .map(|r| {
+            let other_user = match (r.other_id, r.other_username) {
+                (Some(id), Some(username)) => Some(OtherUserInfo {
+                    id,
+                    display_name: r.other_name,
+                    username,
+                    avatar_url: r.other_avatar,
+                }),
+                _ => None,
+            };
+            ConversationSummary {
+                // `unread_count` only counts other people's messages; the explicit
+                // flag carries a hand-marked "unread" in conversations without any.
+                is_unread:    r.marked_unread || r.unread_count > 0,
+                unread_count: r.unread_count,
+                member_count: r.member_count,
+                is_pinned:    r.is_pinned,
+                is_archived:  r.is_archived,
+                is_favorite:  r.is_favorite,
+                muted_until:  r.muted_until,
+                other_user,
+                conversation: r.conv,
+            }
+        })
+        .collect();
 
     Ok(Json(json!({ "conversations": summaries })))
 }
@@ -234,20 +223,21 @@ pub async fn create_conversation(
     }
 }
 
-/// POST /conversations/:id/join — rejoindre une SALLE DE RÉUNION par son lien.
-/// Jointure ouverte réservée aux conversations `is_meeting` (sinon 403).
+/// POST /conversations/:id/join — rejoindre une SALLE DE RÉUNION par son lien
+/// ou un ESPACE public (canal) découvert via /channels/browse. Tout le reste
+/// reste sur invitation (403).
 pub async fn join_meeting(
     State(st): State<AppState>,
     user: ChatUser,
     Path(conv_id): Path<Uuid>,
 ) -> ChatResult<Json<Value>> {
-    let is_meeting: Option<bool> =
-        sqlx::query_scalar("SELECT is_meeting FROM chat.conversations WHERE id = $1")
+    let joinable: Option<(bool, String)> =
+        sqlx::query_as("SELECT is_meeting, conv_type FROM chat.conversations WHERE id = $1")
             .bind(conv_id)
             .fetch_optional(&st.db)
             .await?;
 
-    match is_meeting {
+    match joinable.map(|(meeting, ty)| meeting || ty == "channel") {
         Some(true) => {
             sqlx::query(
                 "INSERT INTO chat.conversation_members (conversation_id, user_id, role)
@@ -263,6 +253,55 @@ pub async fn join_meeting(
         Some(false) => Err(ChatError::Forbidden),
         None => Err(ChatError::NotFound(conv_id.to_string())),
     }
+}
+
+/// GET /channels/browse?q= — public spaces (channels) the user has not joined,
+/// with their member count. Powers the "browse spaces" page.
+pub async fn browse_channels(
+    State(st): State<AppState>,
+    user: ChatUser,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> ChatResult<Json<Value>> {
+    let q = params.get("q").map(|s| s.trim().to_lowercase()).unwrap_or_default();
+    let joined = params.get("joined").map(|s| s == "true").unwrap_or(false);
+
+    let rows: Vec<(Uuid, Option<String>, Option<String>, chrono::DateTime<chrono::Utc>, i64, bool)> = sqlx::query_as(
+        "SELECT c.id, c.name, c.description, c.created_at,
+                (SELECT COUNT(*) FROM chat.conversation_members m2
+                  WHERE m2.conversation_id = c.id AND m2.left_at IS NULL) AS member_count,
+                EXISTS(SELECT 1 FROM chat.conversation_members me
+                        WHERE me.conversation_id = c.id AND me.user_id = $1 AND me.left_at IS NULL) AS is_member
+         FROM chat.conversations c
+         WHERE c.conv_type = 'channel' AND c.is_meeting = FALSE
+           AND ($2 = '' OR LOWER(COALESCE(c.name, '')) LIKE '%' || $2 || '%')
+         ORDER BY member_count DESC, c.created_at DESC
+         LIMIT 50",
+    )
+    .bind(user.id)
+    .bind(&q)
+    .fetch_all(&st.db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "browse_channels");
+        e
+    })?;
+
+    let channels: Vec<Value> = rows
+        .into_iter()
+        .filter(|(_, _, _, _, _, is_member)| *is_member == joined)
+        .map(|(id, name, description, created_at, member_count, is_member)| {
+            json!({
+                "id": id,
+                "name": name,
+                "description": description,
+                "created_at": created_at,
+                "member_count": member_count,
+                "is_member": is_member,
+            })
+        })
+        .collect();
+
+    Ok(Json(json!({ "channels": channels })))
 }
 
 /// GET /conversations/:id — détails
@@ -453,9 +492,18 @@ pub async fn update_member_settings(
         sqlx::query("UPDATE chat.conversation_members SET muted_until = NULL WHERE conversation_id = $1 AND user_id = $2")
             .bind(conv_id).bind(user.id).execute(&st.db).await?;
     }
-    if dto.mark_unread == Some(true) {
-        sqlx::query("UPDATE chat.conversation_members SET last_read_at = '1970-01-01', last_read_message_id = NULL WHERE conversation_id = $1 AND user_id = $2")
-            .bind(conv_id).bind(user.id).execute(&st.db).await?;
+    match dto.mark_unread {
+        Some(true) => {
+            sqlx::query("UPDATE chat.conversation_members SET last_read_at = '1970-01-01', last_read_message_id = NULL, marked_unread = TRUE WHERE conversation_id = $1 AND user_id = $2")
+                .bind(conv_id).bind(user.id).execute(&st.db).await?;
+        }
+        // Clearing the flag: opening a conversation with no message at all can't go
+        // through mark_read (it needs a message id), so it lands here.
+        Some(false) => {
+            sqlx::query("UPDATE chat.conversation_members SET last_read_at = NOW(), marked_unread = FALSE WHERE conversation_id = $1 AND user_id = $2")
+                .bind(conv_id).bind(user.id).execute(&st.db).await?;
+        }
+        None => {}
     }
 
     Ok(Json(json!({ "ok": true })))

@@ -88,6 +88,30 @@ export default function MediaContent({ media, isOwn }: Props) {
     return <VoicePlayer url={url} media={media} isOwn={isOwn} />
   }
 
+  // ── Sticker ──────────────────────────────────────────────────────────────────
+  // Rendered bare (MessageBubble drops the bubble around it): no frame, no
+  // lightbox — transparency is the whole point.
+  if (media.kind === 'sticker') {
+    return (
+      <div className="w-[140px] h-[140px]">
+        {url
+          ? <img src={url} alt="" className="w-full h-full object-contain" />
+          : <div className="w-full h-full rounded-lg bg-black/5 animate-pulse" />}
+      </div>
+    )
+  }
+
+  // ── GIF ──────────────────────────────────────────────────────────────────────
+  if (media.kind === 'gif') {
+    return (
+      <div className="max-w-[280px] rounded-xl overflow-hidden bg-black/5">
+        {url
+          ? <img src={url} alt={media.name} className="w-full h-auto block" />
+          : <div className="w-[240px] h-[180px] animate-pulse" />}
+      </div>
+    )
+  }
+
   // ── Image ────────────────────────────────────────────────────────────────────
   if (media.kind === 'image') {
     return (

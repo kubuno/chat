@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useAuthStore } from '@kubuno/sdk'
-import { useChatStore, getConvName, decodeEnvelope } from './chatStore'
+import { useChatStore, getConvName, decodeEnvelope, type PresenceStatus } from './chatStore'
 import { useNotificationStore } from '@kubuno/sdk'
 import { DecodedMessage } from './api'
 
@@ -21,8 +21,8 @@ export function useWsChat(isOnChatPage: () => boolean) {
   const accessToken = useAuthStore(s => s.accessToken)
   const currentUser = useAuthStore(s => s.user)
   const {
-    setWsStatus, appendMessage, updateMessage, setTyping, setUserOnline,
-    fetchConversations, setSendTypingFn, setSendCallSignalFn,
+    setWsStatus, appendMessage, updateMessage, setTyping,
+    fetchConversations, bumpConversation, setSendTypingFn, setSendCallSignalFn,
     setIncomingCall, applyReaction,
   } = useChatStore()
   const pushNotification = useNotificationStore(s => s.push)
@@ -125,7 +125,9 @@ export function useWsChat(isOnChatPage: () => boolean) {
             poll:      env.poll,
           }
           appendMessage(msg.conversation_id, msg)
-          fetchConversations()
+          // Reorder/badge locally — refetching the whole list on every incoming
+          // message hammered the API for information we already have.
+          bumpConversation(msg.conversation_id, msg.sender_id === currentUserRef.current?.id)
 
           // Notification si l'utilisateur n'est pas sur la page chat
           // ou si la conversation n'est pas celle actuellement affichée
@@ -191,7 +193,11 @@ export function useWsChat(isOnChatPage: () => boolean) {
           setTyping(payload.conversation_id as string, payload.user_id as string, false)
           break
         case 'presence_update':
-          setUserOnline(payload.user_id as string, payload.status === 'online')
+          useChatStore.getState().setUserPresence(
+            payload.user_id as string,
+            (payload.status as PresenceStatus) ?? 'offline',
+            (payload.custom_status as string | null) ?? null,
+          )
           break
         case 'conversation_created':
           fetchConversations()
