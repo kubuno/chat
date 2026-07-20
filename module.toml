@@ -1,7 +1,7 @@
 [module]
 id            = "chat"
 display_name  = "Chat"
-version       = "0.1.3"
+version       = "0.1.4"
 description   = "Messagerie chiffrée de bout en bout — protocole Signal (X3DH + Double Ratchet)"
 author        = "Kubuno Contributors"
 license       = "AGPL-3.0"
