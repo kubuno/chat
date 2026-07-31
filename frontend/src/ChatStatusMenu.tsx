@@ -20,7 +20,9 @@ const DOT: Record<PresenceStatus, string> = {
   offline: 'bg-gray-300',
 }
 
-export default function ChatStatusMenu() {
+/** `dark` est fourni par le Slot de la topbar : vrai sur les barres teintées des
+ *  applications à ruban. Un module qui ignore cette prop garde l'ancien rendu. */
+export default function ChatStatusMenu({ dark = false }: { dark?: boolean }) {
   const { t } = useTranslation('chat')
   const user = useAuthStore(s => s.user)
   const myStatus = useChatStore(s => s.myStatus)
@@ -102,17 +104,23 @@ export default function ChatStatusMenu() {
     <>
       <button
         onClick={e => menu.open(e)}
-        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full hover:bg-black/5 transition-colors"
+        className={`flex items-center gap-1.5 h-8 px-2.5 rounded-full transition-colors ${
+          dark ? 'hover:bg-white/15' : 'hover:bg-black/5'}`}
         title={myCustomStatus ?? label[myStatus]}
         aria-haspopup="menu"
       >
-        <span className={`w-2.5 h-2.5 rounded-full ${DOT[myStatus]}`} />
+        {/* Anneau clair autour de la pastille : sur un aplat de couleur, un point vert
+            posé à même le fond se lit mal — le liseré le détache. */}
+        <span
+          className={`w-2.5 h-2.5 rounded-full ${DOT[myStatus]} ${
+            dark ? 'ring-2 ring-white/30' : ''}`}
+        />
         {/* No responsive variant here: `md:` utilities emitted by a module land
             in the kubuno-module cascade layer and lose against the host shell. */}
-        <span className="text-sm text-text-primary max-w-[140px] truncate">
+        <span className={`text-sm max-w-[140px] truncate ${dark ? 'text-white' : 'text-text-primary'}`}>
           {myCustomStatus ?? label[myStatus]}
         </span>
-        <ChevronDown className="w-3.5 h-3.5 text-text-tertiary" />
+        <ChevronDown className={`w-3.5 h-3.5 ${dark ? 'text-white/70' : 'text-text-tertiary'}`} />
       </button>
 
       {menu.pos && <MenuDropdown pos={menu.pos} onClose={menu.close} items={items()} />}

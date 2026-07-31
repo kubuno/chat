@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, lazy, Suspense, KeyboardEvent, ClipboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { MenuDropdown, useMenuDropdown, type MenuItem } from '@ui'
-import { ModuleServiceRegistry } from '@kubuno/sdk'
+import { ModuleServiceRegistry, pickImageFile } from '@kubuno/sdk'
 import { Send, Plus, X, Mic, Trash2, Loader2, BarChart3, Timer, Package, Smile, FileText, Image, Camera, Music, User, CalendarDays, Bold, Italic, Strikethrough, Code, Link, ChevronUp } from 'lucide-react'
 import { DecodedMessage, type GifResult } from './api'
 import { readKubunoData, type KubunoDataEnvelope } from './kubunoData'
@@ -143,7 +143,6 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
     restore(next)
   }
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const stickerInputRef = useRef<HTMLInputElement>(null)
 
   // ── Attachment menu / expression panel ───────────────────────────────────────
   const attachMenu = useMenuDropdown()
@@ -348,7 +347,7 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
       }
     }
     if (onSendSticker) {
-      items.push({ type: 'action', label: t('chat_sticker_new', { defaultValue: 'Nouveau sticker' }), icon: <StickerGlyph />, onClick: () => stickerInputRef.current?.click() })
+      items.push({ type: 'action', label: t('chat_sticker_new', { defaultValue: 'Nouveau sticker' }), icon: <StickerGlyph />, onClick: () => pickStickerSource() })
     }
     if (onCycleEphemeral) {
       const state = ephemeralSecs
@@ -376,10 +375,8 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
     }
   }
 
-  function pickStickerSource(files: FileList | null) {
-    const file = files?.[0]
-    if (stickerInputRef.current) stickerInputRef.current.value = ''
-    if (file) setStickerSource(file)
+  function pickStickerSource() {
+    void pickImageFile({ title: 'Image du sticker' }).then(file => { if (file) setStickerSource(file) })
   }
 
   // ── Text formatting ──────────────────────────────────────────────────────────
@@ -575,15 +572,6 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
         className="hidden"
         onChange={e => handleFiles(e.target.files)}
       />
-      {/* Source image for a new sticker (never sent as-is). */}
-      <input
-        ref={stickerInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={e => pickStickerSource(e.target.files)}
-      />
-
       {recording ? (
         // ── Barre d'enregistrement vocal ─────────────────────────────────────────
         <div className="mx-3 my-2 flex items-center gap-3 px-3 py-1.5 bg-white border border-gray-200"
@@ -699,7 +687,7 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
                 title={t('chat_ephemeral', { defaultValue: 'Message éphémère' })}
               >
                 <Timer className="w-5 h-5" />
-                <span className="absolute -top-0.5 -right-0.5 text-[8px] bg-blue-600 text-white rounded-full px-1 leading-tight">
+                <span className="absolute -top-0.5 -right-0.5 text-[10px] bg-blue-600 text-white rounded-full px-1 leading-tight">
                   {ephemeralSecs >= 86400 ? `${Math.round(ephemeralSecs / 86400)}j` : `${Math.round(ephemeralSecs / 3600)}h`}
                 </span>
               </button>
@@ -745,7 +733,7 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
                 onPickEmoji={insertEmoji}
                 onPickGif={pickGif}
                 onPickSticker={pickSticker}
-                onCreateSticker={() => stickerInputRef.current?.click()}
+                onCreateSticker={() => pickStickerSource()}
                 stickerVersion={stickerVersion}
                 onClose={() => setShowExpressions(false)}
               />

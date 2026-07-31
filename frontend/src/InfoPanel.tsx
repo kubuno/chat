@@ -110,7 +110,7 @@ export default function InfoPanel({ conversation, otherUser, onClose, onLeft }: 
       defaultHeight={520}
       onClose={onClose}
     >
-      <div className="flex flex-col gap-4 p-4 text-sm h-full overflow-y-auto">
+      <div className="flex flex-col gap-4 text-sm h-full overflow-y-auto">
         {/* Avatar + name */}
         <div className="flex flex-col items-center gap-2 py-2">
           <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-700 text-2xl font-bold">
