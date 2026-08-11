@@ -191,6 +191,17 @@ async fn main() -> Result<()> {
         });
     }
 
+    // Storage usage reporter: declares to the core what chat holds per account.
+    // Started before registration on purpose — its first attempt routinely fails
+    // while the core is still coming up, and its backoff is what recovers from
+    // that without waiting a whole sync period.
+    {
+        let usage_state = state.clone();
+        tokio::spawn(async move {
+            kubuno_chat::services::usage::run_reporter(usage_state).await;
+        });
+    }
+
     // Enregistrement auprès du core
     let http = Client::new();
     register_with_core(&http, &settings).await;

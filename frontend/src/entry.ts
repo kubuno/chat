@@ -1,7 +1,9 @@
 /** Bundle MODULE chat — chargé à l'exécution (cf. vite.module.config). */
 import { lazy } from 'react'
-import { RouteRegistry, WaffleAppRegistry, SlotRegistry, FaviconRegistry, useToolbarStore, useSidebarStore, useSearchStore, ModuleServiceRegistry, ModuleSettingsRegistry, NotificationRegistry, SDK_VERSION } from '@kubuno/sdk'
+import { RouteRegistry, WaffleAppRegistry, SlotRegistry, FaviconRegistry, useToolbarStore, useSidebarStore, useSearchStore, ModuleServiceRegistry, ModuleSettingsRegistry, NotificationRegistry, useRightPanelStore, SDK_VERSION } from '@kubuno/sdk'
 import './index.css'
+import { MessageCircle } from 'lucide-react'
+import ChatMiniPanel from './ChatMiniPanel'
 import './i18n'
 import { chatApi } from './api'
 import ChatLogo from './ChatLogo'
@@ -55,6 +57,15 @@ export function register() {
     placeholder: 'Rechercher dans les messages…',
     placeholderKey: 'chat:chat_search_ph',
     onSearch:    () => {},
+  })
+
+  // Side panel: who is waiting, without leaving the page.
+  useRightPanelStore.getState().registerEntry({
+    moduleId:       'chat',
+    icon:           ChatLogo,
+    label:          'Chat',
+    panelComponent: ChatMiniPanel,
+    openPath:       '/chat',
   })
 
   // Routes

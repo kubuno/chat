@@ -393,7 +393,7 @@ function SectionHeader({ label, collapsed, onToggle, onMenu }: {
         aria-expanded={!collapsed}
         onClick={e => { e.preventDefault(); onToggle() }}
         onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); onToggle() } }}
-        className="flex items-center gap-2 text-[10px] font-bold text-text-tertiary uppercase tracking-widest
+        className="flex items-center gap-2 text-sm font-bold text-text-secondary
                    hover:text-text-secondary cursor-pointer outline-none
                    focus-visible:ring-2 focus-visible:ring-primary rounded"
       >
