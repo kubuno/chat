@@ -17,6 +17,13 @@ pub async fn upload_media(
     user: ChatUser,
     mut multipart: Multipart,
 ) -> ChatResult<Json<Value>> {
+    // Instance policy: attachments may be forbidden outright. The bytes are
+    // ciphertext, so an all-or-nothing switch is the only file policy the
+    // encryption leaves possible — never a filter on the declared file type.
+    if !st.instance().allow_file_sharing {
+        return Err(ChatError::Forbidden);
+    }
+
     let mut file_data: Option<bytes::Bytes> = None;
     let mut content_type = "application/octet-stream".to_string();
     let mut filename = format!("{}", Uuid::new_v4());
@@ -40,11 +47,13 @@ pub async fn upload_media(
                     .await
                     .map_err(|e| ChatError::Validation(e.to_string()))?;
 
-                let max_bytes = st.settings.storage.max_media_mb * 1024 * 1024;
+                // Instance cap on (encrypted) attachment size — a bound on the
+                // bytes received, the one media policy E2E leaves possible.
+                let max_mb = st.instance().max_media_mb;
+                let max_bytes = max_mb as u64 * 1024 * 1024;
                 if data.len() as u64 > max_bytes {
                     return Err(ChatError::Validation(format!(
-                        "Fichier trop volumineux (max {} MB)",
-                        st.settings.storage.max_media_mb
+                        "Fichier trop volumineux (max {max_mb} MB)"
                     )));
                 }
                 file_data = Some(data);

@@ -6,12 +6,14 @@ use axum::{
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
-    handlers::{conversations, gifs, keys, media, messages, presence, unfurl, websocket},
+    handlers::{config, conversations, gifs, keys, media, messages, presence, unfurl, websocket},
     state::AppState,
 };
 
 pub fn build(state: AppState) -> Router {
     let chat_routes = Router::new()
+        // Politique d'instance visible du client (l'application reste serveur)
+        .route("/config",                              get(config::get_config))
         // Conversations
         .route("/conversations",                       get(conversations::list_conversations).post(conversations::create_conversation))
         .route("/conversations/:id",                   get(conversations::get_conversation).patch(conversations::update_conversation))

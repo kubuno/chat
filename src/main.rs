@@ -20,6 +20,23 @@ struct Manifest {
     /// Declarative settings manifest pushed to the core at registration.
     #[serde(default)]
     settings:      Vec<SettingDefRaw>,
+    /// Pages the admin panel is split into (`[[setting_groups]]`).
+    #[serde(default)]
+    setting_groups: Vec<SettingGroupRaw>,
+}
+
+/// One `[[setting_groups]]` entry of module.toml, forwarded verbatim. `id` is a
+/// STABLE, UNTRANSLATED slug: it travels in the URL of the admin page.
+#[derive(Deserialize, Serialize)]
+struct SettingGroupRaw {
+    id:          String,
+    label:       String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    icon:        Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    position:    Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    description: Option<String>,
 }
 
 /// One `[[settings]]` entry from module.toml. Serialized verbatim into the
@@ -39,8 +56,30 @@ struct SettingDefRaw {
     description: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     category:    Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    group:       Option<String>,
     #[serde(default)]
     public:      bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    risk:        Option<String>,
+    /// Bounds for `type = "int"`. Enforced by the core's API, not only drawn by
+    /// the console — a manifest that omits them accepts any number.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    min:         Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    max:         Option<i64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    unit:        Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    placeholder: Option<String>,
+    /// Key of another `bool` setting of the SAME module: this one is hidden
+    /// while that boolean is false.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    depends_on:  Option<String>,
+    #[serde(default)]
+    advanced:    bool,
+    #[serde(default)]
+    multiline:   bool,
 }
 
 #[derive(Deserialize)]
@@ -176,12 +215,42 @@ async fn main() -> Result<()> {
 
     let ws_hub = Arc::new(kubuno_chat::services::websocket_hub::WsHub::new());
 
+    // Instance settings: compiled defaults, then one read from the core so the
+    // retention worker and the media size cap see the administrator's values.
+    let http = Client::new();
+    let instance = Arc::new(std::sync::RwLock::new(
+        kubuno_chat::config::instance::InstanceConfig::default(),
+    ));
+    if let Some(cfg) = kubuno_chat::config::instance::fetch(
+        &http, &settings.core.url, &settings.core.internal_secret,
+    ).await {
+        if let Ok(mut w) = instance.write() { *w = cfg; }
+    }
+
     let state = AppState {
         db:       pool,
         settings: Arc::new(settings.clone()),
         ws_hub,
         storage,
+        instance: instance.clone(),
     };
+
+    // Instance-settings refresher: an admin edit takes effect within a minute.
+    {
+        let http_r     = http.clone();
+        let settings_r = settings.clone();
+        let instance_r = instance.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(60)).await;
+                if let Some(cfg) = kubuno_chat::config::instance::fetch(
+                    &http_r, &settings_r.core.url, &settings_r.core.internal_secret,
+                ).await {
+                    if let Ok(mut w) = instance_r.write() { *w = cfg; }
+                }
+            }
+        });
+    }
 
     // Worker de fond : livraison des messages programmés + purge des éphémères.
     {
@@ -203,7 +272,6 @@ async fn main() -> Result<()> {
     }
 
     // Enregistrement auprès du core
-    let http = Client::new();
     register_with_core(&http, &settings).await;
 
     // Heartbeat toutes les 30s
@@ -283,6 +351,9 @@ async fn register_with_core(http: &Client, settings: &Settings) {
     let settings_schema: Value = manifest.as_ref()
         .map(|m| serde_json::to_value(&m.settings).unwrap_or_else(|_| json!([])))
         .unwrap_or_else(|| json!([]));
+    let setting_groups: Value = manifest.as_ref()
+        .map(|m| serde_json::to_value(&m.setting_groups).unwrap_or_else(|_| json!([])))
+        .unwrap_or_else(|| json!([]));
 
     let payload = json!({
         "module_id":         "chat",
@@ -295,6 +366,7 @@ async fn register_with_core(http: &Client, settings: &Settings) {
         "sidebar_items":     sidebar_items,
         "subscribed_events": subscribed_events,
         "settings_schema":   settings_schema,
+        "setting_groups":    setting_groups,
     });
 
     for attempt in 1u32.. {

@@ -24,10 +24,16 @@ pub struct UnfurlQuery {
 
 /// GET /unfurl?url=… — fetch Open Graph metadata for a link preview.
 pub async fn unfurl(
-    State(_st): State<AppState>,
+    State(st): State<AppState>,
     _user: ChatUser,
     Query(q): Query<UnfurlQuery>,
 ) -> ChatResult<Json<Value>> {
+    // Building a preview means the URL leaves the encrypted envelope and reaches
+    // this server. An instance may refuse that trade entirely.
+    if !st.instance().allow_link_previews {
+        return Err(ChatError::Forbidden);
+    }
+
     let parsed = reqwest::Url::parse(q.url.trim())
         .map_err(|_| ChatError::Validation("URL invalide".into()))?;
 

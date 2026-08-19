@@ -13,6 +13,7 @@ use crate::services::websocket_hub::{WsEnvelope, WsEvent};
 use crate::state::AppState;
 
 pub async fn run(state: Arc<AppState>) {
+    let mut ticks: u64 = 0;
     loop {
         tokio::time::sleep(Duration::from_secs(15)).await;
         if let Err(e) = deliver_scheduled(&state).await {
@@ -21,7 +22,50 @@ pub async fn run(state: Arc<AppState>) {
         if let Err(e) = purge_expired(&state).await {
             tracing::warn!(error = %e, "Purge des messages éphémères échouée");
         }
+        // The retention purge scans by age, not by a per-message TTL, so it runs
+        // about once an hour (240 × 15s) rather than on every tick.
+        ticks = ticks.wrapping_add(1);
+        if ticks % 240 == 0 {
+            if let Err(e) = purge_by_retention(&state).await {
+                tracing::warn!(error = %e, "Purge de rétention chat échouée");
+            }
+        }
     }
+}
+
+/// Tombstone messages older than the instance retention window (`0` = keep
+/// forever). The server never reads the ciphertext — it deletes it by age alone.
+/// Bounded per run so a large backlog drains gradually.
+async fn purge_by_retention(st: &AppState) -> anyhow::Result<()> {
+    let days = st.instance().retention_days;
+    if days <= 0 {
+        return Ok(());
+    }
+    let purged: Vec<(Uuid, Uuid)> = sqlx::query_as(
+        "UPDATE chat.messages
+         SET message_type = 'deleted', encrypted_data = '', deleted_at = NOW()
+         WHERE id IN (
+             SELECT id FROM chat.messages
+             WHERE created_at < NOW() - make_interval(days => $1) AND deleted_at IS NULL
+             LIMIT 1000
+         )
+         RETURNING id, conversation_id",
+    )
+    .bind(days)
+    .fetch_all(&st.db)
+    .await?;
+
+    for (id, conv_id) in purged {
+        let members = message_service::get_member_ids(&st.db, conv_id).await.unwrap_or_default();
+        st.ws_hub
+            .send_to_many(
+                &members,
+                WsEnvelope { event: WsEvent::MessageUpdated, payload: json!({ "message_id": id, "deleted": true }) },
+                None,
+            )
+            .await;
+    }
+    Ok(())
 }
 
 /// Deliver scheduled messages whose time has come (clear scheduled_at, bump the

@@ -59,7 +59,7 @@ const hoverBg = (color: string) => ({
  * Row hover tint. Same value as the core's SidebarNavItem so this module's rows
  * highlight exactly like mail's — the left panel must feel like ONE sidebar.
  */
-const ROW_HOVER = 'color-mix(in srgb, var(--color-primary) 12%, white)'
+const ROW_HOVER = 'var(--kb-sidebar-hover, #e8eaed)'  // host-owned token: one hover colour product-wide
 
 /**
  * Row metrics, shape and colours shared with the core's SidebarNavItem, so a

@@ -38,25 +38,152 @@ section  = "main"
 #   scope = "user"        → per-user only
 #   scope = "overridable" → admin default, each user may override it
 
+# ── Admin panel pages ─────────────────────────────────────────────────────────
+# Chat is end-to-end encrypted: the server holds only ciphertext, so the admin
+# can neither read nor moderate nor filter by content. The "overview" page (a
+# bespoke section, no setting) states this plainly; the others hold the levers
+# that remain, all of them STRUCTURAL: how long the ciphertext is kept, how big
+# an attachment may be, whether a feature exists at all (attachments, link
+# previews), and who may talk to whom (spaces, guests). Nothing here looks at
+# what is inside a message, because nothing can.
+
+[[setting_groups]]
+id          = "overview"
+label       = "Vue d'ensemble"
+icon        = "ShieldCheck"
+position    = 1
+description  = "Le chiffrement de bout en bout et ce qu'il implique pour l'administration."
+
+[[setting_groups]]
+id          = "messages"
+label       = "Messages"
+icon        = "Clock"
+position    = 2
+description  = "La durée de conservation des messages (suppression du chiffré au-delà)."
+
+[[setting_groups]]
+id          = "media"
+label       = "Partage et médias"
+icon        = "Paperclip"
+position    = 3
+description  = "La taille maximale des fichiers partagés dans les conversations."
+
+[[setting_groups]]
+id          = "spaces"
+label       = "Espaces et conversations"
+icon        = "Users"
+position    = 4
+description  = "Qui peut créer des espaces, qui peut y ajouter des membres, et si les espaces publics sont découvrables."
+
+[[setting_groups]]
+id          = "integrations"
+label       = "Intégrations"
+icon        = "Sparkles"
+position    = 5
+description  = "Les services externes : clé serveur GIPHY pour la recherche de GIF."
+
 [[settings]]
 key     = "retention_days"
 scope   = "global"
+group   = "messages"
 type    = "int"
 default = 0
+min     = 0
+max     = 3650
+unit    = "jours"
 label   = "Durée de rétention (jours)"
 description = "Nombre de jours avant suppression automatique des messages. 0 pour les conserver indéfiniment."
 
 [[settings]]
+key     = "default_expiry_hours"
+scope   = "global"
+group   = "messages"
+type    = "int"
+default = 0
+min     = 0
+max     = 8760
+unit    = "heures"
+label   = "Auto-destruction par défaut (heures)"
+description = "Délai après lequel un message est détruit automatiquement lorsque son auteur n'a pas choisi de délai. 0 pour ne rien détruire automatiquement. Un délai choisi par l'utilisateur reste prioritaire s'il est plus court."
+
+[[settings]]
+key     = "allow_file_sharing"
+scope   = "global"
+group   = "media"
+type    = "bool"
+default = true
+label   = "Autoriser le partage de fichiers"
+description = "Lorsque ce réglage est désactivé, l'envoi de pièces jointes (images, documents, GIF, notes vocales) est refusé par le serveur. Le contenu étant chiffré, le filtrage par type de fichier est impossible : seule l'autorisation globale l'est."
+
+[[settings]]
 key     = "max_media_mb"
 scope   = "global"
+group   = "media"
 type    = "int"
 default = 50
+min     = 1
+max     = 100
+unit    = "Mo"
+depends_on = "allow_file_sharing"
 label   = "Taille média maximale (Mo)"
-description = "Taille maximale des fichiers partagés dans les conversations."
+description = "Taille maximale d'un fichier partagé dans une conversation. Le plafond de 100 Mo est celui du transport : au-delà, la requête est refusée avant même d'atteindre ce contrôle."
+
+[[settings]]
+key     = "allow_link_previews"
+scope   = "global"
+group   = "media"
+type    = "bool"
+default = true
+label   = "Aperçus de liens"
+description = "Pour afficher l'aperçu d'un lien, le client transmet l'adresse au serveur, qui va la chercher : cette adresse sort donc de l'enveloppe chiffrée. Désactiver ce réglage supprime cette fuite."
+
+[[settings]]
+key     = "space_creation"
+scope   = "global"
+group   = "spaces"
+type    = "enum"
+default = "everyone"
+label   = "Qui peut créer des espaces"
+description = "Les conversations directes restent ouvertes à tous dans les deux cas."
+values  = [
+    { value = "everyone", label = "Tous les utilisateurs" },
+    { value = "admins",   label = "Les administrateurs uniquement" },
+]
+
+[[settings]]
+key     = "space_invite_policy"
+scope   = "global"
+group   = "spaces"
+type    = "enum"
+default = "members"
+label   = "Qui peut ajouter des membres à un espace"
+values  = [
+    { value = "members",  label = "Tout membre de l'espace" },
+    { value = "managers", label = "Le propriétaire et les gestionnaires de l'espace" },
+]
+
+[[settings]]
+key     = "allow_guest_conversations"
+scope   = "global"
+group   = "spaces"
+type    = "bool"
+default = true
+label   = "Conversations avec les comptes invités"
+description = "Autorise les comptes invités (rôle « invité » du cœur) à ouvrir une conversation et à être ajoutés à un espace. Désactivé, les conversations existantes restent lisibles par leurs membres, mais aucune nouvelle ne peut inclure d'invité."
+
+[[settings]]
+key     = "allow_public_spaces"
+scope   = "global"
+group   = "spaces"
+type    = "bool"
+default = true
+label   = "Espaces publics découvrables"
+description = "Autorise les espaces que n'importe quel utilisateur de l'instance peut parcourir et rejoindre sans invitation. Désactivé, les espaces existants restent accessibles à leurs membres mais ne sont plus listés ni rejoignables librement."
 
 [[settings]]
 key     = "giphy_api_key"
 scope   = "global"
+group   = "integrations"
 type    = "string"
 default = ""
 label   = "Clé API GIPHY"

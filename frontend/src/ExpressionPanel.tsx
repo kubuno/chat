@@ -16,6 +16,7 @@ import {
   Search, X, TrendingUp, Laugh, Heart, ThumbsUp, PartyPopper, Tv, Plus, Trash2, Loader2, ImageOff,
 } from 'lucide-react'
 import { chatApi, type GifResult } from './api'
+import { loadChatConfig } from './chatConfig'
 import { listStickers, removeSticker, type Sticker } from './stickers'
 import type { Emoji, EmojiGroup } from './emojiData'
 
@@ -104,8 +105,10 @@ export default function ExpressionPanel({ onPickEmoji, onPickGif, onPickSticker,
   const [gifEnabled, setGifEnabled] = useState<boolean | null>(null)
   useEffect(() => {
     let alive = true
-    chatApi.gifStatus()
-      .then(s => { if (alive) setGifEnabled(s.enabled) })
+    // A GIF is sent as an (encrypted) attachment, so the instance forbidding
+    // file sharing forbids the GIF tab too, key or no key.
+    Promise.all([chatApi.gifStatus(), loadChatConfig()])
+      .then(([s, cfg]) => { if (alive) setGifEnabled(s.enabled && cfg.allow_file_sharing) })
       .catch(() => { if (alive) setGifEnabled(false) })
     return () => { alive = false }
   }, [])

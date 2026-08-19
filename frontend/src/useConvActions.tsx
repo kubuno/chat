@@ -128,8 +128,14 @@ export function useConvActions() {
   /**
    * `onManageMembers` is only supplied by callers that can show the info panel
    * (the conversation header) — the item is dropped elsewhere.
+   * `deleteShortcut` is set only by the views that bind the Delete key to
+   * `handleDelete` on their focused row, so the hint is never shown where the
+   * key does nothing.
    */
-  function buildItems(summary: ConversationSummary, opts?: { onManageMembers?: () => void }): MenuItem[] {
+  function buildItems(
+    summary: ConversationSummary,
+    opts?: { onManageMembers?: () => void; deleteShortcut?: boolean },
+  ): MenuItem[] {
     const convId = summary.conversation.id
     const isMuted = summary.muted_until ? new Date(summary.muted_until) > new Date() : false
     const isSpace = summary.conversation.conv_type !== 'direct'
@@ -237,11 +243,12 @@ export function useConvActions() {
         type: 'action',
         icon: <Trash2 className="w-4 h-4" />,
         label: t('chat_delete_conversation'),
+        shortcut: opts?.deleteShortcut ? 'Suppr' : undefined,
         onClick: () => handleDelete(convId),
         danger: true,
       },
     ]
   }
 
-  return { buildItems, confirmState, handleConfirm, handleCancel }
+  return { buildItems, handleDelete, confirmState, handleConfirm, handleCancel }
 }

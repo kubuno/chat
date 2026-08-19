@@ -12,6 +12,7 @@ import ChatGlobalService from './ChatGlobalService'
 import ChatPopups from './ChatPopups'
 import ChatStatusMenu from './ChatStatusMenu'
 import ChatSidebarBody from './ChatSidebarBody'
+import { registerChatAdmin } from './admin/ChatAdminPanel'
 
 export const sdkVersion = SDK_VERSION
 
@@ -25,6 +26,10 @@ export function register() {
 
   // The header gear button opens the per-user Chat settings while in /chat.
   ModuleSettingsRegistry.register('chat')
+
+  // Instance administration (E2E banner, retention, media, GIPHY) in the core
+  // admin console.
+  registerChatAdmin()
 
   // Declare the notification activities shown in the core Settings → Notifications matrix.
   NotificationRegistry.register({

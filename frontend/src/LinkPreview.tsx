@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { chatApi } from './api'
+import { loadChatConfig } from './chatConfig'
 
 interface Unfurl { url: string; title: string | null; description: string | null; image: string | null; site_name?: string | null }
 
@@ -12,8 +13,14 @@ export default function LinkPreview({ url, isOwn }: { url: string; isOwn: boolea
   useEffect(() => {
     if (cache.has(url)) { setData(cache.get(url)!); return }
     let alive = true
-    chatApi.unfurl(url)
-      .then(d => { const v = (d.title || d.image) ? d : null; cache.set(url, v); if (alive) setData(v) })
+    // Previews may be off instance-wide: the URL then never leaves the client.
+    loadChatConfig()
+      .then(cfg => (cfg.allow_link_previews ? chatApi.unfurl(url) : null))
+      .then(d => {
+        const v = d && (d.title || d.image) ? d : null
+        cache.set(url, v)
+        if (alive) setData(v)
+      })
       .catch(() => { cache.set(url, null) })
     return () => { alive = false }
   }, [url])

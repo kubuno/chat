@@ -3,6 +3,18 @@ import type { KubunoDataEnvelope } from './kubunoData'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+/// The instance policy the administrator set, as far as the browser needs to
+/// know it: what to offer and what to leave out. Enforcement is server-side.
+export interface ChatInstanceConfig {
+  allow_file_sharing:   boolean
+  max_media_mb:         number
+  allow_link_previews:  boolean
+  allow_public_spaces:  boolean
+  space_creation:       'everyone' | 'admins'
+  space_invite_policy:  'members' | 'managers'
+  default_expiry_hours: number
+}
+
 export interface Conversation {
   id:          string
   conv_type:   'direct' | 'group' | 'channel'
@@ -211,6 +223,11 @@ export const chatApi = {
 
   getPoll: (msgId: string) =>
     api.get<{ counts: Record<string, number>; my_vote: number | null }>(`/chat/messages/${msgId}/poll`).then(r => r.data),
+
+  // Instance policy, as the server lets the browser see it. Used only to hide
+  // what the server would refuse anyway — every flag is enforced server-side.
+  getConfig: () =>
+    api.get<ChatInstanceConfig>('/chat/config').then(r => r.data),
 
   unfurl: (url: string) =>
     api.get<{ url: string; title: string | null; description: string | null; image: string | null; site_name?: string | null }>(

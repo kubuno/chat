@@ -196,7 +196,24 @@ pub async fn send_message(
 
     // Programmé (futur) → invisible aux autres jusqu'à l'échéance ; éphémère → TTL.
     let scheduled = dto.scheduled_at.map(|t| t > Utc::now()).unwrap_or(false);
-    let expires_at = dto.expires_in_secs.filter(|s| *s > 0).map(|s| Utc::now() + Duration::seconds(s));
+    // A delay chosen by the author always wins. Otherwise the instance may impose
+    // one, which is how an administrator says "keep no lasting history" without
+    // ever reading a message. A scheduled message counts from its delivery time,
+    // so it can never expire before it is sent.
+    let cfg = st.instance();
+    let expires_at = dto
+        .expires_in_secs
+        .filter(|s| *s > 0)
+        .map(|s| Utc::now() + Duration::seconds(s))
+        .or_else(|| {
+            (cfg.default_expiry_hours > 0).then(|| {
+                let base = match dto.scheduled_at {
+                    Some(t) if scheduled => t,
+                    _ => Utc::now(),
+                };
+                base + Duration::hours(cfg.default_expiry_hours)
+            })
+        });
 
     let msg: Message = sqlx::query_as(
         "INSERT INTO chat.messages

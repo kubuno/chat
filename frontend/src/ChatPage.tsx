@@ -206,7 +206,7 @@ function HomeList({ starred = false, layout, onLayout }: {
   const rowMenu = useMenuDropdown()
   const [menuConvId, setMenuConvId] = useState<string | null>(null)
   const layoutMenu = useMenuDropdown()
-  const { buildItems, confirmState, handleConfirm, handleCancel } = useConvActions()
+  const { buildItems, handleDelete, confirmState, handleConfirm, handleCancel } = useConvActions()
   const myId = user?.id ?? ''
 
   const rows = conversations
@@ -281,10 +281,22 @@ function HomeList({ starred = false, layout, onLayout }: {
               className={`group flex items-center gap-4 px-3 py-2.5 rounded-xl cursor-pointer transition-colors
                 ${conv.id === activeConvId ? 'bg-primary/10' : 'hover:bg-surface-1'}`}
               onClick={() => setActiveConv(conv.id)}
-              onContextMenu={e => { e.preventDefault(); setMenuConvId(conv.id); rowMenu.open(e) }}
+              // Focus the row on right-click too, so the Delete key keeps
+              // targeting the conversation whose menu was just opened.
+              onContextMenu={e => { e.preventDefault(); e.currentTarget.focus(); setMenuConvId(conv.id); rowMenu.open(e) }}
               role="button"
               tabIndex={0}
-              onKeyDown={e => { if (e.key === 'Enter') setActiveConv(conv.id) }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') { setActiveConv(conv.id); return }
+                // Delete = the "Supprimer la conversation" menu entry, same
+                // handler (confirmation included) on the focused row. Only when
+                // the row itself holds the focus — never steal the key from an
+                // input nested in the row.
+                if (e.key === 'Delete' && e.target === e.currentTarget) {
+                  e.preventDefault()
+                  handleDelete(conv.id)
+                }
+              }}
             >
               <div className={`w-11 h-11 ${conv.conv_type === 'direct' ? 'rounded-full' : 'rounded-xl'} bg-surface-2 flex items-center justify-center text-base font-semibold text-text-secondary flex-shrink-0`}>
                 {name[0]?.toUpperCase() ?? '?'}
@@ -334,7 +346,7 @@ function HomeList({ starred = false, layout, onLayout }: {
 
       {confirmState && <ConfirmDialog {...confirmState} onConfirm={handleConfirm} onCancel={handleCancel} />}
       {rowMenu.pos && menuSummary && (
-        <MenuDropdown pos={rowMenu.pos} onClose={() => { rowMenu.close(); setMenuConvId(null) }} items={buildItems(menuSummary)} />
+        <MenuDropdown pos={rowMenu.pos} onClose={() => { rowMenu.close(); setMenuConvId(null) }} items={buildItems(menuSummary, { deleteShortcut: true })} />
       )}
       {layoutMenu.pos && <MenuDropdown pos={layoutMenu.pos} onClose={layoutMenu.close} items={layoutItems} />}
     </div>

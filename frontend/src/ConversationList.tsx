@@ -9,6 +9,7 @@ import { useChatStore, getConvName } from './chatStore'
 import { useAuthStore } from '@kubuno/sdk'
 import { api } from '@kubuno/sdk'
 import { chatApi } from './api'
+import { useChatConfig } from './chatConfig'
 import { ConfirmDialog, MenuDropdown, type MenuItem } from '@ui'
 import { Button, Input } from '@ui'
 import { useConfirm } from '@kubuno/sdk'
@@ -34,6 +35,10 @@ interface CtxMenu {
 export default function ConversationList({ onSelect, activeId }: Props) {
   const { t }         = useTranslation('chat')
   const user          = useAuthStore(s => s.user)
+  // An instance may reserve space creation to its administrators. The server
+  // refuses it either way; the button simply stops being offered.
+  const instanceCfg   = useChatConfig()
+  const canCreateSpace = instanceCfg.space_creation === 'everyone' || user?.role === 'admin'
   const conversations = useChatStore(s => s.conversations)
   const isLoading     = useChatStore(s => s.isLoadingConvs)
   const onlineUsers   = useChatStore(s => s.onlineUsers)
@@ -297,14 +302,14 @@ export default function ConversationList({ onSelect, activeId }: Props) {
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold text-gray-900">{t('chat_messages')}</h2>
           <div className="flex items-center gap-1">
-            <button
+            {canCreateSpace && <button
               type="button"
               onClick={() => { setShowNewGroup(v => !v); setShowNewDm(false) }}
               className={`p-1.5 rounded-full hover:bg-gray-100 ${showNewGroup ? 'text-blue-600' : 'text-gray-500'}`}
               title={t('chat_new_group')}
             >
               <Users className="w-4.5 h-4.5" />
-            </button>
+            </button>}
             <button
               type="button"
               onClick={() => { setShowNewDm(v => !v); setShowNewGroup(false) }}

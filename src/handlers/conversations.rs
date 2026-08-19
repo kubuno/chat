@@ -1,3 +1,4 @@
+use crate::config::instance::{SpaceCreation, SpaceInvitePolicy};
 use crate::errors::{ChatError, ChatResult};
 use crate::middleware::ChatUser;
 use crate::models::conversation::{
@@ -98,6 +99,27 @@ pub async fn list_conversations(
     Ok(Json(json!({ "conversations": summaries })))
 }
 
+/// True when at least one of `ids` belongs to a guest account. Guests are the
+/// core's stand-in for an outside participant, and an instance may keep them out
+/// of new conversations. Reading `core.users` is the only way to know: the
+/// module is told the *caller's* role by the proxy, never anyone else's.
+async fn involves_a_guest(
+    db: &sqlx::PgPool,
+    ids: &[Uuid],
+) -> ChatResult<bool> {
+    let found: Option<bool> = sqlx::query_scalar(
+        "SELECT EXISTS(SELECT 1 FROM core.users WHERE id = ANY($1) AND role = 'guest')",
+    )
+    .bind(ids)
+    .fetch_optional(db)
+    .await
+    .map_err(|e| {
+        tracing::error!(error = %e, "Vérification des comptes invités");
+        e
+    })?;
+    Ok(found.unwrap_or(false))
+}
+
 /// POST /conversations — créer une conversation
 pub async fn create_conversation(
     State(st): State<AppState>,
@@ -114,6 +136,13 @@ pub async fn create_conversation(
 
             if target == user.id {
                 return Err(ChatError::Validation("Impossible de créer une conv avec soi-même".into()));
+            }
+
+            // Instance policy on guest accounts: neither side may be a guest.
+            if !st.instance().allow_guest_conversations
+                && (user.role == "guest" || involves_a_guest(&st.db, &[target]).await?)
+            {
+                return Err(ChatError::Forbidden);
             }
 
             // Vérifier si une conversation directe existe déjà
@@ -172,6 +201,24 @@ pub async fn create_conversation(
             Ok(Json(json!({ "conversation": conv })))
         }
         "group" | "channel" => {
+            // Instance policy on spaces. Direct conversations are never gated —
+            // they are the baseline use of a messenger — but an instance may
+            // reserve space creation to its administrators, and may forbid the
+            // discoverable ("channel") kind altogether.
+            let cfg = st.instance();
+            if cfg.space_creation == SpaceCreation::Admins && user.role != "admin" {
+                return Err(ChatError::Forbidden);
+            }
+            if conv_type == "channel" && !cfg.allow_public_spaces {
+                return Err(ChatError::Forbidden);
+            }
+            if !cfg.allow_guest_conversations {
+                let members = dto.member_ids.as_deref().unwrap_or(&[]);
+                if user.role == "guest" || involves_a_guest(&st.db, members).await? {
+                    return Err(ChatError::Forbidden);
+                }
+            }
+
             let name = dto
                 .name
                 .filter(|s| !s.is_empty())
@@ -237,7 +284,11 @@ pub async fn join_meeting(
             .fetch_optional(&st.db)
             .await?;
 
-    match joinable.map(|(meeting, ty)| meeting || ty == "channel") {
+    // With discoverable spaces disabled, only a meeting link still lets someone
+    // in without an invitation; existing channels stay open to their members.
+    let public_spaces = st.instance().allow_public_spaces;
+
+    match joinable.map(|(meeting, ty)| meeting || (ty == "channel" && public_spaces)) {
         Some(true) => {
             sqlx::query(
                 "INSERT INTO chat.conversation_members (conversation_id, user_id, role)
@@ -264,6 +315,12 @@ pub async fn browse_channels(
 ) -> ChatResult<Json<Value>> {
     let q = params.get("q").map(|s| s.trim().to_lowercase()).unwrap_or_default();
     let joined = params.get("joined").map(|s| s == "true").unwrap_or(false);
+
+    // Discoverable spaces disabled: nothing is advertised to a non-member. The
+    // "joined" listing stays, so a member never loses sight of their own spaces.
+    if !joined && !st.instance().allow_public_spaces {
+        return Ok(Json(json!({ "channels": [] })));
+    }
 
     let rows: Vec<(Uuid, Option<String>, Option<String>, chrono::DateTime<chrono::Utc>, i64, bool)> = sqlx::query_as(
         "SELECT c.id, c.name, c.description, c.created_at,
@@ -412,6 +469,48 @@ pub async fn add_members(
     Json(dto): Json<AddMembersDto>,
 ) -> ChatResult<Json<Value>> {
     message_service::assert_member(&st.db, conv_id, user.id).await?;
+
+    let cfg = st.instance();
+
+    // Instance policy on guest accounts: they may not be brought into a space.
+    if !cfg.allow_guest_conversations && involves_a_guest(&st.db, &dto.user_ids).await? {
+        return Err(ChatError::Forbidden);
+    }
+
+    // Instance policy: adding members may be reserved to the space's owner and
+    // admins. Direct conversations have no such notion and keep their behaviour.
+    if cfg.space_invite_policy == SpaceInvitePolicy::Managers {
+        let is_direct: bool = sqlx::query_scalar(
+            "SELECT conv_type = 'direct' FROM chat.conversations WHERE id = $1",
+        )
+        .bind(conv_id)
+        .fetch_optional(&st.db)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "add_members: lecture du type de conversation");
+            e
+        })?
+        .unwrap_or(false);
+
+        if !is_direct {
+            let role: Option<String> = sqlx::query_scalar(
+                "SELECT role FROM chat.conversation_members
+                 WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL",
+            )
+            .bind(conv_id)
+            .bind(user.id)
+            .fetch_optional(&st.db)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "add_members: lecture du rôle");
+                e
+            })?;
+
+            if !matches!(role.as_deref(), Some("admin") | Some("owner")) {
+                return Err(ChatError::Forbidden);
+            }
+        }
+    }
 
     for uid in &dto.user_ids {
         sqlx::query(

@@ -4,6 +4,7 @@ import { MenuDropdown, useMenuDropdown, type MenuItem } from '@ui'
 import { ModuleServiceRegistry, pickImageFile } from '@kubuno/sdk'
 import { Send, Plus, X, Mic, Trash2, Loader2, BarChart3, Timer, Package, Smile, FileText, Image, Camera, Music, User, CalendarDays, Bold, Italic, Strikethrough, Code, Link, ChevronUp } from 'lucide-react'
 import { DecodedMessage, type GifResult } from './api'
+import { useChatConfig } from './chatConfig'
 import { readKubunoData, type KubunoDataEnvelope } from './kubunoData'
 import type { Sticker } from './stickers'
 
@@ -146,6 +147,7 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
 
   // ── Attachment menu / expression panel ───────────────────────────────────────
   const attachMenu = useMenuDropdown()
+  const instanceCfg = useChatConfig()
   // The paperclip opens one file chooser with a different `accept` per entry.
   const [accept, setAccept] = useState('')
   const [showExpressions, setShowExpressions] = useState(false)
@@ -293,7 +295,7 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
     }
     // Pasted images (screenshots, copied pictures) queue above the pill and
     // leave with the message being typed — its text becomes their caption.
-    if (onSendFiles) {
+    if (onSendFiles && instanceCfg.allow_file_sharing) {
       const imgs = [...e.clipboardData.items]
         .filter(it => it.kind === 'file' && it.type.startsWith('image/'))
         .map(it => it.getAsFile())
@@ -318,7 +320,8 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
   // ── Attachment menu (paperclip) ──────────────────────────────────────────────
   function attachItems(): MenuItem[] {
     const items: MenuItem[] = []
-    if (onSendFiles) {
+    // Attachments can be forbidden instance-wide: hide what the server refuses.
+    if (onSendFiles && instanceCfg.allow_file_sharing) {
       items.push(
         { type: 'action', label: t('chat_attach_document', { defaultValue: 'Document' }), icon: <FileText size={17} className="text-violet-500" />,
           onClick: () => pickFiles('.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.txt,.csv,.zip,.kbdoc,.kbsheet,.kbslide') },
@@ -346,7 +349,7 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
         items.push({ type: 'action', label: t('chat_attach_event', { defaultValue: 'Événement' }), icon: <CalendarDays size={17} className="text-rose-500" />, onClick: () => pickCard(pickEvent) })
       }
     }
-    if (onSendSticker) {
+    if (onSendSticker && instanceCfg.allow_file_sharing) {
       items.push({ type: 'action', label: t('chat_sticker_new', { defaultValue: 'Nouveau sticker' }), icon: <StickerGlyph />, onClick: () => pickStickerSource() })
     }
     if (onCycleEphemeral) {
@@ -718,7 +721,7 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
             ) : (
               <button
                 onClick={startRecording}
-                disabled={disabled || !onSendVoice}
+                disabled={disabled || !onSendVoice || !instanceCfg.allow_file_sharing}
                 className="p-2 text-gray-600 hover:text-blue-600 rounded-full hover:bg-gray-100 disabled:opacity-40 transition-colors flex-shrink-0"
                 title={t('chat_record_voice', { defaultValue: 'Message vocal' })}
               >
