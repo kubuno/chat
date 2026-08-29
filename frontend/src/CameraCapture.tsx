@@ -187,7 +187,7 @@ export default function CameraCapture({ onCapture, onClose }: Props) {
                   key={m}
                   onClick={() => !recording && setMode(m)}
                   disabled={recording}
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 transition-colors disabled:opacity-40 ${
+                  className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors disabled:opacity-40 ${
                     mode === m ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                   }`}
                 >

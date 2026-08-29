@@ -139,7 +139,7 @@ export default function StickerStudio({ file, onDone, onClose }: Props) {
               <button
                 key={f}
                 onClick={() => setFit(f)}
-                className={`px-4 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                className={`px-4 py-1.5 rounded-md text-xs font-medium transition-colors ${
                   fit === f ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
                 }`}
               >

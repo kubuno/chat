@@ -104,7 +104,7 @@ export default function ChatStatusMenu({ dark = false }: { dark?: boolean }) {
     <>
       <button
         onClick={e => menu.open(e)}
-        className={`flex items-center gap-1.5 h-8 px-2.5 rounded-full transition-colors ${
+        className={`flex items-center gap-1.5 h-8 px-2.5 rounded-md transition-colors ${
           dark ? 'hover:bg-white/15' : 'hover:bg-black/5'}`}
         title={myCustomStatus ?? label[myStatus]}
         aria-haspopup="menu"

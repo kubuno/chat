@@ -4,7 +4,12 @@ use axum::{
 };
 use uuid::Uuid;
 
-/// Utilisateur injecté par le core dans les headers X-Kubuno-*
+use crate::state::AppState;
+
+/// This module's id, used as the token audience.
+const MODULE_ID: &str = "chat";
+
+/// Caller identity, resolved from the signed `X-Kubuno-Auth` token.
 #[derive(Debug, Clone)]
 pub struct ChatUser {
     pub id:    Uuid,
@@ -12,32 +17,36 @@ pub struct ChatUser {
     pub email: String,
 }
 
+/// Authenticate from the signed token the core mints with this module's internal
+/// secret (see `kubuno-modauth`) instead of trusting the plain `X-Kubuno-User-*`
+/// headers, which any process reaching this module's loopback port could forge to
+/// impersonate any user. Specialised to `AppState` because verification needs the
+/// module's internal secret.
 #[axum::async_trait]
-impl<S: Send + Sync> FromRequestParts<S> for ChatUser {
+impl FromRequestParts<AppState> for ChatUser {
     type Rejection = StatusCode;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        let id = parts
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
+        let token = parts
             .headers
-            .get("x-kubuno-user-id")
+            .get(kubuno_modauth::TOKEN_HEADER)
             .and_then(|v| v.to_str().ok())
-            .and_then(|s| Uuid::parse_str(s).ok())
             .ok_or(StatusCode::UNAUTHORIZED)?;
 
-        let role = parts
-            .headers
-            .get("x-kubuno-user-role")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("user")
-            .to_string();
+        let user = kubuno_modauth::verify(
+            state.settings.core.internal_secret.as_bytes(),
+            token,
+            MODULE_ID,
+        )
+        .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
-        let email = parts
-            .headers
-            .get("x-kubuno-user-email")
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or("")
-            .to_string();
-
-        Ok(ChatUser { id, role, email })
+        Ok(ChatUser {
+            id: user.id,
+            role: user.role,
+            email: user.email,
+        })
     }
 }

@@ -161,7 +161,7 @@ export default function ExpressionPanel({ onPickEmoji, onPickGif, onPickSticker,
             <button
               key={id}
               onClick={() => setTab(id)}
-              className={`px-6 py-1.5 rounded-full text-sm transition-colors ${
+              className={`px-6 py-1.5 rounded-md text-sm transition-colors ${
                 tab === id ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
               }`}
               title={t(`chat_tab_${id}`, { defaultValue: id })}

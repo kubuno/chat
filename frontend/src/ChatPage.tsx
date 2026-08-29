@@ -527,7 +527,7 @@ function BrowseSpaces() {
         </div>
         <button
           onClick={() => setJoined(v => !v)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border transition-colors ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm border transition-colors ${
             joined ? 'border-primary text-primary bg-primary/5' : 'border-gray-200 text-gray-600 hover:bg-gray-50'
           }`}
         >
@@ -561,14 +561,14 @@ function BrowseSpaces() {
                 </p>
               </div>
               {ch.is_member ? (
-                <button onClick={() => setActiveConv(ch.id)} className="px-4 py-1.5 rounded-full text-sm border border-gray-200 text-gray-700 hover:bg-gray-50">
+                <button onClick={() => setActiveConv(ch.id)} className="px-4 py-1.5 rounded-md text-sm border border-gray-200 text-gray-700 hover:bg-gray-50">
                   {t('chat_open', { defaultValue: 'Ouvrir' })}
                 </button>
               ) : (
                 <button
                   onClick={() => join(ch.id)}
                   disabled={joining === ch.id}
-                  className="px-4 py-1.5 rounded-full text-sm bg-primary text-white hover:opacity-90 disabled:opacity-50"
+                  className="px-4 py-1.5 rounded-md text-sm bg-primary text-white hover:opacity-90 disabled:opacity-50"
                 >
                   {t('chat_join', { defaultValue: 'Rejoindre' })}
                 </button>

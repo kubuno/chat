@@ -8,7 +8,7 @@
  */
 import { useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { X, Minus, Maximize2, MessageSquare } from 'lucide-react'
+import { X, Minus, Square, MessageSquare } from 'lucide-react'
 import { useChatStore, getConvName } from './chatStore'
 import { useAuthStore } from '@kubuno/sdk'
 import { useNavigate } from 'react-router-dom'
@@ -78,7 +78,7 @@ export default function ChatPopups() {
                   <Minus className="w-4 h-4" />
                 </button>
                 <button onClick={() => expand(convId)} className="p-1 rounded hover:bg-gray-100 text-gray-500" title={t('chat_expand', { defaultValue: 'Agrandir' })}>
-                  <Maximize2 className="w-3.5 h-3.5" />
+                  <Square className="w-3.5 h-3.5" />
                 </button>
                 <button onClick={() => closePopup(convId)} className="p-1 rounded hover:bg-gray-100 text-gray-500" title={t('chat_close_panel', { defaultValue: 'Fermer' })}>
                   <X className="w-4 h-4" />
