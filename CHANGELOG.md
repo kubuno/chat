@@ -11,6 +11,9 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ### Changed
 
+- **Square corners on chat popups.** Docked conversation popups now have
+  square corners, matching the platform's flat floating-window look.
+
 - **Classic window glyphs on chat popups and the call window.** Expand is a
   plain square and minimizing a call to its thumbnail uses the
   picture-in-picture glyph, instead of diagonal double arrows.

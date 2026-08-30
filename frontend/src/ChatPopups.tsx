@@ -53,7 +53,7 @@ export default function ChatPopups() {
           <div
             key={convId}
             data-chat-popup={convId}
-            className={`pointer-events-auto w-[340px] bg-white rounded-t-xl shadow-2xl border border-gray-200 border-b-0 flex flex-col overflow-hidden
+            className={`pointer-events-auto w-[340px] bg-white shadow-2xl border border-gray-200 border-b-0 flex flex-col overflow-hidden
               ${isMin ? 'h-11' : 'h-[460px] max-h-[70vh]'}`}
           >
             <header className="flex items-center gap-2 px-3 h-11 flex-shrink-0 bg-white border-b border-gray-100">
