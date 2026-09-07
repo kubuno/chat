@@ -46,6 +46,10 @@ interface ChatApi {
     @DELETE("api/v1/chat/messages/{id}")
     suspend fun delete(@Path("id") id: String)
 
+    /** Toggles the pin server-side; the response carries the new state. */
+    @POST("api/v1/chat/messages/{id}/pin")
+    suspend fun pinMessage(@Path("id") id: String): MessageResponse
+
     @POST("api/v1/chat/messages/{id}/reactions")
     suspend fun addReaction(@Path("id") id: String, @Body body: ReactionBody)
 

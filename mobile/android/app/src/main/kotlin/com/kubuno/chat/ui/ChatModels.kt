@@ -85,7 +85,28 @@ data class ConversationState(
     val hasMore: Boolean = true,
     val typingUserIds: Set<String> = emptySet(),
     val error: String? = null,
-)
+    /** Message being replied to, shown as a quote above the composer. */
+    val replyTo: UiMessage? = null,
+    /** Message being edited; the composer switches to "save" while set. */
+    val editing: UiMessage? = null,
+    /** Message whose action overlay is open (long-press). */
+    val actionTarget: UiMessage? = null,
+    /** Ids selected in multi-select mode; empty means the mode is off. */
+    val selection: Set<String> = emptySet(),
+    /** In-conversation search: null when the search bar is closed. */
+    val search: String? = null,
+    val searchMatches: List<String> = emptyList(),
+    val searchIndex: Int = 0,
+) {
+    val selecting: Boolean get() = selection.isNotEmpty()
+
+    fun message(id: String?): UiMessage? = id?.let { key -> messages.firstOrNull { it.id == key } }
+
+    /** The one message currently highlighted by the search, if any. */
+    val searchHit: String? get() = searchMatches.getOrNull(searchIndex)
+
+    fun senderLabel(userId: String): String? = members[userId]?.label
+}
 
 /** Maps a wire conversation to its row model. */
 fun ConversationSummary.toUi(last: UiMessage?, nowMs: Long): UiConversation = UiConversation(
@@ -114,7 +135,10 @@ fun Message.toUi(selfUserId: String, reactions: Map<String, Int> = emptyMap(), m
         content = ChatEnvelope.decode(encryptedData),
         createdAtMs = Timestamps.parseMs(createdAt) ?: 0L,
         editedAtMs = editedAt?.let(Timestamps::parseMs),
-        deleted = deletedAt != null,
+        // A tombstone comes back with message_type "deleted" and an empty
+        // envelope; deleted_at alone is not enough, since the module also
+        // returns it on the live message_updated event.
+        deleted = deletedAt != null || messageType == "deleted",
         pinned = isPinned,
         replyToId = replyToId,
         messageType = messageType,

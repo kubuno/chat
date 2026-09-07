@@ -12,6 +12,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -30,6 +33,9 @@ fun ChatApp(viewModel: ChatViewModel = hiltViewModel()) {
     val list by viewModel.list.collectAsStateWithLifecycle()
     val conversation by viewModel.conversation.collectAsStateWithLifecycle()
 
+    // Which messages a forward is about: the long-pressed one, or the selection.
+    var forwarding by remember { mutableStateOf<List<UiMessage>>(emptyList()) }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.surface,
@@ -41,14 +47,71 @@ fun ChatApp(viewModel: ChatViewModel = hiltViewModel()) {
                 accounts.isEmpty() -> NoAccount()
 
                 conversation != null -> {
-                    BackHandler { viewModel.closeConversation() }
+                    val state = conversation!!
+                    // Back peels one layer at a time, innermost first.
+                    BackHandler {
+                        when {
+                            state.selecting -> viewModel.clearSelection()
+                            state.search != null -> viewModel.closeSearch()
+                            state.replyTo != null || state.editing != null -> viewModel.cancelCompose()
+                            else -> viewModel.closeConversation()
+                        }
+                    }
                     ConversationScreen(
-                        state = conversation!!,
+                        state = state,
                         onBack = viewModel::closeConversation,
                         onSend = viewModel::send,
+                        onDraftChanged = viewModel::onDraftChanged,
                         onLoadOlder = viewModel::loadOlder,
                         onRetry = viewModel::retry,
+                        onLongPress = viewModel::openActions,
+                        onReply = viewModel::startReply,
+                        onToggleSelect = viewModel::toggleSelect,
+                        onClearSelection = viewModel::clearSelection,
+                        onCancelCompose = viewModel::cancelCompose,
+                        onDeleteSelected = {
+                            state.messages.filter { it.id in state.selection }.forEach(viewModel::deleteMessage)
+                            viewModel.clearSelection()
+                        },
+                        onForwardSelected = {
+                            forwarding = state.messages.filter { it.id in state.selection }
+                        },
+                        onOpenSearch = viewModel::openSearch,
+                        onCloseSearch = viewModel::closeSearch,
+                        onSearch = viewModel::setSearch,
+                        onStepSearch = viewModel::stepSearch,
                     )
+
+                    state.actionTarget?.let { target ->
+                        MessageActionsOverlay(
+                            message = target,
+                            canEdit = target.outgoing && !target.deleted,
+                            canDelete = target.outgoing && !target.deleted,
+                            onDismiss = viewModel::closeActions,
+                            onReact = { viewModel.toggleReaction(target, it) },
+                            onReply = { viewModel.startReply(target) },
+                            onEdit = { viewModel.startEdit(target) },
+                            onDelete = { viewModel.deleteMessage(target) },
+                            onForward = {
+                                viewModel.closeActions()
+                                forwarding = listOf(target)
+                            },
+                            onPin = { viewModel.togglePinMessage(target) },
+                            onSelect = { viewModel.toggleSelect(target) },
+                        )
+                    }
+
+                    if (forwarding.isNotEmpty()) {
+                        ForwardSheet(
+                            count = forwarding.size,
+                            targets = viewModel.forwardTargets(),
+                            onDismiss = { forwarding = emptyList() },
+                            onPick = { target ->
+                                viewModel.forward(forwarding, target)
+                                forwarding = emptyList()
+                            },
+                        )
+                    }
                 }
 
                 else -> {

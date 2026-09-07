@@ -40,6 +40,12 @@ data class ConversationSummary(
     @SerialName("is_favorite") val isFavorite: Boolean = false,
     @SerialName("muted_until") val mutedUntil: String? = null,
     @SerialName("other_user") val otherUser: OtherUser? = null,
+    /**
+     * The newest message the caller may see, or null for an empty conversation.
+     * Absent on instances predating the field, in which case the client falls
+     * back to one page-of-one per row.
+     */
+    @SerialName("last_message") val lastMessage: LastMessage? = null,
 ) {
     /** What the conversation row shows as a title. */
     val title: String
@@ -47,6 +53,30 @@ data class ConversationSummary(
             ?: otherUser?.displayName
             ?: otherUser?.username
             ?: "?"
+}
+
+/**
+ * The row preview the conversation list carries. Deliberately its own type
+ * rather than a loosened [Message]: the server sends only what a preview needs,
+ * with no conversation_id (the entry it belongs to already names it), and a
+ * full Message with half its fields optional would hide that everywhere else.
+ */
+@Serializable
+data class LastMessage(
+    val id: String,
+    @SerialName("sender_id") val senderId: String,
+    @SerialName("message_type") val messageType: String = "text",
+    @SerialName("encrypted_data") val encryptedData: String = "",
+    @SerialName("created_at") val createdAt: String,
+) {
+    fun asMessage(conversationId: String): Message = Message(
+        id = id,
+        conversationId = conversationId,
+        senderId = senderId,
+        encryptedData = encryptedData,
+        messageType = messageType,
+        createdAt = createdAt,
+    )
 }
 
 @Serializable

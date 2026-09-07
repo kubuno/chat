@@ -95,6 +95,16 @@ class ChatSocket(
         scope.coroutineContext.cancelChildren()
     }
 
+    /**
+     * Tells the other members that this user is typing. The module has no REST
+     * route for it: typing is ephemeral and only exists on the socket, so a
+     * dropped frame simply means the indicator does not show.
+     */
+    fun typing(conversationId: String, started: Boolean) {
+        val action = if (started) "typing_start" else "typing_stop"
+        socket?.send("""{"action":"$action","conversation_id":"$conversationId"}""")
+    }
+
     /** Decodes a payload into [T], or null when the shape does not match. */
     fun <T> decode(envelope: Envelope, deserializer: kotlinx.serialization.DeserializationStrategy<T>): T? {
         val payload = envelope.payload ?: return null

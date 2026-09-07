@@ -9,6 +9,8 @@ import com.kubuno.chat.net.ChatApi
 import com.kubuno.chat.net.ChatClients
 import com.kubuno.chat.net.ChatEnvelope
 import com.kubuno.chat.net.ChatSocket
+import com.kubuno.chat.net.EditMessageBody
+import com.kubuno.chat.net.ReactionBody
 import com.kubuno.chat.net.Member
 import com.kubuno.chat.net.MemberSettingsBody
 import com.kubuno.chat.net.Message
@@ -87,6 +89,7 @@ class ChatViewModel @Inject constructor(
     private var socket: ChatSocket? = null
     private var socketJob: Job? = null
     private val typingTimers = mutableMapOf<String, Job>()
+    @Volatile private var typingSentAtMs = 0L
 
     private val api: ChatApi?
         get() = _account.value?.let(clients::api)
@@ -128,19 +131,27 @@ class ChatViewModel @Inject constructor(
             runCatching { api.conversations() }
                 .onSuccess { response ->
                     val now = System.currentTimeMillis()
-                    // Show the rows the moment they arrive. The list endpoint
-                    // carries no last message, so a preview costs one
-                    // page-of-one per conversation; fetching those in series
-                    // before painting anything left the screen spinning for
-                    // seconds on a real inbox.
                     _list.update {
                         it.copy(
                             loading = false,
                             error = null,
-                            conversations = response.conversations.map { s -> s.toUi(null, now) },
+                            conversations = response.conversations.map { s ->
+                                val last = s.lastMessage
+                                    ?.asMessage(s.conversation.id)
+                                    ?.toUi(selfUserId)
+                                s.toUi(last, now)
+                            },
                         )
                     }
-                    fillPreviews(response.conversations.map { it.conversation.id })
+                    // Instances that predate the last_message field give us
+                    // nothing to preview; one page-of-one per row is the
+                    // fallback. A single row carrying the field proves the
+                    // server has it, so a genuinely empty inbox costs nothing.
+                    if (response.conversations.isNotEmpty() &&
+                        response.conversations.none { it.lastMessage != null }
+                    ) {
+                        fillPreviews(response.conversations.map { it.conversation.id })
+                    }
                 }
                 .onFailure { e ->
                     Log.w(TAG, "conversations failed", e)
@@ -277,13 +288,91 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    // ------------------------------------------------------- compose targets
+
+    fun startReply(message: UiMessage) =
+        _conversation.update { it?.copy(replyTo = message, editing = null, actionTarget = null) }
+
+    fun startEdit(message: UiMessage) =
+        _conversation.update { it?.copy(editing = message, replyTo = null, actionTarget = null) }
+
+    fun cancelCompose() = _conversation.update { it?.copy(replyTo = null, editing = null) }
+
+    fun openActions(message: UiMessage) = _conversation.update { it?.copy(actionTarget = message) }
+
+    fun closeActions() = _conversation.update { it?.copy(actionTarget = null) }
+
+    // ----------------------------------------------------------- multi-select
+
+    fun toggleSelect(message: UiMessage) = _conversation.update { state ->
+        state ?: return@update null
+        val next = if (message.id in state.selection) state.selection - message.id
+        else state.selection + message.id
+        state.copy(selection = next, actionTarget = null)
+    }
+
+    fun clearSelection() = _conversation.update { it?.copy(selection = emptySet()) }
+
+    // ---------------------------------------------------------------- search
+
+    fun openSearch() = _conversation.update { it?.copy(search = "") }
+
+    fun closeSearch() =
+        _conversation.update { it?.copy(search = null, searchMatches = emptyList(), searchIndex = 0) }
+
+    fun setSearch(query: String) = _conversation.update { state ->
+        state ?: return@update null
+        // Local only: the module has no message-search route, and the history
+        // already in memory is what the user is looking through.
+        val matches = if (query.isBlank()) emptyList() else state.messages
+            .filter { !it.deleted && it.preview().contains(query, ignoreCase = true) }
+            .map { it.id }
+            .reversed()
+        state.copy(search = query, searchMatches = matches, searchIndex = 0)
+    }
+
+    fun stepSearch(forward: Boolean) = _conversation.update { state ->
+        state ?: return@update null
+        if (state.searchMatches.isEmpty()) return@update state
+        val size = state.searchMatches.size
+        val next = (state.searchIndex + if (forward) 1 else -1 + size) % size
+        state.copy(searchIndex = next)
+    }
+
+    // -------------------------------------------------------------- messaging
+
+    /** Signals typing on the socket; harmless to call on every keystroke. */
+    fun onDraftChanged(text: String) {
+        val state = _conversation.value ?: return
+        val socket = socket ?: return
+        val now = System.currentTimeMillis()
+        if (text.isBlank()) {
+            if (typingSentAtMs != 0L) {
+                socket.typing(state.id, started = false)
+                typingSentAtMs = 0L
+            }
+            return
+        }
+        // The module re-broadcasts every frame, so throttle rather than spam.
+        if (now - typingSentAtMs < TYPING_THROTTLE_MS) return
+        typingSentAtMs = now
+        socket.typing(state.id, started = true)
+    }
+
     fun send(text: String) {
         val api = api ?: return
         val state = _conversation.value ?: return
         val trimmed = text.trim()
         if (trimmed.isEmpty()) return
 
-        val body = ChatEnvelope.encodeText(trimmed)
+        // An edit in progress rewrites the message instead of sending a new one.
+        state.editing?.let { target ->
+            submitEdit(target, trimmed)
+            return
+        }
+
+        val replyTo = state.replyTo
+        val body = ChatEnvelope.encodeText(trimmed).copy(replyToId = replyTo?.id)
         // Optimistic row keyed by the nonce, which is also the module's
         // idempotency key — a retry after a dropped POST returns the same
         // message rather than creating a second one.
@@ -297,11 +386,13 @@ class ChatViewModel @Inject constructor(
             editedAtMs = null,
             deleted = false,
             pinned = false,
-            replyToId = null,
+            replyToId = replyTo?.id,
             messageType = "text",
             pending = true,
         )
-        _conversation.update { it?.copy(messages = it.messages + optimistic) }
+        _conversation.update { it?.copy(messages = it.messages + optimistic, replyTo = null) }
+        socket?.typing(state.id, started = false)
+        typingSentAtMs = 0L
 
         viewModelScope.launch {
             runCatching { api.send(state.id, body) }
@@ -322,6 +413,128 @@ class ChatViewModel @Inject constructor(
                 }
         }
     }
+
+    /**
+     * Rewrites a message the user sent. The module allows this on any of your
+     * own messages with no time limit, so the app imposes none either — an
+     * artificial window would only take away something the platform offers.
+     */
+    private fun submitEdit(target: UiMessage, text: String) {
+        val api = api ?: return
+        val conversationId = target.conversationId
+        val body = ChatEnvelope.encodeText(text)
+        _conversation.update { state ->
+            state?.copy(
+                editing = null,
+                messages = state.messages.map {
+                    if (it.id != target.id) it
+                    else it.copy(
+                        content = ChatEnvelope.Content(text, it.content.media, it.content.poll, it.content.hasCard),
+                        editedAtMs = System.currentTimeMillis(),
+                    )
+                },
+            )
+        }
+        viewModelScope.launch {
+            runCatching { api.edit(target.id, EditMessageBody(body.encryptedData, body.nonce)) }
+                .onSuccess { response ->
+                    val ui = response.message.toUi(selfUserId)
+                    replace(ui)
+                    refreshRowPreview(conversationId, ui)
+                }
+                .onFailure { e ->
+                    Log.w(TAG, "edit failed", e)
+                    // Put the original text back rather than leave a lie on screen.
+                    replace(target)
+                }
+        }
+    }
+
+    /**
+     * Deletes for everyone — the only kind the module implements. It keeps a
+     * tombstone (deleted_at) and tells the other members, so the bubble becomes
+     * "this message was deleted" rather than vanishing mid-conversation.
+     */
+    fun deleteMessage(message: UiMessage) {
+        val api = api ?: return
+        _conversation.update { state ->
+            state?.copy(
+                actionTarget = null,
+                selection = state.selection - message.id,
+                messages = state.messages.map { if (it.id == message.id) it.copy(deleted = true) else it },
+            )
+        }
+        viewModelScope.launch {
+            runCatching { api.delete(message.id) }
+                .onFailure {
+                    Log.w(TAG, "delete failed", it)
+                    replace(message)
+                }
+            markRowDeleted(message.conversationId, message.id)
+        }
+    }
+
+    /** Adds or removes one of my reactions on a message. */
+    fun toggleReaction(message: UiMessage, emoji: String) {
+        val api = api ?: return
+        val mine = emoji in message.myReactions
+        val counts = message.reactions.toMutableMap()
+        val next = (counts[emoji] ?: 0) + if (mine) -1 else 1
+        if (next <= 0) counts.remove(emoji) else counts[emoji] = next
+        replace(
+            message.copy(
+                reactions = counts,
+                myReactions = if (mine) message.myReactions - emoji else message.myReactions + emoji,
+            )
+        )
+        closeActions()
+        viewModelScope.launch {
+            runCatching {
+                if (mine) api.removeReaction(message.id, emoji) else api.addReaction(message.id, ReactionBody(emoji))
+            }.onFailure {
+                Log.w(TAG, "reaction failed", it)
+                replace(message)
+            }
+        }
+    }
+
+    /** Pins or unpins a message (the module toggles server-side). */
+    fun togglePinMessage(message: UiMessage) {
+        val api = api ?: return
+        closeActions()
+        viewModelScope.launch {
+            runCatching { api.pinMessage(message.id) }
+                .onSuccess { replace(it.message.toUi(selfUserId)) }
+                .onFailure { Log.w(TAG, "pin failed", it) }
+        }
+    }
+
+    /**
+     * Forwards messages to another conversation.
+     *
+     * The module has no forward route, so this re-sends each envelope as a new
+     * message. That is what the web would have to do too; the only thing lost
+     * is the "forwarded" provenance, which nothing on the wire can carry today.
+     */
+    fun forward(messages: List<UiMessage>, toConversationId: String) {
+        val api = api ?: return
+        clearSelection()
+        closeActions()
+        viewModelScope.launch {
+            for (message in messages.sortedBy { it.createdAtMs }) {
+                val text = message.content.text ?: continue
+                runCatching { api.send(toConversationId, ChatEnvelope.encodeText(text)) }
+                    .onFailure { Log.w(TAG, "forward failed", it) }
+            }
+            loadConversations()
+        }
+    }
+
+    /** The conversations a forward can target, most recent first. */
+    fun forwardTargets(): List<UiConversation> =
+        _list.value.conversations
+            .filter { it.id != _conversation.value?.id }
+            .sortedByDescending { it.lastActivityMs }
 
     /** Re-sends a bubble that failed, reusing its text (a fresh nonce is fine). */
     fun retry(message: UiMessage) {
@@ -517,5 +730,6 @@ class ChatViewModel @Inject constructor(
         const val TYPING_TIMEOUT_MS = 6_000L
         const val SUBTITLE_MAX = 80
         const val PREVIEW_CONCURRENCY = 5
+        const val TYPING_THROTTLE_MS = 3_000L
     }
 }

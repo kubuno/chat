@@ -1,36 +1,53 @@
 package com.kubuno.chat.ui
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.EmojiEmotions
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,6 +58,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -48,9 +66,17 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 
 /**
  * A single conversation.
@@ -59,24 +85,48 @@ import androidx.compose.ui.unit.dp
  * the title form one tap target, the message list on a tinted backdrop, then
  * the composer — a fully rounded field with emoji/attach/camera inside it and
  * a round accent button outside that morphs between mic and send.
+ *
+ * The header has three states: normal, in-conversation search, and multi-select
+ * (which turns it into an action bar, the one place where that old pattern is
+ * still the right one — the actions apply to a set, not to a message on screen).
  */
 @Composable
 fun ConversationScreen(
     state: ConversationState,
     onBack: () -> Unit,
     onSend: (String) -> Unit,
+    onDraftChanged: (String) -> Unit,
     onLoadOlder: () -> Unit,
     onRetry: (UiMessage) -> Unit,
+    onLongPress: (UiMessage) -> Unit,
+    onReply: (UiMessage) -> Unit,
+    onToggleSelect: (UiMessage) -> Unit,
+    onClearSelection: () -> Unit,
+    onCancelCompose: () -> Unit,
+    onDeleteSelected: () -> Unit,
+    onForwardSelected: () -> Unit,
+    onOpenSearch: () -> Unit,
+    onCloseSearch: () -> Unit,
+    onSearch: (String) -> Unit,
+    onStepSearch: (Boolean) -> Unit,
 ) {
     val palette = ChatTheme.palette
     val listState = rememberLazyListState()
-    var draft by remember(state.id) { mutableStateOf("") }
+    // TextFieldValue rather than String so the caret can be placed: entering
+    // edit mode must leave it at the END of the text being rewritten, not at
+    // position 0 where the next keystroke would prepend.
+    var draft by remember(state.id) { mutableStateOf(TextFieldValue()) }
+
+    LaunchedEffect(state.editing?.id) {
+        state.editing?.let {
+            val text = it.content.text.orEmpty()
+            draft = TextFieldValue(text, TextRange(text.length))
+        }
+    }
 
     // Reaching the top pulls the previous page. derivedStateOf keeps this from
     // recomposing on every pixel of scroll.
-    val atTop by remember {
-        derivedStateOf { listState.firstVisibleItemIndex <= 2 }
-    }
+    val atTop by remember { derivedStateOf { listState.firstVisibleItemIndex <= 2 } }
     LaunchedEffect(atTop, state.hasMore, state.loadingMore) {
         if (atTop && state.hasMore && !state.loadingMore && state.messages.isNotEmpty()) onLoadOlder()
     }
@@ -88,9 +138,32 @@ fun ConversationScreen(
         }
     }
 
+    // Jump to the current search hit.
+    LaunchedEffect(state.searchHit) {
+        val hit = state.searchHit ?: return@LaunchedEffect
+        val index = state.messages.indexOfFirst { it.id == hit }
+        if (index >= 0) listState.animateScrollToItem(index)
+    }
+
     Column(Modifier.fillMaxSize().background(palette.backdrop)) {
 
-        ConversationHeader(state = state, onBack = onBack)
+        when {
+            state.selecting -> SelectionBar(
+                count = state.selection.size,
+                onClear = onClearSelection,
+                onDelete = onDeleteSelected,
+                onForward = onForwardSelected,
+            )
+            state.search != null -> SearchBar(
+                query = state.search,
+                matches = state.searchMatches.size,
+                index = state.searchIndex,
+                onQuery = onSearch,
+                onStep = onStepSearch,
+                onClose = onCloseSearch,
+            )
+            else -> ConversationHeader(state = state, onBack = onBack, onSearch = onOpenSearch)
+        }
 
         Box(Modifier.weight(1f)) {
             when {
@@ -103,7 +176,7 @@ fun ConversationScreen(
                 else -> LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
+                    contentPadding = PaddingValues(vertical = 8.dp),
                 ) {
                     if (state.loadingMore) {
                         item(key = "loading-more") {
@@ -113,14 +186,16 @@ fun ConversationScreen(
                         }
                     }
 
-                    itemsIndexed(state, onRetry)
+                    messageItems(
+                        state = state,
+                        onRetry = onRetry,
+                        onLongPress = onLongPress,
+                        onReply = onReply,
+                        onToggleSelect = onToggleSelect,
+                    )
 
                     item(key = "typing") {
-                        if (state.typingUserIds.isNotEmpty()) {
-                            TypingRow(state)
-                        } else {
-                            Spacer(Modifier.height(4.dp))
-                        }
+                        if (state.typingUserIds.isNotEmpty()) TypingRow(state) else Spacer(Modifier.height(4.dp))
                     }
                 }
             }
@@ -128,19 +203,32 @@ fun ConversationScreen(
 
         Composer(
             draft = draft,
-            onDraft = { draft = it },
+            replyTo = state.replyTo,
+            replyLabel = state.replyTo?.let { if (it.outgoing) "Vous" else state.senderLabel(it.senderId) },
+            editing = state.editing,
+            onDraft = {
+                draft = it
+                onDraftChanged(it.text)
+            },
+            onCancelCompose = {
+                draft = TextFieldValue()
+                onCancelCompose()
+            },
             onSend = {
-                onSend(draft)
-                draft = ""
+                onSend(draft.text)
+                draft = TextFieldValue()
             },
         )
     }
 }
 
 /** Bubbles plus their date separators, in one pass so run grouping is cheap. */
-private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexed(
+private fun LazyListScope.messageItems(
     state: ConversationState,
     onRetry: (UiMessage) -> Unit,
+    onLongPress: (UiMessage) -> Unit,
+    onReply: (UiMessage) -> Unit,
+    onToggleSelect: (UiMessage) -> Unit,
 ) {
     val messages = state.messages
     messages.forEachIndexed { index, message ->
@@ -154,24 +242,116 @@ private fun androidx.compose.foundation.lazy.LazyListScope.itemsIndexed(
         }
         item(key = message.id) {
             Spacer(Modifier.height(if (runStart) ChatDims.GroupGap else ChatDims.RunGap))
+            SwipeableBubble(
+                message = message,
+                state = state,
+                runStart = runStart,
+                onRetry = onRetry,
+                onLongPress = onLongPress,
+                onReply = onReply,
+                onToggleSelect = onToggleSelect,
+            )
+        }
+    }
+}
+
+/**
+ * A bubble that can be dragged to the right to reply — the gesture every
+ * messenger user already knows. Past the threshold the reply arrow lights up
+ * and releasing arms the quote; below it the bubble springs back.
+ */
+@Composable
+private fun SwipeableBubble(
+    message: UiMessage,
+    state: ConversationState,
+    runStart: Boolean,
+    onRetry: (UiMessage) -> Unit,
+    onLongPress: (UiMessage) -> Unit,
+    onReply: (UiMessage) -> Unit,
+    onToggleSelect: (UiMessage) -> Unit,
+) {
+    val density = LocalDensity.current
+    val threshold = with(density) { SWIPE_THRESHOLD_DP.dp.toPx() }
+    val maxDrag = with(density) { SWIPE_MAX_DP.dp.toPx() }
+    var drag by remember(message.id) { mutableFloatStateOf(0f) }
+    val offset by animateFloatAsState(drag, label = "swipe")
+    val armed = drag >= threshold
+    val selected = message.id in state.selection
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.10f)
+                else androidx.compose.ui.graphics.Color.Transparent
+            )
+    ) {
+        // The arrow revealed behind the bubble while dragging.
+        if (drag > 1f) {
+            Box(
+                modifier = Modifier.fillMaxHeight().padding(start = 12.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                Icon(
+                    Icons.AutoMirrored.Filled.Reply,
+                    contentDescription = null,
+                    tint = if (armed) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(offset.roundToInt(), 0) }
+                // The drag detector goes FIRST in the chain. With the tap
+                // detector ahead of it, the tap pass swallowed the pointer and
+                // the swipe never reached the drag detector at all.
+                .pointerInput(message.id) {
+                    detectHorizontalDragGestures(
+                        onDragEnd = {
+                            if (drag >= threshold) onReply(message)
+                            drag = 0f
+                        },
+                        onDragCancel = { drag = 0f },
+                    ) { change, amount ->
+                        // Right-only and capped: a reply gesture must never
+                        // fight the list's vertical scroll.
+                        val next = (drag + amount).coerceIn(0f, maxDrag)
+                        if (next != drag) change.consume()
+                        drag = next
+                    }
+                }
+                .pointerInput(message.id, state.selecting) {
+                    detectTapGestures(
+                        onLongPress = { onLongPress(message) },
+                        onTap = { if (state.selecting) onToggleSelect(message) else if (message.failed) onRetry(message) },
+                    )
+                }
+        ) {
             MessageBubble(
                 message = message,
                 runStart = runStart,
                 showSender = state.isGroup && runStart,
-                senderName = state.members[message.senderId]?.label,
+                senderName = state.senderLabel(message.senderId),
                 deliveryState = when {
                     message.failed -> DeliveryState.Failed
                     message.pending -> DeliveryState.Pending
                     else -> DeliveryState.Sent
                 },
-                modifier = if (message.failed) Modifier.clickable { onRetry(message) } else Modifier,
+                quoted = state.message(message.replyToId),
+                quotedLabel = state.message(message.replyToId)?.let {
+                    if (it.outgoing) "Vous" else state.senderLabel(it.senderId)
+                },
+                highlighted = state.searchHit == message.id,
             )
         }
     }
 }
 
 @Composable
-private fun ConversationHeader(state: ConversationState, onBack: () -> Unit) {
+private fun ConversationHeader(state: ConversationState, onBack: () -> Unit, onSearch: () -> Unit) {
     val typing = state.typingUserIds.isNotEmpty()
     Row(
         modifier = Modifier
@@ -199,10 +379,7 @@ private fun ConversationHeader(state: ConversationState, onBack: () -> Unit) {
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            val sub = when {
-                typing -> typingLabel(state)
-                else -> state.subtitle
-            }
+            val sub = if (typing) typingLabel(state) else state.subtitle
             if (!sub.isNullOrBlank()) {
                 Text(
                     text = sub,
@@ -220,8 +397,122 @@ private fun ConversationHeader(state: ConversationState, onBack: () -> Unit) {
         IconButton(onClick = { /* audio call: M5 */ }) {
             Icon(Icons.Filled.Call, contentDescription = "Appel audio")
         }
-        IconButton(onClick = { /* overflow: M2 */ }) {
-            Icon(Icons.Filled.MoreVert, contentDescription = "Plus")
+        // Search lives in the overflow rather than the bar: a fourth icon left
+        // no room for the conversation's own name, which is the one thing the
+        // header must never truncate.
+        var menuOpen by remember { mutableStateOf(false) }
+        Box {
+            IconButton(onClick = { menuOpen = true }) {
+                Icon(Icons.Filled.MoreVert, contentDescription = "Plus")
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("Rechercher", style = ChatType.Preview) },
+                    leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                    onClick = {
+                        menuOpen = false
+                        onSearch()
+                    },
+                )
+            }
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+}
+
+/** The header while messages are selected: the actions apply to the whole set. */
+@Composable
+private fun SelectionBar(count: Int, onClear: () -> Unit, onDelete: () -> Unit, onForward: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .heightIn(min = ChatDims.HeaderHeight)
+            .padding(end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onClear) {
+            Icon(Icons.Filled.Close, contentDescription = "Annuler la sélection")
+        }
+        Text(
+            text = "$count",
+            style = ChatType.HeaderTitle,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onForward) {
+            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Transférer")
+        }
+        IconButton(onClick = onDelete) {
+            Icon(
+                Icons.Filled.Delete,
+                contentDescription = "Supprimer",
+                tint = MaterialTheme.colorScheme.error,
+            )
+        }
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+}
+
+/** In-conversation search: a field plus previous/next through the hits. */
+@Composable
+private fun SearchBar(
+    query: String,
+    matches: Int,
+    index: Int,
+    onQuery: (String) -> Unit,
+    onStep: (Boolean) -> Unit,
+    onClose: () -> Unit,
+) {
+    // Opening the search bar must also put the caret in it: a search field the
+    // user has to tap before typing is a search field that gets used once.
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .heightIn(min = ChatDims.HeaderHeight)
+            .padding(end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        IconButton(onClick = onClose) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Fermer la recherche")
+        }
+        BasicTextField(
+            value = query,
+            onValueChange = onQuery,
+            singleLine = true,
+            textStyle = LocalTextStyle.current.merge(ChatType.Body)
+                .copy(color = MaterialTheme.colorScheme.onSurface),
+            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+            modifier = Modifier.weight(1f).padding(vertical = 12.dp).focusRequester(focus),
+            decorationBox = { inner ->
+                Box {
+                    if (query.isEmpty()) {
+                        Text(
+                            "Rechercher dans la conversation",
+                            style = ChatType.Body,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    inner()
+                }
+            },
+        )
+        if (query.isNotBlank()) {
+            Text(
+                text = if (matches == 0) "0" else "${index + 1}/$matches",
+                style = ChatType.RowTime,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            IconButton(onClick = { onStep(false) }, enabled = matches > 0) {
+                Icon(Icons.Filled.ExpandLess, contentDescription = "Précédent")
+            }
+            IconButton(onClick = { onStep(true) }, enabled = matches > 0) {
+                Icon(Icons.Filled.ExpandMore, contentDescription = "Suivant")
+            }
         }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
@@ -251,90 +542,160 @@ private fun typingLabel(state: ConversationState): String {
 }
 
 @Composable
-private fun Composer(draft: String, onDraft: (String) -> Unit, onSend: () -> Unit) {
-    val canSend = draft.isNotBlank()
+private fun Composer(
+    draft: TextFieldValue,
+    replyTo: UiMessage?,
+    replyLabel: String?,
+    editing: UiMessage?,
+    onDraft: (TextFieldValue) -> Unit,
+    onCancelCompose: () -> Unit,
+    onSend: () -> Unit,
+) {
+    val canSend = draft.text.isNotBlank()
 
-    Row(
-        modifier = Modifier
+    Column(
+        Modifier
             .fillMaxWidth()
             .imePadding()
             .navigationBarsPadding()
-            .padding(horizontal = 8.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.Bottom,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Row(
-            modifier = Modifier
-                .weight(1f)
-                .clip(ChatShapes.Composer)
-                .background(MaterialTheme.colorScheme.surface)
-                .padding(horizontal = 6.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            IconButton(onClick = { /* emoji picker: M2 */ }, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    Icons.Filled.EmojiEmotions,
-                    contentDescription = "Emoji",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-            BasicTextField(
-                value = draft,
-                onValueChange = onDraft,
-                textStyle = LocalTextStyle.current.merge(ChatType.Body)
-                    .copy(color = MaterialTheme.colorScheme.onSurface),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
-                maxLines = 6,
+        // Context banner: the quote being answered, or the message being edited.
+        if (replyTo != null || editing != null) {
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 40.dp)
-                    .padding(horizontal = 4.dp, vertical = 10.dp),
-                decorationBox = { inner ->
-                    if (draft.isEmpty()) {
-                        Text(
-                            "Message",
-                            style = ChatType.Body,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    inner()
-                },
-            )
-            IconButton(onClick = { /* attachments: M3 */ }, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    Icons.Filled.AttachFile,
-                    contentDescription = "Joindre",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp),
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp)
+                    .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    Modifier
+                        .width(3.dp)
+                        .height(32.dp)
+                        .background(MaterialTheme.colorScheme.primary)
                 )
-            }
-            IconButton(onClick = { /* camera: M3 */ }, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    Icons.Filled.PhotoCamera,
-                    contentDescription = "Appareil photo",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(22.dp),
-                )
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = if (editing != null) "Modifier le message" else (replyLabel ?: "Réponse"),
+                        style = ChatType.BubbleMeta,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(
+                        text = (editing ?: replyTo)?.preview().orEmpty(),
+                        style = ChatType.BubbleMeta,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                IconButton(onClick = onCancelCompose, modifier = Modifier.size(32.dp)) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = "Annuler",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp),
+                    )
+                }
             }
         }
 
-        // Mic when the field is empty, send once there is text — the swap the
-        // eye reads as "a chat app". Voice recording itself lands in M3.
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary)
-                .clickable(enabled = canSend, onClick = onSend),
-            contentAlignment = Alignment.Center,
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Icon(
-                imageVector = if (canSend) Icons.AutoMirrored.Filled.Send else Icons.Filled.Mic,
-                contentDescription = if (canSend) "Envoyer" else "Message vocal",
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(22.dp),
-            )
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(ChatShapes.Composer)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
+                IconButton(onClick = { /* emoji picker: M3 */ }, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        Icons.Filled.EmojiEmotions,
+                        contentDescription = "Emoji",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+                BasicTextField(
+                    value = draft,
+                    onValueChange = onDraft,
+                    textStyle = LocalTextStyle.current.merge(ChatType.Body)
+                        .copy(color = MaterialTheme.colorScheme.onSurface),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    maxLines = 6,
+                    modifier = Modifier
+                        .weight(1f)
+                        .heightIn(min = 40.dp)
+                        .padding(horizontal = 4.dp, vertical = 10.dp),
+                    // The hint must OVERLAY the field, not precede it: without
+                    // a Box the two stack and the caret drops to a second line.
+                    decorationBox = { inner ->
+                        Box {
+                            if (draft.text.isEmpty()) {
+                                Text(
+                                    "Message",
+                                    style = ChatType.Body,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            inner()
+                        }
+                    },
+                )
+                IconButton(onClick = { /* attachments: M3 */ }, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        Icons.Filled.AttachFile,
+                        contentDescription = "Joindre",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+                IconButton(onClick = { /* camera: M3 */ }, modifier = Modifier.size(36.dp)) {
+                    Icon(
+                        Icons.Filled.PhotoCamera,
+                        contentDescription = "Appareil photo",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(22.dp),
+                    )
+                }
+            }
+
+            // Mic when the field is empty, send once there is text, check while
+            // editing — the swap the eye reads as "a chat app". Voice recording
+            // itself lands in M3.
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable(enabled = canSend, onClick = onSend),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = when {
+                        editing != null -> Icons.Filled.Check
+                        canSend -> Icons.AutoMirrored.Filled.Send
+                        else -> Icons.Filled.Mic
+                    },
+                    contentDescription = when {
+                        editing != null -> "Enregistrer"
+                        canSend -> "Envoyer"
+                        else -> "Message vocal"
+                    },
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(22.dp),
+                )
+            }
         }
     }
 }
+
+private const val SWIPE_THRESHOLD_DP = 56
+private const val SWIPE_MAX_DP = 84

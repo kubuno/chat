@@ -2,6 +2,10 @@ package com.kubuno.chat.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +36,7 @@ import androidx.compose.ui.text.PlaceholderVerticalAlign
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.text.InlineTextContent
@@ -59,13 +64,26 @@ fun MessageBubble(
     senderName: String?,
     deliveryState: DeliveryState,
     modifier: Modifier = Modifier,
+    quoted: UiMessage? = null,
+    quotedLabel: String? = null,
+    highlighted: Boolean = false,
+    onQuoteClick: () -> Unit = {},
 ) {
     val palette = ChatTheme.palette
     val outgoing = message.outgoing
     val maxWidth = LocalConfiguration.current.screenWidthDp.dp * ChatDims.BubbleMaxWidthFraction
 
     Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            // The search hit and the long-pressed message are lifted out of the
+            // backdrop the same way, so the eye finds them without a colour the
+            // design system does not have.
+            .background(
+                if (highlighted) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                else Color.Transparent
+            )
+            .padding(horizontal = 8.dp, vertical = if (highlighted) 2.dp else 0.dp),
         horizontalArrangement = if (outgoing) Arrangement.End else Arrangement.Start,
     ) {
         Column(
@@ -90,6 +108,17 @@ fun MessageBubble(
                     color = ChatColors.senderColor(message.senderId),
                 )
                 Spacer(Modifier.height(2.dp))
+            }
+
+            if (quoted != null) {
+                Quote(
+                    quoted = quoted,
+                    quotedLabel = quotedLabel,
+                    outgoing = outgoing,
+                    palette = palette,
+                    onClick = onQuoteClick,
+                )
+                Spacer(Modifier.height(4.dp))
             }
 
             BubbleText(
@@ -171,6 +200,50 @@ private fun BubbleText(
         color = if (message.deleted) onBubble.copy(alpha = 0.6f) else onBubble,
         fontStyle = if (message.deleted) FontStyle.Italic else FontStyle.Normal,
     )
+}
+
+/**
+ * The quoted block a reply carries at the top of its bubble: a coloured rule,
+ * the author, and a line of the original. Tapping it jumps to that message.
+ */
+@Composable
+private fun Quote(
+    quoted: UiMessage,
+    quotedLabel: String?,
+    outgoing: Boolean,
+    palette: ChatPalette,
+    onClick: () -> Unit,
+) {
+    val rule = if (quoted.outgoing) MaterialTheme.colorScheme.primary
+    else ChatColors.senderColor(quoted.senderId)
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(if (outgoing) palette.quoteOut else palette.quoteIn)
+            .clickable(onClick = onClick)
+            .height(IntrinsicSize.Min),
+    ) {
+        Box(
+            Modifier
+                .width(3.dp)
+                .fillMaxHeight()
+                .background(if (outgoing) palette.onBubbleOut else rule)
+        )
+        Column(Modifier.padding(horizontal = 8.dp, vertical = 5.dp)) {
+            Text(
+                text = quotedLabel ?: "Vous",
+                style = ChatType.BubbleMeta,
+                color = if (outgoing) palette.onBubbleOut else rule,
+            )
+            Text(
+                text = quoted.preview(),
+                style = ChatType.BubbleMeta,
+                color = if (outgoing) palette.onQuoteOut else palette.onQuoteIn,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
 }
 
 @Composable
