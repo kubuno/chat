@@ -118,12 +118,27 @@ class CallEngine @Inject constructor(
         factory?.let { return it }
         PeerConnectionFactory.initialize(
             PeerConnectionFactory.InitializationOptions.builder(context)
+                // Two brand-new negotiation features are turned off on
+                // purpose, both of them measured against a live Chrome:
+                //
+                //  - DTLS 1.3. The handshake reached HelloRetryRequest and then
+                //    died in BoringSSL with WRONG_CURVE
+                //    (ssl/extensions.cc:2524): the group the server picked
+                //    after the retry is not one the client accepts. DTLS 1.2 is
+                //    what every deployed browser has spoken for a decade.
+                //  - DTLS-in-STUN piggybacking, which the same run reported as
+                //    "piggybacking DTLS failed during negotiation".
+                //
+                // Neither buys this app anything a call needs; both are new
+                // enough that the two ends disagree. Revisit when the browser
+                // and this library have shipped them together for a while.
+                .setFieldTrials("WebRTC-ForceDtls13/Disabled/WebRTC-IceHandshakeDtls/Disabled/")
                 .createInitializationOptions()
         )
         // The native stack is silent by default, so a failed negotiation shows
         // up only as "FAILED" with no reason. Warnings are cheap and are the
         // only way to tell a DTLS error from an ICE one after the fact.
-        org.webrtc.Logging.enableLogToDebugOutput(org.webrtc.Logging.Severity.LS_WARNING)
+        org.webrtc.Logging.enableLogToDebugOutput(org.webrtc.Logging.Severity.LS_INFO)
         val audioModule = JavaAudioDeviceModule.builder(context)
             .setUseHardwareAcousticEchoCanceler(true)
             .setUseHardwareNoiseSuppressor(true)
