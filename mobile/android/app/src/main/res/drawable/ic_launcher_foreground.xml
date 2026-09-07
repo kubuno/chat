@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Adaptive-icon foreground: the Messages speech bubble.
+
+    Traced from the designer artwork the web wears (core/frontend/public/
+    chat-logo.png, 192x192): a white rounded bubble spanning x 29..140,
+    y 65..134 (corner radius ~12) with a tail falling from x 61..81 down to
+    (62,158). Those source pixels are mapped into the 108x108 adaptive canvas at
+    scale 0.594 and centred on the safe zone, which is why the numbers below are
+    absolute rather than a scaled group.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Bubble body: rounded rect (21.0,26.4)-(87.0,67.4), r = 7.1. -->
+    <path
+        android:fillColor="@color/chat_white"
+        android:pathData="M28.1,26.4 H79.9 A7.1,7.1 0 0 1 87.0,33.5 V60.3 A7.1,7.1 0 0 1 79.9,67.4 H28.1 A7.1,7.1 0 0 1 21.0,60.3 V33.5 A7.1,7.1 0 0 1 28.1,26.4 Z" />
+    <!-- Tail: hangs from the bubble's lower-left, point at (40.6,81.6). -->
+    <path
+        android:fillColor="@color/chat_white"
+        android:pathData="M40.0,64.0 H51.9 L40.6,81.6 Z" />
+</vector>

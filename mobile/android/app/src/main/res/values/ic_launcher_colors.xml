@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- The launcher icon mirrors the web mark (core/frontend/public/chat-logo.png,
+         rendered by chat/frontend/src/ChatLogo.tsx): a white speech bubble on a
+         sky-blue hexagon. The hexagon is the ADAPTIVE BACKGROUND (#0EA5E9, the
+         colour sampled from the artwork) because the launcher applies its own
+         mask; only the bubble lives in the foreground. -->
+    <color name="ic_launcher_background">#0EA5E9</color>
+    <color name="chat_white">#FFFFFF</color>
+</resources>
