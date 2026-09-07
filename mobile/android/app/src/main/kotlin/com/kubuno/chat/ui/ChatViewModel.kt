@@ -822,8 +822,33 @@ class ChatViewModel @Inject constructor(
 
     private var searchJob: Job? = null
 
-    fun openNewChat() = _newChat.update { NewChatState(open = true) }
+    fun openNewChat() {
+        _newChat.update { NewChatState(open = true) }
+        loadDirectory()
+    }
+
     fun closeNewChat() = _newChat.update { NewChatState() }
+
+    /**
+     * Fills the contact list shown before any search with the people of the
+     * caller's own organizational unit (and its sub-units) — an empty query
+     * with scope=unit is exactly the per-unit directory. This is what makes the
+     * "Nouvelle discussion" list the colleagues you can actually reach, not the
+     * whole instance.
+     */
+    private fun loadDirectory() {
+        val api = api ?: return
+        viewModelScope.launch {
+            _newChat.update { it.copy(searching = it.results.isEmpty()) }
+            val found = runCatching { api.searchUsers("", limit = 50, scope = "unit").users }
+                .onFailure { Log.w(TAG, "directory load failed", it) }
+                .getOrDefault(emptyList())
+                .filter { it.id != selfUserId }
+            // A late directory must not overwrite results the user has since
+            // typed a query for.
+            _newChat.update { if (it.query.isBlank()) it.copy(results = found, searching = false) else it.copy(searching = false) }
+        }
+    }
     fun setGroupMode(on: Boolean) = _newChat.update { it.copy(groupMode = on) }
     fun setGroupName(name: String) = _newChat.update { it.copy(groupName = name) }
 
@@ -839,7 +864,8 @@ class ChatViewModel @Inject constructor(
         _newChat.update { it.copy(query = query) }
         searchJob?.cancel()
         if (query.isBlank()) {
-            _newChat.update { it.copy(results = emptyList(), searching = false) }
+            // Back to the unit directory rather than an empty list.
+            loadDirectory()
             return
         }
         val api = api ?: return
@@ -848,11 +874,13 @@ class ChatViewModel @Inject constructor(
             // fast typist would queue a request per letter.
             delay(SEARCH_DEBOUNCE_MS)
             _newChat.update { it.copy(searching = true) }
-            val found = runCatching { api.searchUsers(query, limit = 20).users }
+            // Same scope as the directory: search stays inside the unit, so a
+            // name never turns up someone the person could not otherwise see.
+            val found = runCatching { api.searchUsers(query, limit = 20, scope = "unit").users }
                 .onFailure { Log.w(TAG, "user search failed", it) }
                 .getOrDefault(emptyList())
                 .filter { it.id != selfUserId }
-            _newChat.update { it.copy(results = found, searching = false) }
+            _newChat.update { if (it.query == query) it.copy(results = found, searching = false) else it }
         }
     }
 

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -212,23 +213,30 @@ fun NewChatScreen(
                 CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
             }
 
-            state.query.isBlank() -> Box(Modifier.fillMaxSize().padding(32.dp), Alignment.Center) {
-                Text(
-                    "Tapez un nom pour trouver quelqu'un sur votre instance.",
-                    style = ChatType.Preview,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-
             state.results.isEmpty() -> Box(Modifier.fillMaxSize().padding(32.dp), Alignment.Center) {
                 Text(
-                    "Personne ne correspond.",
+                    if (state.query.isBlank())
+                        "Personne d'autre dans votre unité organisationnelle."
+                    else "Personne ne correspond dans votre unité.",
                     style = ChatType.Preview,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
                 )
             }
 
             else -> LazyColumn(Modifier.fillMaxSize()) {
+                // Before any search, the list IS the unit directory; a labelled
+                // header says so, the way WhatsApp titles its contact groups.
+                if (state.query.isBlank()) {
+                    item("directory-header") {
+                        Text(
+                            "Contacts de votre unité",
+                            style = ChatType.SenderName,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = ChatDims.Gutter, top = 8.dp, bottom = 4.dp),
+                        )
+                    }
+                }
                 items(state.results, key = { it.id }) { person ->
                     val picked = state.selected.any { it.id == person.id }
                     Row(

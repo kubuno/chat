@@ -127,9 +127,17 @@ interface ChatApi {
     suspend fun downloadMedia(@Path("id") id: String): ResponseBody
 
     /** Core route (not the chat module): names people the module only identifies by uuid. */
+    /**
+     * The staff directory. An empty `q` returns the directory itself (ordered
+     * by name), so it doubles as the default contact list. `scope=unit`
+     * restricts it to the caller's own organizational unit and its sub-units —
+     * the core resolves the anchor from the caller's own account, so the client
+     * only asks for the narrowing, never names a unit.
+     */
     @GET("api/v1/users/search")
     suspend fun searchUsers(
         @Query("q") q: String,
         @Query("limit") limit: Int = 8,
+        @Query("scope") scope: String? = null,
     ): UserSearchResponse
 }
