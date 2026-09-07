@@ -105,6 +105,18 @@ class CallEngine @Inject constructor(
     /** Everyone we should ring when the call starts (a direct call has one). */
     private var ringTargets: List<Pair<String, String>> = emptyList()
 
+    /**
+     * Everyone known to be in the current call, whether or not a peer
+     * connection exists for them yet.
+     *
+     * A hang-up has to reach them all, and the peer table is not enough: the
+     * side that ANSWERS a call has no ring list and no peer until the caller's
+     * `call_join` arrives, which in practice takes seconds. Hanging up in that
+     * window used to address nobody, so the other end kept a live call window
+     * open until ICE finally timed out.
+     */
+    private val roomPeers: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
     private class Peer(
         val connection: PeerConnection,
         var name: String,
@@ -160,6 +172,8 @@ class CallEngine @Inject constructor(
         if (_state.value.active) return
         val factory = ensureFactory()
         ringTargets = ring
+        roomPeers.clear()
+        roomPeers += ring.map { it.first }
 
         if (!openLocalMedia(factory, video)) {
             _state.update { State(error = "Micro ou caméra indisponible") }
@@ -189,6 +203,9 @@ class CallEngine @Inject constructor(
         val call = _incoming.value ?: return
         _incoming.value = null
         start(call.room, call.fromName, call.video, ring = emptyList())
+        // Answering rings nobody, so the caller would otherwise not be on the
+        // list a hang-up notifies until their call_join lands.
+        roomPeers += call.fromUserId
     }
 
     /** Declines the call being rung. */
@@ -200,9 +217,14 @@ class CallEngine @Inject constructor(
 
     fun hangUp() {
         val room = _state.value.room
+        // Announce the departure BEFORE tearing anything down: closing a peer
+        // connection tells the other end nothing, so a missed call_leave
+        // leaves it waiting out an ICE consent timeout instead of hanging up.
         if (room != null) broadcast(CallSignal(type = CallSignal.LEAVE, room = room))
         peers.values.forEach { runCatching { it.connection.close() } }
         peers.clear()
+        ringTargets = emptyList()
+        roomPeers.clear()
         closeLocalMedia()
         _state.value = State()
     }
@@ -247,6 +269,10 @@ class CallEngine @Inject constructor(
         if (fromUserId == myUserId) return
         val room = _state.value.room
         Log.d(TAG, "<- ${signal.type} from ${fromUserId.take(8)} room=${signal.room.take(8)} sdp=${signal.sdp?.length ?: 0}")
+
+        // Anyone signalling about the call we are in belongs to it, peer
+        // connection or not — see roomPeers.
+        if (room != null && signal.room == room) roomPeers += fromUserId
 
         when (signal.type) {
             CallSignal.RING -> {
@@ -321,6 +347,7 @@ class CallEngine @Inject constructor(
 
             CallSignal.LEAVE -> {
                 if (_incoming.value?.fromUserId == fromUserId) _incoming.value = null
+                roomPeers -= fromUserId
                 peers.remove(fromUserId)?.let { runCatching { it.connection.close() } }
                 syncParticipants()
                 // A one-to-one call is over when the other side leaves.
@@ -669,7 +696,7 @@ class CallEngine @Inject constructor(
     private fun broadcast(signal: CallSignal) {
         // The hub has no room fan-out for signals, so a broadcast is one
         // addressed signal per known participant — which is what the web does.
-        val targets = (peers.keys + ringTargets.map { it.first }).toSet()
+        val targets = (peers.keys + ringTargets.map { it.first } + roomPeers).toSet()
         targets.forEach { emit(it, signal) }
     }
 

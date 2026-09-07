@@ -1211,6 +1211,10 @@ class ChatViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        // Leave the call before the socket goes: a peer that never receives
+        // call_leave keeps its window open until ICE times out, so the last
+        // frame this screen sends has to be the departure.
+        calls.hangUp()
         socket?.stop()
         super.onCleared()
     }
