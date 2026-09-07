@@ -138,6 +138,26 @@ data class MessagesResponse(
 @Serializable
 data class MessageResponse(val message: Message, val duplicate: Boolean = false)
 
+@Serializable
+data class MediaUploadResponse(@SerialName("media_id") val mediaId: String)
+
+/**
+ * The non-secret half of an attachment, stored beside the message in clear.
+ *
+ * `media_id` is not decoration: the module's download route authorises a reader
+ * by looking for a message in one of their conversations whose media_meta names
+ * that id. Omit it and nobody but the uploader can ever fetch the blob.
+ */
+@Serializable
+data class MediaMeta(
+    @SerialName("media_id") val mediaId: String,
+    val kind: String,
+    val size: Long,
+    val width: Int? = null,
+    val height: Int? = null,
+    val duration: Double? = null,
+)
+
 /**
  * Send body. `nonce` doubles as the module's idempotency key: re-POSTing the
  * same (conversation, nonce) returns the existing message with
@@ -154,6 +174,8 @@ data class SendMessageBody(
     val nonce: String,
     @SerialName("message_type") val messageType: String = "text",
     @SerialName("reply_to_id") val replyToId: String? = null,
+    @SerialName("media_meta") val mediaMeta: MediaMeta? = null,
+    @SerialName("expires_in_secs") val expiresInSecs: Long? = null,
 )
 
 @Serializable

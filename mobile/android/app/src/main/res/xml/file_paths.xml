@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the FileProvider may share: camera captures on the way out, and
+     decrypted attachments on the way to another app. Both live in our cache,
+     never in a public directory. -->
+<paths>
+    <cache-path name="camera" path="camera/" />
+    <cache-path name="media" path="chat-media/" />
+</paths>

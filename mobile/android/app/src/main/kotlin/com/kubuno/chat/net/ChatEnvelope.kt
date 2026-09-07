@@ -85,6 +85,32 @@ object ChatEnvelope {
     fun encodeText(text: String): SendMessageBody =
         SendMessageBody(encryptedData = encodeWire(Wire(text = text)), nonce = newNonce())
 
+    /**
+     * A media message: the caption and the blob's key/IV ride in the envelope,
+     * while [SendMessageBody.mediaMeta] carries the non-secret half the server
+     * needs for download authorisation.
+     *
+     * Stickers and GIFs go out as `image` because the module's message_type
+     * column only accepts the historical set; their real kind lives in the
+     * envelope, exactly as the web client does it.
+     */
+    fun encodeMedia(media: Media, caption: String?): SendMessageBody = SendMessageBody(
+        encryptedData = encodeWire(Wire(text = caption.orEmpty(), media = media)),
+        nonce = newNonce(),
+        messageType = when (media.kind) {
+            "sticker", "gif" -> "image"
+            else -> media.kind
+        },
+        mediaMeta = MediaMeta(
+            mediaId = media.mediaId,
+            kind = media.kind,
+            size = media.size,
+            width = media.width,
+            height = media.height,
+            duration = media.duration,
+        ),
+    )
+
     /** 24 random bytes, base64url — the shape the module expects, and its idempotency key. */
     fun newNonce(): String {
         val bytes = ByteArray(24).also(random::nextBytes)

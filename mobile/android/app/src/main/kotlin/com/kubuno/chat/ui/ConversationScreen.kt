@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -44,6 +45,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -75,6 +77,10 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
+import com.kubuno.chat.net.ChatEnvelope
+import com.kubuno.chat.net.MediaPlayback
+import com.kubuno.chat.net.VoiceRecorder
+import java.io.File
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 
@@ -109,6 +115,21 @@ fun ConversationScreen(
     onCloseSearch: () -> Unit,
     onSearch: (String) -> Unit,
     onStepSearch: (Boolean) -> Unit,
+    recording: VoiceRecorder.State,
+    mediaFiles: Map<String, File>,
+    playback: MediaPlayback.State,
+    onAttach: () -> Unit,
+    onCamera: () -> Unit,
+    onStartRecording: () -> Unit,
+    onFinishRecording: () -> Unit,
+    onCancelRecording: () -> Unit,
+    onRequestMedia: (ChatEnvelope.Media) -> Unit,
+    onOpenMedia: (UiMessage) -> Unit,
+    onTogglePlay: (UiMessage) -> Unit,
+    onCycleSpeed: () -> Unit,
+    onSeek: (Float) -> Unit,
+    onAudioCall: () -> Unit,
+    onVideoCall: () -> Unit,
 ) {
     val palette = ChatTheme.palette
     val listState = rememberLazyListState()
@@ -162,7 +183,13 @@ fun ConversationScreen(
                 onStep = onStepSearch,
                 onClose = onCloseSearch,
             )
-            else -> ConversationHeader(state = state, onBack = onBack, onSearch = onOpenSearch)
+            else -> ConversationHeader(
+                state = state,
+                onBack = onBack,
+                onSearch = onOpenSearch,
+                onAudioCall = onAudioCall,
+                onVideoCall = onVideoCall,
+            )
         }
 
         Box(Modifier.weight(1f)) {
@@ -188,10 +215,17 @@ fun ConversationScreen(
 
                     messageItems(
                         state = state,
+                        mediaFiles = mediaFiles,
+                        playback = playback,
                         onRetry = onRetry,
                         onLongPress = onLongPress,
                         onReply = onReply,
                         onToggleSelect = onToggleSelect,
+                        onRequestMedia = onRequestMedia,
+                        onOpenMedia = onOpenMedia,
+                        onTogglePlay = onTogglePlay,
+                        onCycleSpeed = onCycleSpeed,
+                        onSeek = onSeek,
                     )
 
                     item(key = "typing") {
@@ -203,6 +237,12 @@ fun ConversationScreen(
 
         Composer(
             draft = draft,
+            recording = recording,
+            onAttach = onAttach,
+            onCamera = onCamera,
+            onStartRecording = onStartRecording,
+            onFinishRecording = onFinishRecording,
+            onCancelRecording = onCancelRecording,
             replyTo = state.replyTo,
             replyLabel = state.replyTo?.let { if (it.outgoing) "Vous" else state.senderLabel(it.senderId) },
             editing = state.editing,
@@ -225,10 +265,17 @@ fun ConversationScreen(
 /** Bubbles plus their date separators, in one pass so run grouping is cheap. */
 private fun LazyListScope.messageItems(
     state: ConversationState,
+    mediaFiles: Map<String, File>,
+    playback: MediaPlayback.State,
     onRetry: (UiMessage) -> Unit,
     onLongPress: (UiMessage) -> Unit,
     onReply: (UiMessage) -> Unit,
     onToggleSelect: (UiMessage) -> Unit,
+    onRequestMedia: (ChatEnvelope.Media) -> Unit,
+    onOpenMedia: (UiMessage) -> Unit,
+    onTogglePlay: (UiMessage) -> Unit,
+    onCycleSpeed: () -> Unit,
+    onSeek: (Float) -> Unit,
 ) {
     val messages = state.messages
     messages.forEachIndexed { index, message ->
@@ -246,10 +293,17 @@ private fun LazyListScope.messageItems(
                 message = message,
                 state = state,
                 runStart = runStart,
+                mediaFiles = mediaFiles,
+                playback = playback,
                 onRetry = onRetry,
                 onLongPress = onLongPress,
                 onReply = onReply,
                 onToggleSelect = onToggleSelect,
+                onRequestMedia = onRequestMedia,
+                onOpenMedia = onOpenMedia,
+                onTogglePlay = onTogglePlay,
+                onCycleSpeed = onCycleSpeed,
+                onSeek = onSeek,
             )
         }
     }
@@ -265,10 +319,17 @@ private fun SwipeableBubble(
     message: UiMessage,
     state: ConversationState,
     runStart: Boolean,
+    mediaFiles: Map<String, File>,
+    playback: MediaPlayback.State,
     onRetry: (UiMessage) -> Unit,
     onLongPress: (UiMessage) -> Unit,
     onReply: (UiMessage) -> Unit,
     onToggleSelect: (UiMessage) -> Unit,
+    onRequestMedia: (ChatEnvelope.Media) -> Unit,
+    onOpenMedia: (UiMessage) -> Unit,
+    onTogglePlay: (UiMessage) -> Unit,
+    onCycleSpeed: () -> Unit,
+    onSeek: (Float) -> Unit,
 ) {
     val density = LocalDensity.current
     val threshold = with(density) { SWIPE_THRESHOLD_DP.dp.toPx() }
@@ -345,13 +406,26 @@ private fun SwipeableBubble(
                     if (it.outgoing) "Vous" else state.senderLabel(it.senderId)
                 },
                 highlighted = state.searchHit == message.id,
+                mediaFile = message.content.media?.let { mediaFiles[it.mediaId] },
+                playback = playback,
+                onRequestMedia = { message.content.media?.let(onRequestMedia) },
+                onOpenMedia = { onOpenMedia(message) },
+                onTogglePlay = { onTogglePlay(message) },
+                onCycleSpeed = onCycleSpeed,
+                onSeek = onSeek,
             )
         }
     }
 }
 
 @Composable
-private fun ConversationHeader(state: ConversationState, onBack: () -> Unit, onSearch: () -> Unit) {
+private fun ConversationHeader(
+    state: ConversationState,
+    onBack: () -> Unit,
+    onSearch: () -> Unit,
+    onAudioCall: () -> Unit,
+    onVideoCall: () -> Unit,
+) {
     val typing = state.typingUserIds.isNotEmpty()
     Row(
         modifier = Modifier
@@ -391,10 +465,10 @@ private fun ConversationHeader(state: ConversationState, onBack: () -> Unit, onS
                 )
             }
         }
-        IconButton(onClick = { /* video call: M5 */ }) {
+        IconButton(onClick = onVideoCall) {
             Icon(Icons.Filled.Videocam, contentDescription = "Appel vidéo")
         }
-        IconButton(onClick = { /* audio call: M5 */ }) {
+        IconButton(onClick = onAudioCall) {
             Icon(Icons.Filled.Call, contentDescription = "Appel audio")
         }
         // Search lives in the overflow rather than the bar: a fourth icon left
@@ -547,9 +621,15 @@ private fun Composer(
     replyTo: UiMessage?,
     replyLabel: String?,
     editing: UiMessage?,
+    recording: VoiceRecorder.State,
     onDraft: (TextFieldValue) -> Unit,
     onCancelCompose: () -> Unit,
     onSend: () -> Unit,
+    onAttach: () -> Unit,
+    onCamera: () -> Unit,
+    onStartRecording: () -> Unit,
+    onFinishRecording: () -> Unit,
+    onCancelRecording: () -> Unit,
 ) {
     val canSend = draft.text.isNotBlank()
 
@@ -607,6 +687,9 @@ private fun Composer(
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
+            if (recording.recording) {
+                RecordingBar(recording, onCancelRecording)
+            } else
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -649,7 +732,7 @@ private fun Composer(
                         }
                     },
                 )
-                IconButton(onClick = { /* attachments: M3 */ }, modifier = Modifier.size(36.dp)) {
+                IconButton(onClick = onAttach, modifier = Modifier.size(36.dp)) {
                     Icon(
                         Icons.Filled.AttachFile,
                         contentDescription = "Joindre",
@@ -657,7 +740,7 @@ private fun Composer(
                         modifier = Modifier.size(22.dp),
                     )
                 }
-                IconButton(onClick = { /* camera: M3 */ }, modifier = Modifier.size(36.dp)) {
+                IconButton(onClick = onCamera, modifier = Modifier.size(36.dp)) {
                     Icon(
                         Icons.Filled.PhotoCamera,
                         contentDescription = "Appareil photo",
@@ -675,19 +758,38 @@ private fun Composer(
                     .size(48.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.primary)
-                    .clickable(enabled = canSend, onClick = onSend),
+                    .then(
+                        // Press and hold to record, release to send — the
+                        // gesture people already have in their fingers. A tap
+                        // on the send arrow stays a plain click.
+                        if (canSend || editing != null) {
+                            Modifier.clickable(onClick = onSend)
+                        } else {
+                            Modifier.pointerInput(recording.recording) {
+                                detectTapGestures(
+                                    onPress = {
+                                        onStartRecording()
+                                        val completed = tryAwaitRelease()
+                                        if (completed) onFinishRecording() else onCancelRecording()
+                                    },
+                                )
+                            }
+                        }
+                    ),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     imageVector = when {
                         editing != null -> Icons.Filled.Check
                         canSend -> Icons.AutoMirrored.Filled.Send
+                        recording.recording -> Icons.Filled.Stop
                         else -> Icons.Filled.Mic
                     },
                     contentDescription = when {
                         editing != null -> "Enregistrer"
                         canSend -> "Envoyer"
-                        else -> "Message vocal"
+                        recording.recording -> "Terminer"
+                        else -> "Maintenir pour enregistrer"
                     },
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(22.dp),
@@ -695,6 +797,53 @@ private fun Composer(
             }
         }
     }
+}
+
+/** What the composer becomes while a voice message is being recorded. */
+@Composable
+private fun RowScope.RecordingBar(state: VoiceRecorder.State, onCancel: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .weight(1f)
+            .clip(ChatShapes.Composer)
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // The red dot is the one thing that says "the microphone is live".
+        Box(
+            Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.error)
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = elapsed(state.elapsedMs),
+            style = ChatType.Body,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = "Relâchez pour envoyer",
+            style = ChatType.HeaderSub,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(onClick = onCancel, modifier = Modifier.size(32.dp)) {
+            Icon(
+                Icons.Filled.Delete,
+                contentDescription = "Annuler l'enregistrement",
+                tint = MaterialTheme.colorScheme.error,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+    }
+}
+
+private fun elapsed(ms: Long): String {
+    val total = (ms / 1000).toInt()
+    return "%d:%02d".format(total / 60, total % 60)
 }
 
 private const val SWIPE_THRESHOLD_DP = 56

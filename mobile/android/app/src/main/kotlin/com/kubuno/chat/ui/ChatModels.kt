@@ -54,6 +54,8 @@ data class UiConversation(
     val title: String,
     val isGroup: Boolean,
     val avatarUrl: String?,
+    /** The other party of a direct conversation, when there is one. */
+    val otherUserId: String? = null,
     val unreadCount: Int,
     val isUnread: Boolean,
     val isPinned: Boolean,
@@ -64,6 +66,13 @@ data class UiConversation(
     val lastMessage: UiMessage?,
     val lastActivityMs: Long,
     val typingLabel: String? = null,
+    /**
+     * Display names for this conversation's members, used to prefix a group's
+     * preview with who spoke. Only filled for conversations whose member list
+     * we already fetched — the list endpoint carries no names, and asking for
+     * them per row would be the N+1 the server just removed.
+     */
+    val senderNames: Map<String, String> = emptyMap(),
 ) {
     val previewText: String get() = lastMessage?.preview().orEmpty()
 }
@@ -114,6 +123,7 @@ fun ConversationSummary.toUi(last: UiMessage?, nowMs: Long): UiConversation = Ui
     title = title,
     isGroup = conversation.convType != "direct",
     avatarUrl = otherUser?.avatarUrl,
+    otherUserId = otherUser?.id,
     unreadCount = unreadCount.toInt(),
     isUnread = isUnread,
     isPinned = isPinned,

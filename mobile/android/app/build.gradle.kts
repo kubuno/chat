@@ -103,6 +103,9 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
 
+    // Audio and video calls.
+    implementation(libs.webrtc)
+
     testImplementation(libs.junit)
     testImplementation(libs.coroutines.test)
 }

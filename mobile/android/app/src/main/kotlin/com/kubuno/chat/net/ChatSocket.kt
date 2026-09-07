@@ -18,6 +18,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -103,6 +104,19 @@ class ChatSocket(
     fun typing(conversationId: String, started: Boolean) {
         val action = if (started) "typing_start" else "typing_stop"
         socket?.send("""{"action":"$action","conversation_id":"$conversationId"}""")
+    }
+
+    /**
+     * Relays one call signal to a peer. The hub only routes it; SDP and ICE
+     * never touch the module's storage.
+     */
+    fun callSignal(toUserId: String, signal: kotlinx.serialization.json.JsonElement) {
+        val frame = buildJsonObject {
+            put("action", kotlinx.serialization.json.JsonPrimitive("call_signal"))
+            put("to_user_id", kotlinx.serialization.json.JsonPrimitive(toUserId))
+            put("signal", signal)
+        }
+        socket?.send(frame.toString())
     }
 
     /** Decodes a payload into [T], or null when the shape does not match. */

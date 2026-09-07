@@ -6,6 +6,21 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Voice messages. Requested at the moment the user presses the mic, never
+         at launch: a chat app that asks for the microphone on first run reads
+         as a chat app that is listening. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Video calls capture from the camera in-process (WebRTC), so unlike the
+         photo attachment this one does need the permission. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- The camera attachment goes through the system camera app, so no
+         CAMERA permission is needed; declare the feature as optional so the
+         app still installs on a device without one. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <application
         android:name=".KubunoChatApp"
         android:label="@string/app_name"
@@ -33,6 +48,16 @@
                 <data android:scheme="kubuno-chat" android:host="conversation" />
             </intent-filter>
         </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
         <!-- The com.kubuno account authenticator (service + type) is contributed
              by :core-account, so this app reuses the same shared accounts as the

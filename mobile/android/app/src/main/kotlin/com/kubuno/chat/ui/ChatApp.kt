@@ -1,6 +1,14 @@
 package com.kubuno.chat.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.net.Uri
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -33,12 +41,151 @@ fun ChatApp(viewModel: ChatViewModel = hiltViewModel()) {
     val list by viewModel.list.collectAsStateWithLifecycle()
     val conversation by viewModel.conversation.collectAsStateWithLifecycle()
 
+    val context = LocalContext.current
+    val mediaFiles by viewModel.mediaFiles.collectAsStateWithLifecycle()
+    val playback by viewModel.playback.collectAsStateWithLifecycle()
+    val recording by viewModel.voice.state.collectAsStateWithLifecycle()
+
     // Which messages a forward is about: the long-pressed one, or the selection.
     var forwarding by remember { mutableStateOf<List<UiMessage>>(emptyList()) }
+    var attaching by remember { mutableStateOf(false) }
+    var pendingCall by remember { mutableStateOf<Pair<UiConversation, Boolean>?>(null) }
+    var pendingHereCall by remember { mutableStateOf<Boolean?>(null) }
+
+    // Gallery uses the photo picker, which needs no storage permission at all:
+    // the system UI hands back exactly what the user chose.
+    val pickVisual = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(MAX_ATTACHMENTS)
+    ) { uris -> if (uris.isNotEmpty()) viewModel.sendMedia(uris) }
+
+    val pickDocument = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { viewModel.sendMedia(listOf(it), forcedKind = "file") } }
+
+    val pickAudio = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { viewModel.sendMedia(listOf(it), forcedKind = "audio") } }
+
+    // The camera writes into a file we own, so the picture comes back as a
+    // content:// uri we can read without any storage permission.
+    var cameraTarget by remember { mutableStateOf<Uri?>(null) }
+    val takePicture = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { taken -> if (taken) cameraTarget?.let { viewModel.sendMedia(listOf(it), forcedKind = "image") } }
+
+    fun openCamera() {
+        val uri = CameraCapture.newTarget(context) ?: return
+        cameraTarget = uri
+        takePicture.launch(uri)
+    }
+
+    val askMicrophone = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) viewModel.startRecording() }
+
+    fun startRecording() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            viewModel.startRecording()
+        } else {
+            askMicrophone.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    val callState by viewModel.callState.collectAsStateWithLifecycle()
+    val incoming by viewModel.incomingCall.collectAsStateWithLifecycle()
+    var tab by remember { mutableStateOf(ChatTab.Chats) }
+
+    val askHereCallPermissions = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { granted ->
+        if (granted[Manifest.permission.RECORD_AUDIO] == true) {
+            pendingHereCall?.let { viewModel.startCallHere(it) }
+        }
+        pendingHereCall = null
+    }
+
+    // A call takes the whole screen and nothing else may be reached from it.
+    val askCallPermissions = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { granted ->
+        if (granted[Manifest.permission.RECORD_AUDIO] == true) pendingCall?.let { (row, video) ->
+            viewModel.startCall(row, video)
+        }
+        pendingCall = null
+    }
+
+    fun placeCallHere(video: Boolean) {
+        val needed = buildList {
+            add(Manifest.permission.RECORD_AUDIO)
+            if (video) add(Manifest.permission.CAMERA)
+        }
+        val missing = needed.filter {
+            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isEmpty()) viewModel.startCallHere(video)
+        else {
+            pendingHereCall = video
+            askHereCallPermissions.launch(missing.toTypedArray())
+        }
+    }
+
+    fun placeCall(row: UiConversation, video: Boolean) {
+        val needed = buildList {
+            add(Manifest.permission.RECORD_AUDIO)
+            if (video) add(Manifest.permission.CAMERA)
+        }
+        val missing = needed.filter {
+            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isEmpty()) {
+            viewModel.startCall(row, video)
+        } else {
+            pendingCall = row to video
+            askCallPermissions.launch(missing.toTypedArray())
+        }
+    }
+
+    if (callState.active) {
+        BackHandler { viewModel.hangUp() }
+        CallScreen(
+            state = callState,
+            eglBase = viewModel.callEngine.eglBase,
+            localTrack = viewModel.callEngine.localVideoTrack,
+            onToggleMute = viewModel::toggleCallMute,
+            onToggleCamera = viewModel::toggleCallCamera,
+            onSwitchCamera = viewModel::switchCallCamera,
+            onToggleHand = viewModel::toggleCallHand,
+            onHangUp = viewModel::hangUp,
+        )
+        return
+    }
+
+    incoming?.let { call ->
+        BackHandler { viewModel.declineCall() }
+        IncomingCallOverlay(
+            call = call,
+            onAccept = viewModel::acceptCall,
+            onDecline = viewModel::declineCall,
+        )
+        return
+    }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = MaterialTheme.colorScheme.surface,
+        bottomBar = {
+            // The bar belongs to the list level; inside a conversation the
+            // composer owns the bottom of the screen.
+            if (accounts.isNotEmpty() && conversation == null && !list.showArchived) {
+                ChatBottomBar(
+                    selected = tab,
+                    unread = list.conversations.sumOf { it.unreadCount },
+                    onSelect = { tab = it },
+                )
+            }
+        },
     ) { padding ->
         // Scaffold already insets for the status bar under enableEdgeToEdge;
         // adding statusBarsPadding() on top of it would double the gap.
@@ -80,7 +227,45 @@ fun ChatApp(viewModel: ChatViewModel = hiltViewModel()) {
                         onCloseSearch = viewModel::closeSearch,
                         onSearch = viewModel::setSearch,
                         onStepSearch = viewModel::stepSearch,
+                        recording = recording,
+                        mediaFiles = mediaFiles,
+                        playback = playback,
+                        onAttach = { attaching = true },
+                        onCamera = ::openCamera,
+                        onStartRecording = ::startRecording,
+                        onFinishRecording = viewModel::finishRecording,
+                        onCancelRecording = viewModel::cancelRecording,
+                        onRequestMedia = viewModel::requestMedia,
+                        onOpenMedia = { message ->
+                            message.content.media
+                                ?.let { mediaFiles[it.mediaId] }
+                                ?.let { file -> CameraCapture.open(context, file, message.content.media.mime) }
+                        },
+                        onTogglePlay = viewModel::toggleVoice,
+                        onCycleSpeed = viewModel::cycleVoiceSpeed,
+                        onSeek = viewModel::seekVoice,
+                        onAudioCall = { placeCallHere(false) },
+                        onVideoCall = { placeCallHere(true) },
                     )
+
+                    if (attaching) {
+                        AttachmentSheet(
+                            onDismiss = { attaching = false },
+                            onPick = { kind ->
+                                attaching = false
+                                when (kind) {
+                                    AttachmentKind.Gallery -> pickVisual.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo)
+                                    )
+                                    AttachmentKind.Camera -> openCamera()
+                                    AttachmentKind.Document -> pickDocument.launch(arrayOf("*/*"))
+                                    AttachmentKind.Audio -> pickAudio.launch(arrayOf("audio/*"))
+                                    AttachmentKind.Poll -> Unit   // M4
+                                    AttachmentKind.Contact -> Unit
+                                }
+                            },
+                        )
+                    }
 
                     state.actionTarget?.let { target ->
                         MessageActionsOverlay(
@@ -114,19 +299,33 @@ fun ChatApp(viewModel: ChatViewModel = hiltViewModel()) {
                     }
                 }
 
-                else -> {
-                    if (list.showArchived) {
-                        BackHandler { viewModel.setShowArchived(false) }
+                else -> when (tab) {
+                    ChatTab.Chats -> {
+                        if (list.showArchived) {
+                            BackHandler { viewModel.setShowArchived(false) }
+                        }
+                        ConversationListScreen(
+                            state = list,
+                            onOpen = viewModel::openConversation,
+                            onFilter = viewModel::setFilter,
+                            onQuery = viewModel::setQuery,
+                            onShowArchived = viewModel::setShowArchived,
+                            onTogglePin = viewModel::togglePin,
+                            onRetry = viewModel::loadConversations,
+                            onNewChat = { },
+                            onCamera = ::openCamera,
+                            onOverflow = { },
+                        )
                     }
-                    ConversationListScreen(
-                        state = list,
-                        onOpen = viewModel::openConversation,
-                        onFilter = viewModel::setFilter,
-                        onQuery = viewModel::setQuery,
-                        onShowArchived = viewModel::setShowArchived,
-                        onTogglePin = viewModel::togglePin,
-                        onRetry = viewModel::loadConversations,
+
+                    ChatTab.Calls -> CallsScreen(
+                        conversations = list.conversations,
+                        onCall = { row, video -> placeCall(row, video) },
                     )
+
+                    ChatTab.You -> YouScreen(account = accounts.firstOrNull())
+
+                    else -> NotYetScreen(tab)
                 }
             }
         }
@@ -159,3 +358,6 @@ private fun NoAccount() {
         )
     }
 }
+
+/** The photo picker caps a single selection; ten is what fits one message run. */
+private const val MAX_ATTACHMENTS = 10

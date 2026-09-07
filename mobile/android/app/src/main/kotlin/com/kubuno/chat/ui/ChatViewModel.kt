@@ -1,10 +1,14 @@
 package com.kubuno.chat.ui
 
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kubuno.android.account.SharedAccount
 import com.kubuno.android.account.SharedAccounts
+import com.kubuno.chat.call.CallEngine
+import com.kubuno.chat.call.CallSignal
+import com.kubuno.chat.call.CallSignalEnvelope
 import com.kubuno.chat.net.ChatApi
 import com.kubuno.chat.net.ChatClients
 import com.kubuno.chat.net.ChatEnvelope
@@ -14,8 +18,12 @@ import com.kubuno.chat.net.ReactionBody
 import com.kubuno.chat.net.Member
 import com.kubuno.chat.net.MemberSettingsBody
 import com.kubuno.chat.net.Message
+import com.kubuno.chat.net.MediaPlayback
+import com.kubuno.chat.net.MediaRepository
 import com.kubuno.chat.net.ReadReceiptBody
+import com.kubuno.chat.net.VoiceRecorder
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -41,7 +49,14 @@ import kotlinx.coroutines.launch
 class ChatViewModel @Inject constructor(
     private val sharedAccounts: SharedAccounts,
     private val clients: ChatClients,
+    private val media: MediaRepository,
+    val voice: VoiceRecorder,
+    private val player: MediaPlayback,
+    private val calls: CallEngine,
 ) : ViewModel() {
+
+    /** Call signals are their own little wire format; keep a Json for them. */
+    private val callJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true; explicitNulls = false }
 
     data class ListState(
         val loading: Boolean = true,
@@ -85,6 +100,15 @@ class ChatViewModel @Inject constructor(
 
     private val _conversation = MutableStateFlow<ConversationState?>(null)
     val conversation: StateFlow<ConversationState?> = _conversation.asStateFlow()
+
+    /** Decrypted attachments, keyed by media id, for the bubbles to render. */
+    private val _mediaFiles = MutableStateFlow<Map<String, File>>(emptyMap())
+    val mediaFiles: StateFlow<Map<String, File>> = _mediaFiles.asStateFlow()
+
+    /** Playback state of the one voice message that can be playing. */
+    val playback: StateFlow<MediaPlayback.State> get() = player.state
+
+    private val mediaInFlight = java.util.Collections.synchronizedSet(mutableSetOf<String>())
 
     private var socket: ChatSocket? = null
     private var socketJob: Job? = null
@@ -251,6 +275,16 @@ class ChatViewModel @Inject constructor(
                             subtitle = subtitleFor(detail?.members.orEmpty(), row),
                         )
                     }
+                    // Now that we know who is in this conversation, the list row
+                    // can prefix its preview with the speaker's name.
+                    if (members.isNotEmpty()) {
+                        val names = members.mapValues { (_, member) -> member.label }
+                        _list.update { listState ->
+                            listState.copy(conversations = listState.conversations.map { conv ->
+                                if (conv.id == id) conv.copy(senderNames = names) else conv
+                            })
+                        }
+                    }
                     messages.lastOrNull()?.let { acknowledge(id, it.id) }
                 }
                 .onFailure { e ->
@@ -414,6 +448,218 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    // ---------------------------------------------------------------- media
+
+    /**
+     * Sends one or more picked files. Each is encrypted, uploaded, then
+     * announced as a message; an optimistic bubble shows the upload in flight
+     * so a slow attachment never looks like a dropped one.
+     */
+    fun sendMedia(uris: List<Uri>, caption: String? = null, forcedKind: String? = null) {
+        val api = api ?: return
+        val conversationId = _conversation.value?.id ?: return
+        viewModelScope.launch {
+            for (uri in uris) {
+                val local = media.inspect(uri, forcedKind) ?: continue
+                sendAttachment(api, conversationId, local, caption)
+            }
+        }
+    }
+
+    /** Sends a finished voice recording. */
+    fun sendVoice(result: VoiceRecorder.Result) {
+        val api = api ?: return
+        val conversationId = _conversation.value?.id ?: return
+        viewModelScope.launch {
+            val local = MediaRepository.LocalFile(
+                uri = Uri.fromFile(result.file),
+                name = "message-vocal.m4a",
+                mime = "audio/mp4",
+                size = result.file.length(),
+                kind = "audio",
+                durationSeconds = result.durationSeconds,
+            )
+            sendAttachment(api, conversationId, local, caption = null, waveform = result.waveform, voice = true)
+            result.file.delete()
+        }
+    }
+
+    private suspend fun sendAttachment(
+        api: ChatApi,
+        conversationId: String,
+        local: MediaRepository.LocalFile,
+        caption: String?,
+        waveform: List<Float>? = null,
+        voice: Boolean = false,
+    ) {
+        val placeholderId = "pending:${ChatEnvelope.newNonce()}"
+        val placeholder = UiMessage(
+            id = placeholderId,
+            conversationId = conversationId,
+            senderId = selfUserId,
+            outgoing = true,
+            content = ChatEnvelope.Content(
+                text = caption,
+                media = ChatEnvelope.Media(
+                    mediaId = "",
+                    mime = local.mime,
+                    name = local.name,
+                    size = local.size,
+                    kind = local.kind,
+                    width = local.width,
+                    height = local.height,
+                    duration = local.durationSeconds,
+                    voice = voice,
+                    waveform = waveform,
+                ),
+                poll = null,
+                hasCard = false,
+            ),
+            createdAtMs = System.currentTimeMillis(),
+            editedAtMs = null,
+            deleted = false,
+            pinned = false,
+            replyToId = null,
+            messageType = local.kind,
+            pending = true,
+        )
+        _conversation.update { it?.copy(messages = it.messages + placeholder) }
+
+        val uploaded = media.upload(api, local)?.copy(voice = voice, waveform = waveform)
+        if (uploaded == null) {
+            _conversation.update { state ->
+                state?.copy(messages = state.messages.map {
+                    if (it.id == placeholderId) it.copy(pending = false, failed = true) else it
+                })
+            }
+            return
+        }
+
+        runCatching { api.send(conversationId, ChatEnvelope.encodeMedia(uploaded, caption)) }
+            .onSuccess { response ->
+                val real = response.message.toUi(selfUserId)
+                _conversation.update { state ->
+                    state?.copy(messages = state.messages.map { if (it.id == placeholderId) real else it })
+                }
+                bumpRow(conversationId, real)
+            }
+            .onFailure { e ->
+                Log.w(TAG, "media send failed", e)
+                _conversation.update { state ->
+                    state?.copy(messages = state.messages.map {
+                        if (it.id == placeholderId) it.copy(pending = false, failed = true) else it
+                    })
+                }
+            }
+    }
+
+    /**
+     * Downloads and decrypts an attachment once, publishing the local file so
+     * every bubble showing it can render. Safe to call from composition: a
+     * second call for the same media is a no-op while the first is in flight.
+     */
+    fun requestMedia(item: ChatEnvelope.Media) {
+        val api = api ?: return
+        if (item.mediaId.isBlank()) return
+        if (_mediaFiles.value.containsKey(item.mediaId)) return
+        if (!mediaInFlight.add(item.mediaId)) return
+        viewModelScope.launch {
+            val file = media.localCopy(api, item)
+            mediaInFlight.remove(item.mediaId)
+            if (file != null) {
+                _mediaFiles.update { it + (item.mediaId to file) }
+            }
+        }
+    }
+
+    /** Plays or pauses a voice message, downloading it first if needed. */
+    fun toggleVoice(message: UiMessage) {
+        val item = message.content.media ?: return
+        val api = api ?: return
+        viewModelScope.launch {
+            val file = _mediaFiles.value[item.mediaId] ?: media.localCopy(api, item)?.also { local ->
+                _mediaFiles.update { it + (item.mediaId to local) }
+            } ?: return@launch
+            player.toggle(message.id, file)
+        }
+    }
+
+    fun startRecording() {
+        // Stop any playback first: recording while a voice note plays would
+        // capture the speaker.
+        player.stop()
+        voice.start()
+    }
+
+    fun finishRecording() {
+        val result = voice.stop() ?: return
+        sendVoice(result)
+    }
+
+    fun cancelRecording() = voice.cancel()
+
+    // ---------------------------------------------------------------- calls
+
+    val callState: StateFlow<CallEngine.State> get() = calls.state
+    val incomingCall: StateFlow<CallEngine.Incoming?> get() = calls.incoming
+    val callEngine: CallEngine get() = calls
+
+    /**
+     * Rings a conversation. The room is the conversation id, which is what the
+     * web client uses too, so a call started on a phone rings in a browser.
+     */
+    fun startCall(conversation: UiConversation, video: Boolean) {
+        val targets = conversation.senderNames
+            .filterKeys { it != selfUserId }
+            .map { (id, name) -> id to name }
+            .ifEmpty {
+                // A direct conversation whose members we never fetched still has
+                // the other party in the row's own identity.
+                conversation.otherUserId?.let { listOf(it to conversation.title) }.orEmpty()
+            }
+        if (targets.isEmpty()) {
+            // Nobody to ring: fetch the members, then try again.
+            viewModelScope.launch {
+                val api = api ?: return@launch
+                val detail = runCatching { api.conversation(conversation.id) }.getOrNull() ?: return@launch
+                val members = detail.members
+                    .filter { it.userId != selfUserId }
+                    .map { it.userId to it.label }
+                if (members.isNotEmpty()) {
+                    calls.start(conversation.id, conversation.title, video, members)
+                }
+            }
+            return
+        }
+        calls.start(conversation.id, conversation.title, video, targets)
+    }
+
+    /** Rings whoever is on the other side of the conversation on screen. */
+    fun startCallHere(video: Boolean) {
+        val open = _conversation.value ?: return
+        val row = _list.value.conversations.firstOrNull { it.id == open.id }
+        val targets = open.members.keys
+            .filter { it != selfUserId }
+            .map { id -> id to (open.members[id]?.label ?: id.take(6)) }
+        if (targets.isEmpty()) {
+            row?.let { startCall(it, video) }
+            return
+        }
+        calls.start(open.id, open.title, video, targets)
+    }
+
+    fun acceptCall() = calls.accept()
+    fun declineCall() = calls.decline()
+    fun hangUp() = calls.hangUp()
+    fun toggleCallMute() = calls.toggleMute()
+    fun toggleCallCamera() = calls.toggleCamera()
+    fun switchCallCamera() = calls.switchCamera()
+    fun toggleCallHand() = calls.toggleHand()
+
+    fun cycleVoiceSpeed() = player.cycleSpeed()
+
+    fun seekVoice(fraction: Float) = player.seekTo(fraction)
+
     /**
      * Rewrites a message the user sent. The module allows this on any of your
      * own messages with no time limit, so the app imposes none either — an
@@ -561,6 +807,13 @@ class ChatViewModel @Inject constructor(
     private fun openSocket(account: SharedAccount) {
         val fresh = ChatSocket(clients.raw(account))
         socket = fresh
+        // The engine knows nothing about transports: it hands us a signal and
+        // we put it on whichever socket is current.
+        calls.myUserId = account.userId
+        calls.myName = account.label
+        calls.onSignal = { toUserId, signal ->
+            fresh.callSignal(toUserId, callJson.encodeToJsonElement(CallSignal.serializer(), signal))
+        }
         socketJob = viewModelScope.launch {
             launch { fresh.connected.collect { up -> _list.update { it.copy(connected = up) } } }
             launch { fresh.events.collect(::onEvent) }
@@ -596,6 +849,13 @@ class ChatViewModel @Inject constructor(
             "typing_start" -> envelope.str("user_id")?.let { markTyping(envelope.str("conversation_id"), it) }
             "typing_stop" -> envelope.str("user_id")?.let { clearTyping(it) }
             "conversation_created" -> loadConversations()
+            "call_signal" -> {
+                val payload = socket.decode(envelope, CallSignalEnvelope.serializer()) ?: return
+                val body = payload.signal ?: return
+                val signal = runCatching { callJson.decodeFromJsonElement(CallSignal.serializer(), body) }
+                    .getOrNull() ?: return
+                calls.onSignal(payload.fromUserId, signal)
+            }
             // reaction_update, presence_update, poll_update, call_signal and the
             // key events are handled in later milestones; ignoring them here is
             // deliberate, not an oversight.

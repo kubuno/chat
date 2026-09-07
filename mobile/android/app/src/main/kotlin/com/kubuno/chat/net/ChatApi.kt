@@ -1,12 +1,17 @@
 package com.kubuno.chat.net
 
+import okhttp3.MultipartBody
+import okhttp3.ResponseBody
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.Multipart
 import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
+import retrofit2.http.Streaming
 
 /**
  * The chat module's HTTP surface, proxied by the core under /api/v1/chat.
@@ -67,6 +72,20 @@ interface ChatApi {
 
     @PATCH("api/v1/chat/conversations/{id}/member-settings")
     suspend fun memberSettings(@Path("id") id: String, @Body body: MemberSettingsBody)
+
+    /**
+     * Uploads one already-encrypted blob. The server stores opaque bytes and
+     * never sees the plaintext; the returned media_id is what the message
+     * envelope and media_meta both reference.
+     */
+    @Multipart
+    @POST("api/v1/chat/media/upload")
+    suspend fun uploadMedia(@Part file: MultipartBody.Part): MediaUploadResponse
+
+    /** The ciphertext back. Streamed so a large attachment never lands whole in memory twice. */
+    @Streaming
+    @GET("api/v1/chat/media/{id}")
+    suspend fun downloadMedia(@Path("id") id: String): ResponseBody
 
     /** Core route (not the chat module): names people the module only identifies by uuid. */
     @GET("api/v1/users/search")

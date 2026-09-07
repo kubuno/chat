@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import com.kubuno.chat.net.MediaPlayback
+import java.io.File
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,10 +70,21 @@ fun MessageBubble(
     quotedLabel: String? = null,
     highlighted: Boolean = false,
     onQuoteClick: () -> Unit = {},
+    mediaFile: File? = null,
+    playback: MediaPlayback.State = MediaPlayback.State(),
+    onRequestMedia: () -> Unit = {},
+    onOpenMedia: () -> Unit = {},
+    onTogglePlay: () -> Unit = {},
+    onCycleSpeed: () -> Unit = {},
+    onSeek: (Float) -> Unit = {},
 ) {
     val palette = ChatTheme.palette
     val outgoing = message.outgoing
     val maxWidth = LocalConfiguration.current.screenWidthDp.dp * ChatDims.BubbleMaxWidthFraction
+    val media = message.content.media?.takeIf { !message.deleted }
+    // A photo or video fills its bubble edge to edge; padding around it would
+    // read as a framed picture rather than a message.
+    val tightMedia = media != null && media.kind in TIGHT_KINDS && !media.voice
 
     Row(
         modifier = modifier
@@ -99,7 +112,10 @@ fun MessageBubble(
                         shape = ChatShapes.bubble(false, runStart),
                     )
                 )
-                .padding(horizontal = 12.dp, vertical = 7.dp),
+                .padding(
+                    horizontal = if (tightMedia) 4.dp else 12.dp,
+                    vertical = if (tightMedia) 4.dp else 7.dp,
+                ),
         ) {
             if (showSender && senderName != null && !outgoing) {
                 Text(
@@ -121,12 +137,56 @@ fun MessageBubble(
                 Spacer(Modifier.height(4.dp))
             }
 
-            BubbleText(
-                message = message,
-                outgoing = outgoing,
-                deliveryState = deliveryState,
-                palette = palette,
-            )
+            if (media != null) {
+                MediaContent(
+                    message = message,
+                    media = media,
+                    file = mediaFile,
+                    playback = playback,
+                    outgoing = outgoing,
+                    onRequest = onRequestMedia,
+                    onOpen = onOpenMedia,
+                    onTogglePlay = onTogglePlay,
+                    onCycleSpeed = onCycleSpeed,
+                    onSeek = onSeek,
+                )
+                Spacer(Modifier.height(if (tightMedia) 2.dp else 4.dp))
+            }
+
+            // A photo with no caption still needs its time and ticks; give them
+            // their own padded row rather than an empty text line.
+            val captionEmpty = message.content.text.isNullOrBlank()
+            if (media != null && captionEmpty) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = if (tightMedia) 6.dp else 0.dp, vertical = 1.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    Text(
+                        Timestamps.clock(message.createdAtMs),
+                        style = ChatType.BubbleMeta,
+                        color = (if (outgoing) palette.onBubbleOut else palette.onBubbleIn).copy(alpha = 0.7f),
+                    )
+                    if (outgoing) {
+                        Spacer(Modifier.width(3.dp))
+                        DeliveryTicks(
+                            deliveryState,
+                            palette,
+                            if (outgoing) palette.onBubbleOut else palette.onBubbleIn,
+                        )
+                    }
+                }
+            } else {
+                BubbleText(
+                    message = message,
+                    outgoing = outgoing,
+                    deliveryState = deliveryState,
+                    palette = palette,
+                    modifier = if (tightMedia) Modifier.padding(horizontal = 8.dp, vertical = 3.dp) else Modifier,
+                )
+            }
 
             if (message.reactions.isNotEmpty()) {
                 Spacer(Modifier.height(4.dp))
@@ -142,6 +202,7 @@ private fun BubbleText(
     outgoing: Boolean,
     deliveryState: DeliveryState,
     palette: ChatPalette,
+    modifier: Modifier = Modifier,
 ) {
     val onBubble = if (outgoing) palette.onBubbleOut else palette.onBubbleIn
     val body = when {
@@ -194,6 +255,7 @@ private fun BubbleText(
     )
 
     Text(
+        modifier = modifier,
         text = annotated,
         inlineContent = inline,
         style = ChatType.Body,
@@ -347,6 +409,9 @@ fun DateSeparator(timestampMs: Long) {
 }
 
 private const val META = "meta"
+
+/** Kinds whose bubble is the picture itself, with almost no padding. */
+private val TIGHT_KINDS = setOf("image", "video", "sticker", "gif")
 
 // Widths of the pieces that live in the trailing metadata placeholder, in sp.
 private const val BASE_META_SP = 36f    // "HH:mm" plus its left gap

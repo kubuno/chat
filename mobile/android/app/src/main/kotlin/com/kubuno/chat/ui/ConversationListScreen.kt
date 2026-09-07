@@ -19,10 +19,19 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.MoreHoriz
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.Poll
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,6 +39,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
@@ -39,17 +49,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 
 /**
- * The conversation list.
+ * The conversation list — the app's front door.
  *
- * Anatomy borrowed from WhatsApp's post-2024 design: a neutral (not tinted)
- * header, a persistent row of filter chips, an inline rounded search field,
- * the "Archivées" entry at the top of the list, then 72dp rows carrying
- * avatar / name / preview / time / unread badge. The colours are Kubuno's.
+ * Anatomy taken from WhatsApp: a compact action row (overflow, camera, new
+ * chat), then a LARGE title, then the search pill, the filter chips, the
+ * "Archivées" entry, and 72dp rows. The big title is the piece that makes the
+ * screen recognisable at a glance; a conventional 56dp app bar reads as a
+ * generic Material app instead.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -61,6 +74,9 @@ fun ConversationListScreen(
     onShowArchived: (Boolean) -> Unit,
     onTogglePin: (String) -> Unit,
     onRetry: () -> Unit,
+    onNewChat: () -> Unit,
+    onCamera: () -> Unit,
+    onOverflow: () -> Unit,
 ) {
     val rows = state.visible
 
@@ -69,6 +85,15 @@ fun ConversationListScreen(
         if (state.showArchived) {
             ArchivedHeader(onBack = { onShowArchived(false) })
         } else {
+            ActionRow(onOverflow = onOverflow, onCamera = onCamera, onNewChat = onNewChat)
+            Text(
+                text = "Discussions",
+                fontSize = 32.sp,
+                lineHeight = 38.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(start = ChatDims.Gutter, top = 2.dp, bottom = 10.dp),
+            )
             SearchField(query = state.query, onQuery = onQuery)
             FilterRow(
                 selected = state.filter,
@@ -77,9 +102,7 @@ fun ConversationListScreen(
             )
         }
 
-        if (!state.connected && !state.loading) {
-            OfflineBanner()
-        }
+        if (!state.connected && !state.loading) OfflineBanner()
 
         when {
             state.loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
@@ -88,7 +111,7 @@ fun ConversationListScreen(
 
             rows.isEmpty() -> EmptyState(
                 title = if (state.showArchived) "Aucune conversation archivée" else "Aucune conversation",
-                hint = if (state.showArchived) null else "Démarrez une discussion depuis Kubuno sur le web.",
+                hint = if (state.showArchived) null else "Touchez + pour démarrer une discussion.",
             )
 
             else -> LazyColumn(Modifier.fillMaxSize()) {
@@ -113,6 +136,55 @@ fun ConversationListScreen(
     }
 }
 
+/** The row above the title: overflow on the left, camera and new-chat on the right. */
+@Composable
+private fun ActionRow(onOverflow: () -> Unit, onCamera: () -> Unit, onNewChat: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceContainer)
+                .clickable(onClick = onOverflow),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.MoreHoriz,
+                contentDescription = "Plus",
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size(20.dp),
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        IconButton(onClick = onCamera) {
+            Icon(Icons.Filled.PhotoCamera, contentDescription = "Appareil photo")
+        }
+        Spacer(Modifier.width(4.dp))
+        // The accent circle is the primary action of the whole screen, which is
+        // why it sits in the header rather than floating over the list.
+        Box(
+            modifier = Modifier
+                .size(38.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary)
+                .clickable(onClick = onNewChat),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Filled.Add,
+                contentDescription = "Nouvelle discussion",
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SearchField(query: String, onQuery: (String) -> Unit) {
@@ -132,7 +204,8 @@ private fun SearchField(query: String, onQuery: (String) -> Unit) {
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = ChatDims.Gutter, vertical = 8.dp),
+            .padding(horizontal = ChatDims.Gutter)
+            .heightIn(min = 48.dp),
     )
 }
 
@@ -142,7 +215,7 @@ private fun FilterRow(selected: ChatFilter, unread: Int, onFilter: (ChatFilter) 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = ChatDims.Gutter, vertical = 4.dp),
+            .padding(horizontal = ChatDims.Gutter, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         ChatFilter.entries.forEach { filter ->
@@ -215,6 +288,7 @@ private fun ArchivedHeader(onBack: () -> Unit) {
 private fun ConversationRow(row: UiConversation, onClick: () -> Unit, onLongClick: () -> Unit) {
     val palette = ChatTheme.palette
     val unread = row.unreadCount > 0 || row.isUnread
+    val last = row.lastMessage
 
     Row(
         modifier = Modifier
@@ -239,19 +313,30 @@ private fun ConversationRow(row: UiConversation, onClick: () -> Unit, onLongClic
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Own last message: the ticks lead the preview, exactly as in
                 // the conversation bubble.
-                row.lastMessage?.takeIf { it.outgoing && !it.deleted }?.let {
+                last?.takeIf { it.outgoing && !it.deleted }?.let {
                     DeliveryTicks(
                         state = if (row.unreadCount == 0) DeliveryState.Read else DeliveryState.Sent,
                         palette = palette,
                     )
                     Spacer(Modifier.width(4.dp))
                 }
+                // An attachment shows its kind as an icon, the way a preview
+                // line reads at a glance: "📷 Photo" rather than empty text.
+                attachmentIcon(last)?.let { icon ->
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(15.dp),
+                    )
+                    Spacer(Modifier.width(4.dp))
+                }
                 Text(
-                    text = row.typingLabel ?: row.previewText,
+                    text = row.typingLabel ?: previewLine(row),
                     style = ChatType.Preview,
                     color = if (row.typingLabel != null) MaterialTheme.colorScheme.primary
                     else MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -264,6 +349,7 @@ private fun ConversationRow(row: UiConversation, onClick: () -> Unit, onLongClic
                 style = ChatType.RowTime,
                 color = if (unread) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = if (unread) FontWeight.SemiBold else FontWeight.Normal,
             )
             Spacer(Modifier.height(6.dp))
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -286,6 +372,30 @@ private fun ConversationRow(row: UiConversation, onClick: () -> Unit, onLongClic
                 if (row.unreadCount > 0) UnreadBadge(row.unreadCount)
             }
         }
+    }
+}
+
+/**
+ * In a group, the preview names who spoke — without it, a busy group is a wall
+ * of anonymous lines. Direct conversations already have the name in the title.
+ */
+private fun previewLine(row: UiConversation): String {
+    val last = row.lastMessage ?: return ""
+    val body = last.preview()
+    if (!row.isGroup || last.outgoing || body.isBlank()) return body
+    val speaker = row.senderNames[last.senderId] ?: return body
+    return "$speaker : $body"
+}
+
+private fun attachmentIcon(message: UiMessage?): ImageVector? {
+    val media = message?.content?.media ?: return null
+    if (message.deleted) return null
+    return when {
+        media.voice -> Icons.Filled.Mic
+        media.kind == "image" || media.kind == "sticker" || media.kind == "gif" -> Icons.Filled.Image
+        media.kind == "video" -> Icons.Filled.Videocam
+        media.kind == "audio" -> Icons.Filled.Headphones
+        else -> Icons.AutoMirrored.Filled.InsertDriveFile
     }
 }
 
@@ -341,11 +451,7 @@ private fun EmptyState(title: String, hint: String?) {
         Text(title, style = ChatType.ConversationTitle, color = MaterialTheme.colorScheme.onSurface)
         if (hint != null) {
             Spacer(Modifier.height(6.dp))
-            Text(
-                hint,
-                style = ChatType.Preview,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Text(hint, style = ChatType.Preview, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
