@@ -543,7 +543,7 @@ private fun attachmentIcon(message: UiMessage?): ImageVector? {
 }
 
 @Composable
-private fun UnreadBadge(count: Int) {
+internal fun UnreadBadge(count: Int) {
     Box(
         modifier = Modifier
             .defaultMinSize(minWidth = 20.dp, minHeight = 20.dp)

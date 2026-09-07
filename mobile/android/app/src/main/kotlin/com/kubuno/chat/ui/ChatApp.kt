@@ -139,6 +139,8 @@ fun ChatApp(
     var confirmClearOne by remember { mutableStateOf<UiConversation?>(null) }
     /** Which "Vous" detail sheet is open, if any. */
     var youSheet by remember { mutableStateOf<YouSheet?>(null) }
+    /** Whether the channel explorer sheet is open. */
+    var showExplorer by remember { mutableStateOf(false) }
     val pushEnabled = remember(accounts) { PushPrefs.registrationId(context) != null }
 
     // Opening the Appels tab is what clears its badge, exactly as looking at a
@@ -441,6 +443,13 @@ fun ChatApp(
                         onOpenAbout = { youSheet = YouSheet.About },
                     )
 
+                    ChatTab.Updates -> ActusScreen(
+                        account = viewModel.account.collectAsStateWithLifecycle().value ?: accounts.firstOrNull(),
+                        channels = list.conversations.filter { it.isChannel },
+                        onOpenChannel = viewModel::openConversation,
+                        onExplore = { showExplorer = true; viewModel.browseChannels("") },
+                    )
+
                     else -> NotYetScreen(tab)
                 }
             }
@@ -465,6 +474,16 @@ fun ChatApp(
             title = row.title,
             onDismiss = { confirmClearOne = null },
             onConfirm = { viewModel.clearConversation(row.id); confirmClearOne = null },
+        )
+    }
+
+    if (showExplorer) {
+        val explorer by viewModel.explorer.collectAsStateWithLifecycle()
+        ChannelExplorerSheet(
+            state = explorer,
+            onQuery = viewModel::browseChannels,
+            onJoin = viewModel::joinChannel,
+            onDismiss = { showExplorer = false },
         )
     }
 

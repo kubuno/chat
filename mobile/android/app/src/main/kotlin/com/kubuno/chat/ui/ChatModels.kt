@@ -60,6 +60,9 @@ data class UiConversation(
     val id: String,
     val title: String,
     val isGroup: Boolean,
+    /** A discoverable, broadcast-style channel (conv_type "channel"). */
+    val isChannel: Boolean = false,
+    val description: String? = null,
     val avatarUrl: String?,
     /** The other party of a direct conversation, when there is one. */
     val otherUserId: String? = null,
@@ -141,6 +144,8 @@ fun ConversationSummary.toUi(last: UiMessage?, nowMs: Long): UiConversation = Ui
     id = conversation.id,
     title = title,
     isGroup = conversation.convType != "direct",
+    isChannel = conversation.convType == "channel",
+    description = conversation.description,
     avatarUrl = otherUser?.avatarUrl,
     otherUserId = otherUser?.id,
     unreadCount = unreadCount.toInt(),

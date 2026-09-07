@@ -331,6 +331,58 @@ class ChatViewModel @Inject constructor(
 
     fun markCallsSeen() = CallLog.markAllSeen()
 
+    // ------------------------------------------------------------- channels
+
+    data class ChannelExplorer(
+        val loading: Boolean = false,
+        val query: String = "",
+        val channels: List<com.kubuno.chat.net.ChannelInfo> = emptyList(),
+        val joining: Set<String> = emptySet(),
+        val error: String? = null,
+    )
+
+    private val _explorer = MutableStateFlow(ChannelExplorer())
+    val explorer: StateFlow<ChannelExplorer> = _explorer.asStateFlow()
+
+    /** Loads the public channel directory (or a filtered search of it). */
+    fun browseChannels(query: String = _explorer.value.query) {
+        val api = api ?: return
+        _explorer.update { it.copy(loading = true, query = query, error = null) }
+        viewModelScope.launch {
+            runCatching { api.browseChannels(q = query.trim(), joined = false) }
+                .onSuccess { resp ->
+                    // A channel already followed is not offered again — it is
+                    // already in the Chaînes list.
+                    _explorer.update {
+                        it.copy(loading = false, channels = resp.channels.filterNot { c -> c.isMember })
+                    }
+                }
+                .onFailure { e ->
+                    Log.w(TAG, "browse channels failed", e)
+                    _explorer.update { it.copy(loading = false, error = "Annuaire indisponible") }
+                }
+        }
+    }
+
+    /** Follows a channel, then refreshes the list so it appears under Chaînes. */
+    fun joinChannel(id: String) {
+        val api = api ?: return
+        _explorer.update { it.copy(joining = it.joining + id) }
+        viewModelScope.launch {
+            runCatching { api.joinChannel(id) }
+                .onSuccess {
+                    _explorer.update {
+                        it.copy(joining = it.joining - id, channels = it.channels.filterNot { c -> c.id == id })
+                    }
+                    loadConversations()
+                }
+                .onFailure { e ->
+                    Log.w(TAG, "join channel failed", e)
+                    _explorer.update { it.copy(joining = it.joining - id, error = "Impossible de suivre cette chaîne") }
+                }
+        }
+    }
+
     private fun memberSetting(id: String, body: (UiConversation) -> MemberSettingsBody) {
         val api = api ?: return
         val row = _list.value.conversations.firstOrNull { it.id == id } ?: return

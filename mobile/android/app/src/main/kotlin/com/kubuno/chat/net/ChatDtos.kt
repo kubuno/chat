@@ -275,3 +275,19 @@ data class PollResults(
     fun votesFor(index: Int): Int = counts[index.toString()] ?: 0
     val total: Int get() = counts.values.sum()
 }
+
+/** Response of GET /chat/channels/browse. */
+@Serializable
+data class ChannelBrowseResponse(
+    val channels: List<ChannelInfo> = emptyList(),
+)
+
+/** One discoverable channel. */
+@Serializable
+data class ChannelInfo(
+    val id: String,
+    val name: String? = null,
+    val description: String? = null,
+    @SerialName("member_count") val memberCount: Long = 0,
+    @SerialName("is_member") val isMember: Boolean = false,
+)

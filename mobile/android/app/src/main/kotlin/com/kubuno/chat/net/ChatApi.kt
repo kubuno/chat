@@ -98,6 +98,21 @@ interface ChatApi {
     suspend fun clearConversation(@Path("id") id: String)
 
     /**
+     * Discoverable channels. `joined=true` lists the channels this user already
+     * follows; otherwise it browses public ones (empty when the instance
+     * disables public spaces). `q` filters by name.
+     */
+    @GET("api/v1/chat/channels/browse")
+    suspend fun browseChannels(
+        @Query("q") q: String = "",
+        @Query("joined") joined: Boolean = false,
+    ): ChannelBrowseResponse
+
+    /** Joins (follows) a channel by id. */
+    @POST("api/v1/chat/conversations/{id}/join")
+    suspend fun joinChannel(@Path("id") id: String)
+
+    /**
      * Uploads one already-encrypted blob. The server stores opaque bytes and
      * never sees the plaintext; the returned media_id is what the message
      * envelope and media_meta both reference.
