@@ -13,6 +13,10 @@ import com.kubuno.chat.net.ChatApi
 import com.kubuno.chat.net.ChatClients
 import com.kubuno.chat.net.ChatEnvelope
 import com.kubuno.chat.net.ChatSocket
+import com.kubuno.chat.net.CreateConversationBody
+import com.kubuno.chat.net.PollResults
+import com.kubuno.chat.net.UserSuggestion
+import com.kubuno.chat.net.VoteBody
 import com.kubuno.chat.net.EditMessageBody
 import com.kubuno.chat.net.ReactionBody
 import com.kubuno.chat.net.Member
@@ -265,9 +269,20 @@ class ChatViewModel @Inject constructor(
             runCatching { api.messages(id, limit = PAGE) }
                 .onSuccess { page ->
                     val messages = merge(emptyList(), page.messages, page.reactions)
+                    // A direct conversation has no name of its own, so when the
+                    // list row is not there yet — a conversation just created,
+                    // or one opened from a notification — the title has to come
+                    // from the member list, or the header stays blank.
+                    val resolvedTitle = detail?.conversation?.name
+                        ?: row?.title?.takeIf { it.isNotBlank() }
+                        ?: detail?.members
+                            ?.firstOrNull { it.userId != selfUserId }
+                            ?.label
+                        ?: ""
                     _conversation.update { state ->
                         state?.takeIf { it.id == id }?.copy(
-                            title = detail?.conversation?.name ?: state.title,
+                            title = resolvedTitle,
+                            isGroup = detail?.conversation?.convType?.let { it != "direct" } ?: state.isGroup,
                             members = members,
                             messages = messages,
                             loading = false,
@@ -598,6 +613,140 @@ class ChatViewModel @Inject constructor(
 
     fun cancelRecording() = voice.cancel()
 
+    // ------------------------------------------------------------- new chat
+
+    data class NewChatState(
+        val open: Boolean = false,
+        val query: String = "",
+        val results: List<UserSuggestion> = emptyList(),
+        val searching: Boolean = false,
+        val groupMode: Boolean = false,
+        val groupName: String = "",
+        val selected: List<UserSuggestion> = emptyList(),
+        val creating: Boolean = false,
+    )
+
+    private val _newChat = MutableStateFlow(NewChatState())
+    val newChat: StateFlow<NewChatState> = _newChat.asStateFlow()
+
+    private var searchJob: Job? = null
+
+    fun openNewChat() = _newChat.update { NewChatState(open = true) }
+    fun closeNewChat() = _newChat.update { NewChatState() }
+    fun setGroupMode(on: Boolean) = _newChat.update { it.copy(groupMode = on) }
+    fun setGroupName(name: String) = _newChat.update { it.copy(groupName = name) }
+
+    fun toggleMember(person: UserSuggestion) = _newChat.update { state ->
+        val already = state.selected.any { it.id == person.id }
+        state.copy(
+            selected = if (already) state.selected.filterNot { it.id == person.id }
+            else state.selected + person
+        )
+    }
+
+    fun searchPeople(query: String) {
+        _newChat.update { it.copy(query = query) }
+        searchJob?.cancel()
+        if (query.isBlank()) {
+            _newChat.update { it.copy(results = emptyList(), searching = false) }
+            return
+        }
+        val api = api ?: return
+        searchJob = viewModelScope.launch {
+            // Debounced: the core searches on every keystroke otherwise, and a
+            // fast typist would queue a request per letter.
+            delay(SEARCH_DEBOUNCE_MS)
+            _newChat.update { it.copy(searching = true) }
+            val found = runCatching { api.searchUsers(query, limit = 20).users }
+                .onFailure { Log.w(TAG, "user search failed", it) }
+                .getOrDefault(emptyList())
+                .filter { it.id != selfUserId }
+            _newChat.update { it.copy(results = found, searching = false) }
+        }
+    }
+
+    /** Opens (or creates) the direct conversation with [person]. */
+    fun startDirect(person: UserSuggestion) {
+        val api = api ?: return
+        viewModelScope.launch {
+            _newChat.update { it.copy(creating = true) }
+            val created = runCatching {
+                api.createConversation(
+                    CreateConversationBody(convType = "direct", targetUser = person.id)
+                )
+            }.onFailure { Log.w(TAG, "direct conversation failed", it) }.getOrNull()
+            _newChat.update { NewChatState() }
+            if (created != null) {
+                loadConversations()
+                openConversation(created.conversation.id)
+            }
+        }
+    }
+
+    fun createGroup() {
+        val api = api ?: return
+        val state = _newChat.value
+        if (state.groupName.isBlank() || state.selected.isEmpty()) return
+        viewModelScope.launch {
+            _newChat.update { it.copy(creating = true) }
+            val created = runCatching {
+                api.createConversation(
+                    CreateConversationBody(
+                        convType = "group",
+                        name = state.groupName.trim(),
+                        memberIds = state.selected.map { it.id },
+                    )
+                )
+            }.onFailure { Log.w(TAG, "group creation failed", it) }.getOrNull()
+            _newChat.update { NewChatState() }
+            if (created != null) {
+                loadConversations()
+                openConversation(created.conversation.id)
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------- polls
+
+    /** Poll tallies by message id, refreshed when a vote lands. */
+    private val _polls = MutableStateFlow<Map<String, PollResults>>(emptyMap())
+    val polls: StateFlow<Map<String, PollResults>> = _polls.asStateFlow()
+
+    fun loadPoll(messageId: String) {
+        val api = api ?: return
+        if (_polls.value.containsKey(messageId)) return
+        viewModelScope.launch {
+            runCatching { api.pollResults(messageId) }
+                .onSuccess { results -> _polls.update { it + (messageId to results) } }
+        }
+    }
+
+    fun vote(messageId: String, optionIndex: Int) {
+        val api = api ?: return
+        viewModelScope.launch {
+            runCatching { api.vote(messageId, VoteBody(optionIndex)) }
+                .onSuccess { results -> _polls.update { it + (messageId to results) } }
+                .onFailure { Log.w(TAG, "vote failed", it) }
+        }
+    }
+
+    /** Sends a poll: the question and options ride in the envelope. */
+    fun sendPoll(question: String, options: List<String>) {
+        val api = api ?: return
+        val conversationId = _conversation.value?.id ?: return
+        val clean = options.map { it.trim() }.filter { it.isNotBlank() }
+        if (question.isBlank() || clean.size < 2) return
+        viewModelScope.launch {
+            runCatching { api.send(conversationId, ChatEnvelope.encodePoll(question.trim(), clean)) }
+                .onSuccess { response ->
+                    val ui = response.message.toUi(selfUserId)
+                    _conversation.update { it?.copy(messages = it.messages + ui) }
+                    bumpRow(conversationId, ui)
+                }
+                .onFailure { Log.w(TAG, "poll send failed", it) }
+        }
+    }
+
     // ---------------------------------------------------------------- calls
 
     val callState: StateFlow<CallEngine.State> get() = calls.state
@@ -608,6 +757,26 @@ class ChatViewModel @Inject constructor(
      * Rings a conversation. The room is the conversation id, which is what the
      * web client uses too, so a call started on a phone rings in a browser.
      */
+    /**
+     * Pulls the instance's ICE servers, then runs [then].
+     *
+     * Always before a call, never cached: a coturn credential minted from a
+     * shared secret expires, and the module re-reads its own settings about
+     * once a minute, so the freshest answer is the one taken now.
+     */
+    private fun withIceServers(then: () -> Unit) {
+        val api = api
+        if (api == null) { then(); return }
+        viewModelScope.launch {
+            val config = runCatching { api.config() }.getOrNull()
+            calls.useIceServers(config?.iceServers.orEmpty())
+            if (config?.iceServers.isNullOrEmpty()) {
+                Log.i(TAG, "instance configured no ICE server: direct connections only")
+            }
+            then()
+        }
+    }
+
     fun startCall(conversation: UiConversation, video: Boolean) {
         val targets = conversation.senderNames
             .filterKeys { it != selfUserId }
@@ -626,12 +795,12 @@ class ChatViewModel @Inject constructor(
                     .filter { it.userId != selfUserId }
                     .map { it.userId to it.label }
                 if (members.isNotEmpty()) {
-                    calls.start(conversation.id, conversation.title, video, members)
+                    withIceServers { calls.start(conversation.id, conversation.title, video, members) }
                 }
             }
             return
         }
-        calls.start(conversation.id, conversation.title, video, targets)
+        withIceServers { calls.start(conversation.id, conversation.title, video, targets) }
     }
 
     /** Rings whoever is on the other side of the conversation on screen. */
@@ -645,10 +814,11 @@ class ChatViewModel @Inject constructor(
             row?.let { startCall(it, video) }
             return
         }
-        calls.start(open.id, open.title, video, targets)
+        withIceServers { calls.start(open.id, open.title, video, targets) }
     }
 
-    fun acceptCall() = calls.accept()
+    /** Answering also needs the instance ICE list; it is a call like any other. */
+    fun acceptCall() = withIceServers { calls.accept() }
     fun declineCall() = calls.decline()
     fun hangUp() = calls.hangUp()
     fun toggleCallMute() = calls.toggleMute()
@@ -991,5 +1161,6 @@ class ChatViewModel @Inject constructor(
         const val SUBTITLE_MAX = 80
         const val PREVIEW_CONCURRENCY = 5
         const val TYPING_THROTTLE_MS = 3_000L
+        const val SEARCH_DEBOUNCE_MS = 250L
     }
 }

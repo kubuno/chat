@@ -498,15 +498,37 @@ class CallEngine @Inject constructor(
     }
 
     /**
-     * Public STUN, deliberately not Google's — the project forbids embedding
-     * Google services, and the browser client's use of them is a bug this
-     * client does not copy. STUN alone still cannot cross a symmetric NAT: a
-     * deployment that wants reliable calls has to run its own TURN.
+     * The ICE servers this call uses, set by the owner from the instance's own
+     * configuration right before the call starts.
+     *
+     * Read fresh every time rather than cached: when the instance runs coturn
+     * with a shared secret, the TURN credential is minted per user and expires,
+     * so a stale copy stops relaying exactly when a relay is needed.
      */
-    private fun iceServers(): List<PeerConnection.IceServer> = listOf(
-        PeerConnection.IceServer.builder("stun:stun.nextcloud.com:443").createIceServer(),
-        PeerConnection.IceServer.builder("stun:stun.sipgate.net:3478").createIceServer(),
-    )
+    fun useIceServers(servers: List<com.kubuno.chat.net.IceServerConfig>) {
+        configuredIce = servers.mapNotNull { entry ->
+            val urls = entry.urls.filter { it.startsWith("stun:") || it.startsWith("turn") }
+            if (urls.isEmpty()) return@mapNotNull null
+            PeerConnection.IceServer.builder(urls).apply {
+                entry.username?.let { setUsername(it) }
+                entry.credential?.let { setPassword(it) }
+            }.createIceServer()
+        }
+    }
+
+    private var configuredIce: List<PeerConnection.IceServer> = emptyList()
+
+    /**
+     * What the instance configured, or nothing.
+     *
+     * NO FALLBACK TO A THIRD PARTY. An instance that has configured no ICE
+     * server has said, by saying nothing, that calls must not reach outside it;
+     * quietly borrowing someone else's public STUN would contradict that and
+     * leak the participants' addresses to a stranger. With an empty list a call
+     * still works between peers that can reach each other directly, and fails
+     * visibly otherwise — which is the honest outcome.
+     */
+    private fun iceServers(): List<PeerConnection.IceServer> = configuredIce
 
     private fun emit(userId: String, signal: CallSignal) {
         onSignal?.invoke(userId, signal)

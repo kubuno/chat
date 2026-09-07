@@ -142,6 +142,29 @@ data class MessageResponse(val message: Message, val duplicate: Boolean = false)
 data class MediaUploadResponse(@SerialName("media_id") val mediaId: String)
 
 /**
+ * The instance policy, as the module lets a client see it.
+ *
+ * [iceServers] is the one field this app must re-read at the START OF EVERY
+ * CALL rather than cache: when the instance runs coturn with a shared secret,
+ * the credential is minted per user and expires, so a stale copy fails to
+ * relay exactly when the relay is needed.
+ */
+@Serializable
+data class ChatConfig(
+    @SerialName("ice_servers") val iceServers: List<IceServerConfig> = emptyList(),
+    @SerialName("allow_file_sharing") val allowFileSharing: Boolean = true,
+    @SerialName("max_media_mb") val maxMediaMb: Long = 0,
+)
+
+/** RTCIceServer, as both clients consume it. */
+@Serializable
+data class IceServerConfig(
+    val urls: List<String> = emptyList(),
+    val username: String? = null,
+    val credential: String? = null,
+)
+
+/**
  * The non-secret half of an attachment, stored beside the message in clear.
  *
  * `media_id` is not decoration: the module's download route authorises a reader
@@ -221,3 +244,34 @@ data class UserSuggestion(
 
 @Serializable
 data class UserSearchResponse(val users: List<UserSuggestion> = emptyList())
+
+@Serializable
+data class CreateConversationBody(
+    @SerialName("conv_type") val convType: String,
+    @SerialName("target_user") val targetUser: String? = null,
+    val name: String? = null,
+    val description: String? = null,
+    @SerialName("member_ids") val memberIds: List<String>? = null,
+)
+
+@Serializable
+data class ConversationCreated(val conversation: Conversation)
+
+@Serializable
+data class VoteBody(@SerialName("option_index") val optionIndex: Int)
+
+/**
+ * Vote tallies for a poll.
+ *
+ * `counts` is an OBJECT keyed by the option index as a string — `{"0": 3}` —
+ * not an array: the module only stores rows for options that got a vote, so an
+ * array would have to invent the gaps. [votesFor] does the lookup.
+ */
+@Serializable
+data class PollResults(
+    val counts: Map<String, Int> = emptyMap(),
+    @SerialName("my_vote") val myVote: Int? = null,
+) {
+    fun votesFor(index: Int): Int = counts[index.toString()] ?: 0
+    val total: Int get() = counts.values.sum()
+}

@@ -130,6 +130,9 @@ fun ConversationScreen(
     onSeek: (Float) -> Unit,
     onAudioCall: () -> Unit,
     onVideoCall: () -> Unit,
+    polls: Map<String, com.kubuno.chat.net.PollResults>,
+    onLoadPoll: (String) -> Unit,
+    onVote: (String, Int) -> Unit,
 ) {
     val palette = ChatTheme.palette
     val listState = rememberLazyListState()
@@ -226,6 +229,9 @@ fun ConversationScreen(
                         onTogglePlay = onTogglePlay,
                         onCycleSpeed = onCycleSpeed,
                         onSeek = onSeek,
+                        polls = polls,
+                        onLoadPoll = onLoadPoll,
+                        onVote = onVote,
                     )
 
                     item(key = "typing") {
@@ -276,6 +282,9 @@ private fun LazyListScope.messageItems(
     onTogglePlay: (UiMessage) -> Unit,
     onCycleSpeed: () -> Unit,
     onSeek: (Float) -> Unit,
+    polls: Map<String, com.kubuno.chat.net.PollResults>,
+    onLoadPoll: (String) -> Unit,
+    onVote: (String, Int) -> Unit,
 ) {
     val messages = state.messages
     messages.forEachIndexed { index, message ->
@@ -304,6 +313,9 @@ private fun LazyListScope.messageItems(
                 onTogglePlay = onTogglePlay,
                 onCycleSpeed = onCycleSpeed,
                 onSeek = onSeek,
+                polls = polls,
+                onLoadPoll = onLoadPoll,
+                onVote = onVote,
             )
         }
     }
@@ -330,6 +342,9 @@ private fun SwipeableBubble(
     onTogglePlay: (UiMessage) -> Unit,
     onCycleSpeed: () -> Unit,
     onSeek: (Float) -> Unit,
+    polls: Map<String, com.kubuno.chat.net.PollResults>,
+    onLoadPoll: (String) -> Unit,
+    onVote: (String, Int) -> Unit,
 ) {
     val density = LocalDensity.current
     val threshold = with(density) { SWIPE_THRESHOLD_DP.dp.toPx() }
@@ -413,6 +428,9 @@ private fun SwipeableBubble(
                 onTogglePlay = { onTogglePlay(message) },
                 onCycleSpeed = onCycleSpeed,
                 onSeek = onSeek,
+                pollResults = polls[message.id],
+                onLoadPoll = { onLoadPoll(message.id) },
+                onVote = { index -> onVote(message.id, index) },
             )
         }
     }

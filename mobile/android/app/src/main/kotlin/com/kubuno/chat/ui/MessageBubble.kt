@@ -77,6 +77,9 @@ fun MessageBubble(
     onTogglePlay: () -> Unit = {},
     onCycleSpeed: () -> Unit = {},
     onSeek: (Float) -> Unit = {},
+    pollResults: com.kubuno.chat.net.PollResults? = null,
+    onLoadPoll: () -> Unit = {},
+    onVote: (Int) -> Unit = {},
 ) {
     val palette = ChatTheme.palette
     val outgoing = message.outgoing
@@ -137,6 +140,19 @@ fun MessageBubble(
                 Spacer(Modifier.height(4.dp))
             }
 
+            val poll = message.content.poll?.takeIf { !message.deleted && it.options.isNotEmpty() }
+            if (poll != null) {
+                PollContent(
+                    message = message,
+                    poll = poll,
+                    results = pollResults,
+                    outgoing = outgoing,
+                    onLoad = onLoadPoll,
+                    onVote = onVote,
+                )
+                Spacer(Modifier.height(4.dp))
+            }
+
             if (media != null) {
                 MediaContent(
                     message = message,
@@ -155,8 +171,10 @@ fun MessageBubble(
 
             // A photo with no caption still needs its time and ticks; give them
             // their own padded row rather than an empty text line.
-            val captionEmpty = message.content.text.isNullOrBlank()
-            if (media != null && captionEmpty) {
+            // A poll already shows its question; repeating it as body text
+            // would print it twice.
+            val captionEmpty = message.content.text.isNullOrBlank() || poll != null
+            if ((media != null || poll != null) && captionEmpty) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

@@ -86,6 +86,16 @@ object ChatEnvelope {
         SendMessageBody(encryptedData = encodeWire(Wire(text = text)), nonce = newNonce())
 
     /**
+     * A poll. The question and its options travel in the envelope; the server
+     * only ever sees vote INDICES, never what they mean.
+     */
+    fun encodePoll(question: String, options: List<String>): SendMessageBody =
+        SendMessageBody(
+            encryptedData = encodeWire(Wire(text = question, poll = Poll(question, options))),
+            nonce = newNonce(),
+        )
+
+    /**
      * A media message: the caption and the blob's key/IV ride in the envelope,
      * while [SendMessageBody.mediaMeta] carries the non-secret half the server
      * needs for download authorisation.

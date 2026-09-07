@@ -20,11 +20,25 @@ import retrofit2.http.Streaming
  */
 interface ChatApi {
 
+    /** Instance policy, including the ICE servers a call must use. */
+    @GET("api/v1/chat/config")
+    suspend fun config(): ChatConfig
+
     @GET("api/v1/chat/conversations")
     suspend fun conversations(): ConversationListResponse
 
+    @POST("api/v1/chat/conversations")
+    suspend fun createConversation(@Body body: CreateConversationBody): ConversationCreated
+
     @GET("api/v1/chat/conversations/{id}")
     suspend fun conversation(@Path("id") id: String): ConversationDetail
+
+    /** Casts or changes this user's vote; the module upserts on (message, user). */
+    @POST("api/v1/chat/messages/{id}/vote")
+    suspend fun vote(@Path("id") id: String, @Body body: VoteBody): PollResults
+
+    @GET("api/v1/chat/messages/{id}/poll")
+    suspend fun pollResults(@Path("id") id: String): PollResults
 
     /**
      * Newest first. "before" is the id of the oldest message already held.

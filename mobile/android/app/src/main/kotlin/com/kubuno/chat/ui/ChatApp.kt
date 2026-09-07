@@ -45,10 +45,13 @@ fun ChatApp(viewModel: ChatViewModel = hiltViewModel()) {
     val mediaFiles by viewModel.mediaFiles.collectAsStateWithLifecycle()
     val playback by viewModel.playback.collectAsStateWithLifecycle()
     val recording by viewModel.voice.state.collectAsStateWithLifecycle()
+    val polls by viewModel.polls.collectAsStateWithLifecycle()
+    val newChat by viewModel.newChat.collectAsStateWithLifecycle()
 
     // Which messages a forward is about: the long-pressed one, or the selection.
     var forwarding by remember { mutableStateOf<List<UiMessage>>(emptyList()) }
     var attaching by remember { mutableStateOf(false) }
+    var composingPoll by remember { mutableStateOf(false) }
     var pendingCall by remember { mutableStateOf<Pair<UiConversation, Boolean>?>(null) }
     var pendingHereCall by remember { mutableStateOf<Boolean?>(null) }
 
@@ -178,7 +181,7 @@ fun ChatApp(viewModel: ChatViewModel = hiltViewModel()) {
         bottomBar = {
             // The bar belongs to the list level; inside a conversation the
             // composer owns the bottom of the screen.
-            if (accounts.isNotEmpty() && conversation == null && !list.showArchived) {
+            if (accounts.isNotEmpty() && conversation == null && !newChat.open && !list.showArchived) {
                 ChatBottomBar(
                     selected = tab,
                     unread = list.conversations.sumOf { it.unreadCount },
@@ -192,6 +195,20 @@ fun ChatApp(viewModel: ChatViewModel = hiltViewModel()) {
         Column(Modifier.fillMaxSize().padding(padding)) {
             when {
                 accounts.isEmpty() -> NoAccount()
+
+                newChat.open -> {
+                    BackHandler { viewModel.closeNewChat() }
+                    NewChatScreen(
+                        state = newChat,
+                        onBack = viewModel::closeNewChat,
+                        onQuery = viewModel::searchPeople,
+                        onPickDirect = viewModel::startDirect,
+                        onToggleMember = viewModel::toggleMember,
+                        onSetGroupMode = viewModel::setGroupMode,
+                        onGroupName = viewModel::setGroupName,
+                        onCreateGroup = viewModel::createGroup,
+                    )
+                }
 
                 conversation != null -> {
                     val state = conversation!!
@@ -246,6 +263,9 @@ fun ChatApp(viewModel: ChatViewModel = hiltViewModel()) {
                         onSeek = viewModel::seekVoice,
                         onAudioCall = { placeCallHere(false) },
                         onVideoCall = { placeCallHere(true) },
+                        polls = polls,
+                        onLoadPoll = viewModel::loadPoll,
+                        onVote = viewModel::vote,
                     )
 
                     if (attaching) {
@@ -260,7 +280,7 @@ fun ChatApp(viewModel: ChatViewModel = hiltViewModel()) {
                                     AttachmentKind.Camera -> openCamera()
                                     AttachmentKind.Document -> pickDocument.launch(arrayOf("*/*"))
                                     AttachmentKind.Audio -> pickAudio.launch(arrayOf("audio/*"))
-                                    AttachmentKind.Poll -> Unit   // M4
+                                    AttachmentKind.Poll -> composingPoll = true
                                     AttachmentKind.Contact -> Unit
                                 }
                             },
@@ -283,6 +303,16 @@ fun ChatApp(viewModel: ChatViewModel = hiltViewModel()) {
                             },
                             onPin = { viewModel.togglePinMessage(target) },
                             onSelect = { viewModel.toggleSelect(target) },
+                        )
+                    }
+
+                    if (composingPoll) {
+                        PollComposer(
+                            onDismiss = { composingPoll = false },
+                            onSend = { question, options ->
+                                composingPoll = false
+                                viewModel.sendPoll(question, options)
+                            },
                         )
                     }
 
@@ -312,7 +342,7 @@ fun ChatApp(viewModel: ChatViewModel = hiltViewModel()) {
                             onShowArchived = viewModel::setShowArchived,
                             onTogglePin = viewModel::togglePin,
                             onRetry = viewModel::loadConversations,
-                            onNewChat = { },
+                            onNewChat = viewModel::openNewChat,
                             onCamera = ::openCamera,
                             onOverflow = { },
                         )
