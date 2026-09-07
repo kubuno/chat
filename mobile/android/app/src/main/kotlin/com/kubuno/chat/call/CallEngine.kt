@@ -120,6 +120,10 @@ class CallEngine @Inject constructor(
             PeerConnectionFactory.InitializationOptions.builder(context)
                 .createInitializationOptions()
         )
+        // The native stack is silent by default, so a failed negotiation shows
+        // up only as "FAILED" with no reason. Warnings are cheap and are the
+        // only way to tell a DTLS error from an ICE one after the fact.
+        org.webrtc.Logging.enableLogToDebugOutput(org.webrtc.Logging.Severity.LS_WARNING)
         val audioModule = JavaAudioDeviceModule.builder(context)
             .setUseHardwareAcousticEchoCanceler(true)
             .setUseHardwareNoiseSuppressor(true)
@@ -227,6 +231,7 @@ class CallEngine @Inject constructor(
     fun onSignal(fromUserId: String, signal: CallSignal) {
         if (fromUserId == myUserId) return
         val room = _state.value.room
+        Log.d(TAG, "<- ${signal.type} from ${fromUserId.take(8)} room=${signal.room.take(8)} sdp=${signal.sdp?.length ?: 0}")
 
         when (signal.type) {
             CallSignal.RING -> {
@@ -449,7 +454,11 @@ class CallEngine @Inject constructor(
                     )
                 }
             },
-            mediaConstraints(),
+            // No constraints on an answer: what we receive is decided by the
+            // offer's own m-lines, and OfferToReceive* is an offer-side legacy
+            // knob. Passing it here is at best ignored and at worst produces an
+            // answer the other end cannot use.
+            MediaConstraints(),
         )
     }
 
@@ -553,6 +562,7 @@ class CallEngine @Inject constructor(
     private fun iceServers(): List<PeerConnection.IceServer> = configuredIce
 
     private fun emit(userId: String, signal: CallSignal) {
+        Log.d(TAG, "-> ${signal.type} to ${userId.take(8)} sdp=${signal.sdp?.length ?: 0}")
         onSignal?.invoke(userId, signal)
     }
 
