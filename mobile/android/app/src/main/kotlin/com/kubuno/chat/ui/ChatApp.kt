@@ -294,6 +294,7 @@ fun ChatApp(
                         polls = polls,
                         onLoadPoll = viewModel::loadPoll,
                         onVote = viewModel::vote,
+                        onStepPinned = viewModel::stepPinned,
                     )
 
                     if (attaching) {

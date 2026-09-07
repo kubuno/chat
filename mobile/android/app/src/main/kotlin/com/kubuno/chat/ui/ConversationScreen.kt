@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Videocam
@@ -133,6 +134,7 @@ fun ConversationScreen(
     polls: Map<String, com.kubuno.chat.net.PollResults>,
     onLoadPoll: (String) -> Unit,
     onVote: (String, Int) -> Unit,
+    onStepPinned: () -> Unit,
 ) {
     val palette = ChatTheme.palette
     val listState = rememberLazyListState()
@@ -192,6 +194,15 @@ fun ConversationScreen(
                 onSearch = onOpenSearch,
                 onAudioCall = onAudioCall,
                 onVideoCall = onVideoCall,
+            )
+        }
+
+        if (!state.selecting && state.search == null && state.pinned.isNotEmpty()) {
+            PinnedBanner(
+                message = state.pinned[state.pinnedIndex.coerceIn(state.pinned.indices)],
+                index = state.pinnedIndex,
+                total = state.pinned.size,
+                onClick = onStepPinned,
             )
         }
 
@@ -866,3 +877,51 @@ private fun elapsed(ms: Long): String {
 
 private const val SWIPE_THRESHOLD_DP = 56
 private const val SWIPE_MAX_DP = 84
+
+/**
+ * The pinned-message banner, under the header.
+ *
+ * A pin only earns its place if it is readable at a glance, so the banner
+ * shows one message at a time and tapping cycles — a stack of three would
+ * push the conversation itself off the screen.
+ */
+@Composable
+private fun PinnedBanner(message: UiMessage, index: Int, total: Int, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surface)
+            .clickable(onClick = onClick)
+            .padding(horizontal = ChatDims.Gutter, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .width(3.dp)
+                .height(30.dp)
+                .background(MaterialTheme.colorScheme.primary)
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = if (total > 1) "Message épinglé ${index + 1}/$total" else "Message épinglé",
+                style = ChatType.BubbleMeta,
+                color = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                text = message.preview(),
+                style = ChatType.Preview,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Icon(
+            Icons.Filled.PushPin,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(16.dp),
+        )
+    }
+    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+}

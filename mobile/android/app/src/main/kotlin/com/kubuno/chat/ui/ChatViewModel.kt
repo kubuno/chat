@@ -301,6 +301,7 @@ class ChatViewModel @Inject constructor(
                         }
                     }
                     messages.lastOrNull()?.let { acknowledge(id, it.id) }
+                    loadPinned(id)
                 }
                 .onFailure { e ->
                     Log.w(TAG, "messages failed", e)
@@ -917,12 +918,39 @@ class ChatViewModel @Inject constructor(
     /** Pins or unpins a message (the module toggles server-side). */
     fun togglePinMessage(message: UiMessage) {
         val api = api ?: return
+        val conversationId = message.conversationId
         closeActions()
         viewModelScope.launch {
             runCatching { api.pinMessage(message.id) }
-                .onSuccess { replace(it.message.toUi(selfUserId)) }
+                .onSuccess {
+                    replace(it.message.toUi(selfUserId))
+                    loadPinned(conversationId)
+                }
                 .onFailure { Log.w(TAG, "pin failed", it) }
         }
+    }
+
+    /** Refreshes the pinned banner for a conversation. */
+    fun loadPinned(conversationId: String) {
+        val api = api ?: return
+        viewModelScope.launch {
+            runCatching { api.pinned(conversationId).messages }
+                .onSuccess { messages ->
+                    val ui = messages.map { it.toUi(selfUserId) }
+                    _conversation.update { state ->
+                        state?.takeIf { it.id == conversationId }
+                            ?.copy(pinned = ui, pinnedIndex = 0)
+                    }
+                }
+                .onFailure { Log.w(TAG, "pinned list failed", it) }
+        }
+    }
+
+    /** Cycles through pinned messages when the banner is tapped. */
+    fun stepPinned() = _conversation.update { state ->
+        state ?: return@update null
+        if (state.pinned.isEmpty()) return@update state
+        state.copy(pinnedIndex = (state.pinnedIndex + 1) % state.pinned.size)
     }
 
     /**

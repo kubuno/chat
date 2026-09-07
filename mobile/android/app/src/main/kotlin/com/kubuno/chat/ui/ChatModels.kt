@@ -106,6 +106,10 @@ data class ConversationState(
     val search: String? = null,
     val searchMatches: List<String> = emptyList(),
     val searchIndex: Int = 0,
+    /** Pinned messages, newest first, shown as a banner under the header. */
+    val pinned: List<UiMessage> = emptyList(),
+    /** Which pinned message the banner is showing, when there are several. */
+    val pinnedIndex: Int = 0,
 ) {
     val selecting: Boolean get() = selection.isNotEmpty()
 

@@ -93,6 +93,7 @@ class ChatSocket(
         _connected.value = false
         socket?.close(NORMAL_CLOSURE, null)
         socket = null
+        synchronized(pending) { pending.clear() }
         scope.coroutineContext.cancelChildren()
     }
 
@@ -102,6 +103,8 @@ class ChatSocket(
      * dropped frame simply means the indicator does not show.
      */
     fun typing(conversationId: String, started: Boolean) {
+        // Typing is not queued: an indicator that arrives after the fact is
+        // noise, so a dropped frame is the correct outcome here.
         val action = if (started) "typing_start" else "typing_stop"
         socket?.send("""{"action":"$action","conversation_id":"$conversationId"}""")
     }
@@ -116,8 +119,42 @@ class ChatSocket(
             put("to_user_id", kotlinx.serialization.json.JsonPrimitive(toUserId))
             put("signal", signal)
         }
-        socket?.send(frame.toString())
+        send(frame.toString())
     }
+
+    /**
+     * Sends a frame, holding it until the socket is up.
+     *
+     * Without this a call placed in the seconds after launch — or across a
+     * reconnect — silently loses its ring and offer: `socket` is null, `send`
+     * returns nothing, and the caller hears an endless "ringing" while the
+     * callee's phone never lit up. Signalling frames are small and few, so a
+     * short bounded queue is the right trade; it is dropped on stop() because
+     * a signal that outlived its call is worse than no signal.
+     */
+    private fun send(frame: String) {
+        val live = socket
+        if (live != null && _connected.value) {
+            live.send(frame)
+            return
+        }
+        synchronized(pending) {
+            if (pending.size >= MAX_PENDING) pending.removeFirst()
+            pending.addLast(frame)
+        }
+    }
+
+    private fun flushPending() {
+        val live = socket ?: return
+        val frames = synchronized(pending) {
+            val copy = pending.toList()
+            pending.clear()
+            copy
+        }
+        frames.forEach { live.send(it) }
+    }
+
+    private val pending = ArrayDeque<String>()
 
     /** Decodes a payload into [T], or null when the shape does not match. */
     fun <T> decode(envelope: Envelope, deserializer: kotlinx.serialization.DeserializationStrategy<T>): T? {
@@ -155,6 +192,7 @@ class ChatSocket(
             attempt = 0
             _connected.value = true
             Log.d(TAG, "connected")
+            flushPending()
         }
 
         override fun onMessage(webSocket: WebSocket, text: String) {
@@ -182,5 +220,6 @@ class ChatSocket(
         const val NORMAL_CLOSURE = 1000
         const val BASE_DELAY_MS = 2_000L
         const val MAX_DELAY_MS = 30_000L
+        const val MAX_PENDING = 32
     }
 }
