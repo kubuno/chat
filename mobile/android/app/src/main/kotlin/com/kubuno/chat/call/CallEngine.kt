@@ -37,12 +37,9 @@ import org.webrtc.audio.JavaAudioDeviceModule
  * calls this module supports, and it is what the browser does, so a phone and a
  * browser negotiate the same way. A real SFU would be a server-side project.
  *
- * ON ICE SERVERS. The browser client hardcodes Google's public STUN, which this
- * project's charter forbids and which is also the wrong answer technically: STUN
- * alone cannot traverse a symmetric NAT, so calls over mobile data fail. This
- * client therefore uses non-Google public STUN by default and, above all, reads
- * the instance's own list when the module publishes one. A self-hosted
- * deployment that wants calls to work everywhere needs its own TURN (coturn).
+ * ON ICE SERVERS. They come from the instance (GET /chat/config), read fresh at
+ * the start of every call, and there is no fallback to anyone else. See
+ * useIceServers and iceServers below for why.
  */
 @Singleton
 class CallEngine @Inject constructor(
@@ -246,16 +243,18 @@ class CallEngine @Inject constructor(
             CallSignal.JOIN -> {
                 if (room != signal.room) return
                 _state.update { it.copy(ringing = false) }
-                // Answer the newcomer so they know we are here; the offer is
-                // made by whichever side received the "present".
+                // Tell the newcomer we are here, then connect — but only one
+                // side may offer (see amOfferer).
                 emit(fromUserId, CallSignal(type = CallSignal.PRESENT, room = signal.room, fromName = myName))
+                val peer = peerFor(fromUserId, signal.fromName)
+                if (amOfferer(fromUserId)) offerTo(fromUserId, peer)
             }
 
             CallSignal.PRESENT -> {
                 if (room != signal.room) return
                 _state.update { it.copy(ringing = false) }
                 val peer = peerFor(fromUserId, signal.fromName)
-                offerTo(fromUserId, peer)
+                if (amOfferer(fromUserId)) offerTo(fromUserId, peer)
             }
 
             CallSignal.OFFER -> {
@@ -325,6 +324,18 @@ class CallEngine @Inject constructor(
 
     // ------------------------------------------------------------------ peers
 
+    /**
+     * Which side creates the offer for a given peer.
+     *
+     * WebRTC has no built-in tie-break: if both ends call createOffer on the
+     * same connection you get glare, and the negotiation that survives is
+     * whichever arrived last — which is how a call ends up with ICE connected
+     * and DTLS failing. The web client settles it by comparing user ids, so
+     * this client uses exactly the same comparison; anything else and a phone
+     * and a browser would both offer, or neither would.
+     */
+    private fun amOfferer(other: String): Boolean = myUserId < other
+
     private fun peerFor(userId: String, name: String?): Peer {
         peers[userId]?.let { existing ->
             if (!name.isNullOrBlank()) existing.name = name
@@ -373,10 +384,21 @@ class CallEngine @Inject constructor(
                             },
                         )
                     }
-                    if (newState == PeerConnection.PeerConnectionState.FAILED) {
-                        // Without TURN this is what a symmetric NAT looks like;
-                        // say so instead of spinning forever.
-                        _state.update { it.copy(error = "Connexion impossible — l'instance n'a pas de relais TURN") }
+                    if (newState == PeerConnection.PeerConnectionState.FAILED ||
+                        newState == PeerConnection.PeerConnectionState.CLOSED
+                    ) {
+                        Log.w(TAG, "peer $userId ended in $newState")
+                        // Drop the dead connection rather than leaving a tile
+                        // stuck on "connecting" forever, exactly as the web does.
+                        peers.remove(userId)?.let { runCatching { it.connection.close() } }
+                        syncParticipants()
+                        // Do NOT blame TURN here. A failure at this point can be
+                        // a missing relay, but it can equally be a DTLS error on
+                        // a path ICE did connect, and telling the user the wrong
+                        // cause is worse than telling them none.
+                        if (peers.isEmpty()) {
+                            _state.update { it.copy(error = "Connexion interrompue avec ce participant") }
+                        }
                     }
                 }
             },
