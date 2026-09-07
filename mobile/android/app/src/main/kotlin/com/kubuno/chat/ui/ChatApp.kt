@@ -3,6 +3,7 @@ package com.kubuno.chat.ui
 import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -19,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -36,7 +38,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
  * and the socket lives in the shared ViewModel either way.
  */
 @Composable
-fun ChatApp(viewModel: ChatViewModel = hiltViewModel()) {
+fun ChatApp(
+    openConversationId: String? = null,
+    onDeepLinkHandled: () -> Unit = {},
+    viewModel: ChatViewModel = hiltViewModel(),
+) {
     val accounts by viewModel.accounts.collectAsStateWithLifecycle()
     val list by viewModel.list.collectAsStateWithLifecycle()
     val conversation by viewModel.conversation.collectAsStateWithLifecycle()
@@ -93,6 +99,28 @@ fun ChatApp(viewModel: ChatViewModel = hiltViewModel()) {
             viewModel.startRecording()
         } else {
             askMicrophone.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    // A notification tap names a conversation; open it once, then forget it,
+    // or every recomposition would fight the user trying to leave.
+    LaunchedEffect(openConversationId) {
+        val id = openConversationId ?: return@LaunchedEffect
+        viewModel.openConversation(id)
+        onDeepLinkHandled()
+    }
+
+    // Android 13+ posts nothing without this, and a chat app with silent
+    // notifications is a chat app with no notifications.
+    val askNotifications = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 

@@ -103,6 +103,10 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
 
+    // Push notifications through whichever UnifiedPush distributor the user
+    // installed. No FCM: the platform ships none.
+    implementation(libs.unifiedpush.connector)
+
     // Audio and video calls.
     implementation(libs.webrtc)
 

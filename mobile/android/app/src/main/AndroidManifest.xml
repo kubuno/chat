@@ -16,6 +16,14 @@
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
+    <!-- Finding a UnifiedPush distributor requires being able to see the apps
+         that declare themselves as one (Android 11+ package visibility). -->
+    <queries>
+        <intent>
+            <action android:name="org.unifiedpush.android.distributor.REGISTER" />
+        </intent>
+    </queries>
+
     <!-- The camera attachment goes through the system camera app, so no
          CAMERA permission is needed; declare the feature as optional so the
          app still installs on a device without one. -->
@@ -48,6 +56,26 @@
                 <data android:scheme="kubuno-chat" android:host="conversation" />
             </intent-filter>
         </activity>
+
+        <!-- UnifiedPush receiver. Declaring these intent-filters here takes
+             precedence over the library's embedded receiver, so our own
+             MessagingReceiver handles endpoints and messages directly. -->
+        <receiver
+            android:name=".push.KubunoChatPushReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.MESSAGE" />
+                <action android:name="org.unifiedpush.android.connector.NEW_ENDPOINT" />
+                <action android:name="org.unifiedpush.android.connector.REGISTRATION_FAILED" />
+                <action android:name="org.unifiedpush.android.connector.UNREGISTERED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Replying and marking as read from the notification itself: no UI,
+             so the app never comes to the foreground for either. -->
+        <receiver
+            android:name=".push.ChatReplyReceiver"
+            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

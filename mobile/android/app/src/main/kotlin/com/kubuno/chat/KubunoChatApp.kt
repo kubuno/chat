@@ -7,6 +7,7 @@ import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.kubuno.android.account.AccountCallFactory
 import com.kubuno.android.account.AccountManagerBridge
+import com.kubuno.chat.push.ChatPush
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 
@@ -22,6 +23,9 @@ class KubunoChatApp : Application(), SingletonImageLoader.Factory {
         // mail and maps apps: whichever app the user opens keeps the shared
         // list current.
         accountBridge.install()
+        // Best effort: with no distributor installed the app stays fully
+        // usable, it simply gets no push.
+        ChatPush.ensureRegistered(this)
     }
 
     /** Avatars ride each account's authenticated client, chosen per URL. */
