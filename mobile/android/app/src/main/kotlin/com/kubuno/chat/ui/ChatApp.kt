@@ -31,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.kubuno.chat.push.PushPrefs
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -136,6 +137,9 @@ fun ChatApp(
     var optionsFor by remember { mutableStateOf<UiConversation?>(null) }
     /** The conversation the clear confirmation is about, if any. */
     var confirmClearOne by remember { mutableStateOf<UiConversation?>(null) }
+    /** Which "Vous" detail sheet is open, if any. */
+    var youSheet by remember { mutableStateOf<YouSheet?>(null) }
+    val pushEnabled = remember(accounts) { PushPrefs.registrationId(context) != null }
 
     // Opening the Appels tab is what clears its badge, exactly as looking at a
     // missed call on a phone does.
@@ -424,7 +428,18 @@ fun ChatApp(
                         onCall = { row, video -> placeCall(row, video) },
                     )
 
-                    ChatTab.You -> YouScreen(account = accounts.firstOrNull())
+                    ChatTab.You -> YouScreen(
+                        account = viewModel.account.collectAsStateWithLifecycle().value ?: accounts.firstOrNull(),
+                        accountCount = accounts.size,
+                        pushEnabled = pushEnabled,
+                        onOpenAccount = { youSheet = YouSheet.Account },
+                        onSwitchAccount = { youSheet = YouSheet.SwitchAccount },
+                        onOpenDevices = { youSheet = YouSheet.Devices },
+                        onOpenNotifications = { youSheet = YouSheet.Notifications },
+                        onOpenAppearance = { youSheet = YouSheet.Appearance },
+                        onOpenStorage = { youSheet = YouSheet.Storage },
+                        onOpenAbout = { youSheet = YouSheet.About },
+                    )
 
                     else -> NotYetScreen(tab)
                 }
@@ -450,6 +465,18 @@ fun ChatApp(
             title = row.title,
             onDismiss = { confirmClearOne = null },
             onConfirm = { viewModel.clearConversation(row.id); confirmClearOne = null },
+        )
+    }
+
+    youSheet?.let { sheet ->
+        YouDetailSheet(
+            sheet = sheet,
+            account = viewModel.account.collectAsStateWithLifecycle().value ?: accounts.firstOrNull(),
+            accounts = accounts,
+            pushEnabled = pushEnabled,
+            context = context,
+            onSelectAccount = { viewModel.selectAccount(it); youSheet = null },
+            onDismiss = { youSheet = null },
         )
     }
 }

@@ -44,7 +44,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kubuno.android.account.SharedAccount
 import com.kubuno.chat.call.CallLog
 
 /** The five destinations of the bottom bar. */
@@ -254,56 +253,6 @@ private fun SectionLabel(text: String) {
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(start = ChatDims.Gutter, top = 12.dp, bottom = 4.dp),
     )
-}
-
-/** The Vous tab: who you are signed in as, and what this build does not claim. */
-@Composable
-fun YouScreen(account: SharedAccount?) {
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
-    ) {
-        LargeTitle("Vous")
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = ChatDims.Gutter, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            ChatAvatar(
-                title = account?.label.orEmpty().ifBlank { "?" },
-                url = null,
-                seed = account?.userId.orEmpty(),
-                size = 64.dp,
-            )
-            Spacer(Modifier.width(16.dp))
-            Column {
-                Text(
-                    text = account?.label.orEmpty(),
-                    style = ChatType.ConversationTitleUnread,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
-                Text(
-                    text = account?.host.orEmpty(),
-                    style = ChatType.Preview,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-        Text(
-            text = "Le compte est géré par les autres applications Kubuno de cet appareil : " +
-                "ajoutez ou retirez un compte depuis Drive ou Mail.",
-            style = ChatType.Preview,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = ChatDims.Gutter, vertical = 8.dp),
-        )
-        Text(
-            text = "Ce module ne chiffre pas encore les messages de bout en bout. " +
-                "L'application ne l'affiche donc nulle part comme acquis.",
-            style = ChatType.Preview,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(horizontal = ChatDims.Gutter, vertical = 8.dp),
-        )
-    }
 }
 
 /** Actus and Communautés: nothing to show until the module grows them. */
