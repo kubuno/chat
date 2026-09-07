@@ -18,6 +18,13 @@ data class UiMessage(
     val pinned: Boolean,
     val replyToId: String?,
     val messageType: String,
+    /**
+     * The client nonce the message was sent with, echoed back by the server.
+     * Lets a device recognise its own optimistic row when the server delivers
+     * the confirmed message — over the socket, and to this user's OTHER
+     * devices — so the same message is never shown twice.
+     */
+    val nonce: String = "",
     val reactions: Map<String, Int> = emptyMap(),
     val myReactions: Set<String> = emptySet(),
     /** Not yet acknowledged by the server (optimistic row from the outbox). */
@@ -164,6 +171,7 @@ fun Message.toUi(selfUserId: String, reactions: Map<String, Int> = emptyMap(), m
         pinned = isPinned,
         replyToId = replyToId,
         messageType = messageType,
+        nonce = nonce,
         reactions = reactions,
         myReactions = mine,
     )

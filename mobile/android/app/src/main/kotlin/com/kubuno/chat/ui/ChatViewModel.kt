@@ -1206,8 +1206,20 @@ class ChatViewModel @Inject constructor(
         val open = _conversation.value
         if (open != null && open.id == ui.conversationId) {
             _conversation.update { state ->
-                if (state == null || state.messages.any { it.id == ui.id }) state
-                else state.copy(messages = state.messages + ui)
+                if (state == null) return@update state
+                // A message this account sent from ANOTHER device arrives here
+                // over the socket; one sent from THIS device also comes back as
+                // an echo. Either way it must appear exactly once: match the
+                // confirmed id first, then the optimistic row still keyed by the
+                // nonce the server echoed, and only otherwise append.
+                when {
+                    state.messages.any { it.id == ui.id } -> state
+                    ui.nonce.isNotEmpty() && state.messages.any { it.id == "pending:${ui.nonce}" } ->
+                        state.copy(messages = state.messages.map {
+                            if (it.id == "pending:${ui.nonce}") ui else it
+                        })
+                    else -> state.copy(messages = state.messages + ui)
+                }
             }
             if (!ui.outgoing) acknowledge(ui.conversationId, ui.id)
             bumpRow(ui.conversationId, ui, unreadDelta = 0)
