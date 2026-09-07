@@ -120,9 +120,16 @@ private fun BubbleText(
         else -> message.preview()
     }
 
-    // The placeholder reserves room for "HH:mm" plus, when outgoing, the tick
-    // pair. Sized in sp so it scales with the user's font setting.
-    val metaWidth = if (outgoing) 58.sp else 38.sp
+    // The placeholder reserves room for what actually goes in it: "HH:mm",
+    // plus the tick pair when outgoing, plus the "modifié" marker when the
+    // message was edited. Under-reserving does not wrap — it CLIPS, which is
+    // how the clock silently vanished from edited bubbles. Sized in sp so it
+    // scales with the user's font setting.
+    val metaWidth = (
+        BASE_META_SP +
+            (if (outgoing) TICKS_SP else 0f) +
+            (if (message.editedAtMs != null) EDITED_SP else 0f)
+        ).sp
     val annotated = buildAnnotatedString {
         append(body)
         appendInlineContent(META, " ")
@@ -138,10 +145,11 @@ private fun BubbleText(
             ) {
                 if (message.editedAtMs != null) {
                     Text(
-                        "modifié ",
+                        "modifié",
                         style = ChatType.BubbleMeta,
                         color = onBubble.copy(alpha = 0.6f),
                     )
+                    Spacer(Modifier.width(4.dp))
                 }
                 Text(
                     Timestamps.clock(message.createdAtMs),
@@ -266,3 +274,8 @@ fun DateSeparator(timestampMs: Long) {
 }
 
 private const val META = "meta"
+
+// Widths of the pieces that live in the trailing metadata placeholder, in sp.
+private const val BASE_META_SP = 36f    // "HH:mm" plus its left gap
+private const val TICKS_SP = 20f        // the delivery ticks (outgoing only)
+private const val EDITED_SP = 44f       // the "modifié" marker

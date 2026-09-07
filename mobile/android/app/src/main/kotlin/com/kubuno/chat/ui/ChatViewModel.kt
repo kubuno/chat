@@ -154,7 +154,7 @@ class ChatViewModel @Inject constructor(
      * the module gives no bulk endpoint for last messages: unbounded fan-out
      * would open one connection per conversation.
      */
-    private fun fillPreviews(ids: List<String>) {
+    private fun fillPreviews(ids: List<String>, force: Boolean = false) {
         val api = api ?: return
         viewModelScope.launch {
             val gate = Semaphore(PREVIEW_CONCURRENCY)
@@ -163,12 +163,15 @@ class ChatViewModel @Inject constructor(
                     async {
                         val last = gate.withPermit {
                             runCatching { api.messages(id, limit = 1).messages.firstOrNull() }.getOrNull()
-                        } ?: return@async
-                        val ui = last.toUi(selfUserId)
+                        }
+                        val ui = last?.toUi(selfUserId)
                         _list.update { state ->
                             state.copy(conversations = state.conversations.map { row ->
-                                if (row.id != id || row.lastMessage != null) row
-                                else row.copy(lastMessage = ui, lastActivityMs = ui.createdAtMs)
+                                if (row.id != id || (!force && row.lastMessage != null)) row
+                                else row.copy(
+                                    lastMessage = ui,
+                                    lastActivityMs = ui?.createdAtMs ?: row.lastActivityMs,
+                                )
                             })
                         }
                     }
@@ -361,15 +364,20 @@ class ChatViewModel @Inject constructor(
             }
             "message_updated" -> {
                 val payload = socket.decode(envelope, ChatSocket.MessageUpdatedPayload.serializer()) ?: return
+                // Two payload shapes: an edit carries the whole message, a
+                // deletion carries only its id.
                 val message = payload.message
                 if (message != null) {
-                    replace(message.toUi(selfUserId))
+                    val ui = message.toUi(selfUserId)
+                    replace(ui)
+                    refreshRowPreview(ui.conversationId, ui)
                 } else if (payload.messageId != null) {
                     _conversation.update { state ->
                         state?.copy(messages = state.messages.map {
                             if (it.id == payload.messageId) it.copy(deleted = true) else it
                         })
                     }
+                    payload.conversationId?.let { markRowDeleted(it, payload.messageId) }
                 }
             }
             "typing_start" -> envelope.str("user_id")?.let { markTyping(envelope.str("conversation_id"), it) }
@@ -416,6 +424,28 @@ class ChatViewModel @Inject constructor(
                 )
             })
         }
+    }
+
+    /** Keeps a row's preview honest when its last message is edited. */
+    private fun refreshRowPreview(conversationId: String, message: UiMessage) {
+        _list.update { state ->
+            state.copy(conversations = state.conversations.map { row ->
+                if (row.id != conversationId || row.lastMessage?.id != message.id) row
+                else row.copy(lastMessage = message)
+            })
+        }
+    }
+
+    /**
+     * A deleted last message leaves the row showing text that no longer
+     * exists. The event carries no replacement, so ask the server what the row
+     * should say now.
+     */
+    private fun markRowDeleted(conversationId: String, messageId: String) {
+        val stale = _list.value.conversations
+            .firstOrNull { it.id == conversationId }
+            ?.lastMessage?.id == messageId
+        if (stale) fillPreviews(listOf(conversationId), force = true)
     }
 
     private fun markTyping(conversationId: String?, userId: String) {
