@@ -539,26 +539,74 @@ class CallEngine @Inject constructor(
         localAudio = factory.createAudioTrack("audio0", audioSource)
 
         if (!video) return true
+        // Audio still works on a device whose camera will not open; degrade
+        // rather than refuse the call.
+        openCameraTrack(factory)
+        return true
+    }
+
+    /** Opens the camera and builds the local video track. Idempotent. */
+    private fun openCameraTrack(factory: PeerConnectionFactory): Boolean {
+        if (localVideo != null) return true
 
         val enumerator = if (Camera2Enumerator.isSupported(context)) Camera2Enumerator(context)
         else Camera1Enumerator(true)
         val deviceName = enumerator.deviceNames.firstOrNull { enumerator.isFrontFacing(it) }
             ?: enumerator.deviceNames.firstOrNull()
-            // Audio still works on a device with no camera; degrade rather than fail.
-            ?: return true
+            ?: return false
 
-        val created = enumerator.createCapturer(deviceName, null) ?: return true
+        val created = enumerator.createCapturer(deviceName, null) ?: return false
         val helper = SurfaceTextureHelper.create("capture", eglBase.eglBaseContext)
         val source = factory.createVideoSource(created.isScreencast)
         created.initialize(helper, context, source.capturerObserver)
-        runCatching { created.startCapture(VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS) }
+        val started = runCatching { created.startCapture(VIDEO_WIDTH, VIDEO_HEIGHT, VIDEO_FPS) }
             .onFailure { Log.w(TAG, "camera would not start", it) }
+            .isSuccess
+        if (!started) {
+            runCatching { created.dispose() }
+            runCatching { helper.dispose() }
+            runCatching { source.dispose() }
+            return false
+        }
 
         capturer = created
         surfaceHelper = helper
         videoSource = source
         localVideo = factory.createVideoTrack("video0", source)
         return true
+    }
+
+    /**
+     * Turns a call that started as audio into a video one, without dropping it.
+     *
+     * The camera track is added to every existing PeerConnection and each one is
+     * re-offered. Renegotiation is initiated by the side that CHANGED, whatever
+     * the initial amOfferer tie-break decided — that rule only settles who makes
+     * the first offer, and applying it again here would leave the side that
+     * turned its camera on unable to announce it.
+     */
+    fun switchToVideo() {
+        val current = _state.value
+        if (!current.active || current.video) return
+        val factory = factory ?: return
+
+        if (!openCameraTrack(factory)) {
+            _state.update { it.copy(error = "Caméra indisponible") }
+            return
+        }
+        val track = localVideo ?: return
+
+        // Update the state first: the offer's constraints read it.
+        _state.update { it.copy(video = true, camOff = false, error = null) }
+
+        peers.forEach { (userId, peer) ->
+            runCatching { peer.connection.addTrack(track, listOf(STREAM_ID)) }
+                .onFailure { Log.w(TAG, "could not add the camera track for $userId", it) }
+            offerTo(userId, peer)
+        }
+        current.room?.let {
+            broadcast(CallSignal(type = CallSignal.STATE, room = it, camOff = false))
+        }
     }
 
     private fun closeLocalMedia() {

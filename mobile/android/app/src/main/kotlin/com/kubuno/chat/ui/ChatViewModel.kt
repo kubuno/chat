@@ -857,6 +857,9 @@ class ChatViewModel @Inject constructor(
     fun switchCallCamera() = calls.switchCamera()
     fun toggleCallHand() = calls.toggleHand()
 
+    /** Adds video to a call that started as audio, without dropping it. */
+    fun switchCallToVideo() = calls.switchToVideo()
+
     fun cycleVoiceSpeed() = player.cycleSpeed()
 
     fun seekVoice(fraction: Float) = player.seekTo(fraction)

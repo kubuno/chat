@@ -128,23 +128,24 @@ fun ChatApp(
     val incoming by viewModel.incomingCall.collectAsStateWithLifecycle()
     var tab by remember { mutableStateOf(ChatTab.Chats) }
 
-    val askHereCallPermissions = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { granted ->
-        if (granted[Manifest.permission.RECORD_AUDIO] == true) {
-            pendingHereCall?.let { viewModel.startCallHere(it) }
-        }
-        pendingHereCall = null
-    }
+    val askCameraForCall = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> if (granted) viewModel.switchCallToVideo() }
 
     // A call takes the whole screen and nothing else may be reached from it.
+    // The result map only contains the permissions that were ASKED FOR. Testing
+    // one by name misses the common case where it was already granted and so
+    // never requested — which is how a video call silently did nothing once the
+    // microphone had been allowed earlier.
     val askCallPermissions = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { granted ->
-        if (granted[Manifest.permission.RECORD_AUDIO] == true) pendingCall?.let { (row, video) ->
-            viewModel.startCall(row, video)
+        if (granted.values.all { it }) {
+            pendingCall?.let { (row, video) -> viewModel.startCall(row, video) }
+            pendingHereCall?.let { viewModel.startCallHere(it) }
         }
         pendingCall = null
+        pendingHereCall = null
     }
 
     fun placeCallHere(video: Boolean) {
@@ -158,7 +159,7 @@ fun ChatApp(
         if (missing.isEmpty()) viewModel.startCallHere(video)
         else {
             pendingHereCall = video
-            askHereCallPermissions.launch(missing.toTypedArray())
+            askCallPermissions.launch(missing.toTypedArray())
         }
     }
 
@@ -178,6 +179,18 @@ fun ChatApp(
         }
     }
 
+    // Switching an audio call to video needs the camera, which the call did
+    // not ask for when it started.
+    fun switchToVideo() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            viewModel.switchCallToVideo()
+        } else {
+            askCameraForCall.launch(Manifest.permission.CAMERA)
+        }
+    }
+
     if (callState.active) {
         BackHandler { viewModel.hangUp() }
         CallScreen(
@@ -188,6 +201,7 @@ fun ChatApp(
             onToggleCamera = viewModel::toggleCallCamera,
             onSwitchCamera = viewModel::switchCallCamera,
             onToggleHand = viewModel::toggleCallHand,
+            onSwitchToVideo = ::switchToVideo,
             onHangUp = viewModel::hangUp,
         )
         return

@@ -70,6 +70,7 @@ fun CallScreen(
     onToggleCamera: () -> Unit,
     onSwitchCamera: () -> Unit,
     onToggleHand: () -> Unit,
+    onSwitchToVideo: () -> Unit,
     onHangUp: () -> Unit,
 ) {
     var elapsed by remember(state.startedAtMs) { mutableLongStateOf(0L) }
@@ -186,6 +187,14 @@ fun CallScreen(
                     onClick = onSwitchCamera,
                 )
             } else {
+                // Turning the camera on mid-call is one button, not "hang up
+                // and call again with video" — which is what it used to be.
+                CallButton(
+                    icon = Icons.Filled.Videocam,
+                    description = "Passer en vidéo",
+                    active = false,
+                    onClick = onSwitchToVideo,
+                )
                 CallButton(
                     icon = Icons.Filled.VolumeUp,
                     description = "Haut-parleur",
