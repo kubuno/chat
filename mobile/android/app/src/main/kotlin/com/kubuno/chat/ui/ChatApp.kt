@@ -20,6 +20,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -127,6 +129,17 @@ fun ChatApp(
     val callState by viewModel.callState.collectAsStateWithLifecycle()
     val incoming by viewModel.incomingCall.collectAsStateWithLifecycle()
     var tab by remember { mutableStateOf(ChatTab.Chats) }
+    val callHistory by viewModel.callLog.collectAsStateWithLifecycle()
+    val missedCalls by viewModel.missedCalls.collectAsStateWithLifecycle()
+
+    /** The conversation whose "Options" sheet is open, if any. */
+    var optionsFor by remember { mutableStateOf<UiConversation?>(null) }
+    /** The conversation the clear confirmation is about, if any. */
+    var confirmClearOne by remember { mutableStateOf<UiConversation?>(null) }
+
+    // Opening the Appels tab is what clears its badge, exactly as looking at a
+    // missed call on a phone does.
+    LaunchedEffect(tab) { if (tab == ChatTab.Calls) viewModel.markCallsSeen() }
 
     val askCameraForCall = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -227,6 +240,7 @@ fun ChatApp(
                 ChatBottomBar(
                     selected = tab,
                     unread = list.conversations.sumOf { it.unreadCount },
+                    missedCalls = missedCalls,
                     onSelect = { tab = it },
                 )
             }
@@ -378,6 +392,9 @@ fun ChatApp(
                         if (list.showArchived) {
                             BackHandler { viewModel.setShowArchived(false) }
                         }
+                        if (list.selecting) {
+                            BackHandler { viewModel.clearListSelection() }
+                        }
                         ConversationListScreen(
                             state = list,
                             onOpen = viewModel::openConversation,
@@ -385,14 +402,24 @@ fun ChatApp(
                             onQuery = viewModel::setQuery,
                             onShowArchived = viewModel::setShowArchived,
                             onTogglePin = viewModel::togglePin,
+                            onMarkUnread = viewModel::markUnread,
+                            onArchive = viewModel::toggleArchive,
+                            onOptions = { optionsFor = it },
+                            onToggleSelected = viewModel::toggleSelected,
+                            onStartSelection = viewModel::startSelection,
+                            onEndSelection = viewModel::clearListSelection,
+                            onMarkAllRead = viewModel::markAllRead,
+                            onArchiveSelected = viewModel::archiveSelected,
+                            onReadSelected = viewModel::readSelected,
+                            onClearSelected = viewModel::clearSelected,
                             onRetry = viewModel::loadConversations,
                             onNewChat = viewModel::openNewChat,
                             onCamera = ::openCamera,
-                            onOverflow = { },
                         )
                     }
 
                     ChatTab.Calls -> CallsScreen(
+                        history = callHistory,
                         conversations = list.conversations,
                         onCall = { row, video -> placeCall(row, video) },
                     )
@@ -404,6 +431,53 @@ fun ChatApp(
             }
         }
     }
+
+    optionsFor?.let { row ->
+        ConversationOptionsSheet(
+            row = row,
+            onDismiss = { optionsFor = null },
+            onTogglePin = { viewModel.togglePin(row.id) },
+            onToggleFavorite = { viewModel.toggleFavorite(row.id) },
+            onToggleMute = { viewModel.toggleMute(row.id) },
+            onMarkUnread = { viewModel.markUnread(row.id) },
+            onArchive = { viewModel.toggleArchive(row.id) },
+            onClear = { confirmClearOne = row },
+        )
+    }
+
+    confirmClearOne?.let { row ->
+        ClearOneConversationDialog(
+            title = row.title,
+            onDismiss = { confirmClearOne = null },
+            onConfirm = { viewModel.clearConversation(row.id); confirmClearOne = null },
+        )
+    }
+}
+
+/**
+ * The single-conversation clear confirmation. Same warning as the bulk one:
+ * clearing empties the conversation for everyone, since the module has no
+ * per-member delete.
+ */
+@Composable
+private fun ClearOneConversationDialog(title: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Effacer « $title » ?") },
+        text = {
+            Text(
+                "Les messages seront supprimés pour tous les participants, pas seulement " +
+                    "pour vous : votre instance ne propose pas d'effacement local. " +
+                    "Cette action est définitive.",
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Effacer", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } },
+    )
 }
 
 /**

@@ -19,6 +19,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallMade
+import androidx.compose.material.icons.filled.CallMissed
+import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Person
@@ -43,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kubuno.android.account.SharedAccount
+import com.kubuno.chat.call.CallLog
 
 /** The five destinations of the bottom bar. */
 enum class ChatTab(val label: String, val icon: ImageVector) {
@@ -58,15 +61,25 @@ enum class ChatTab(val label: String, val icon: ImageVector) {
  * the thumb, with Discussions in the middle and its unread count on the icon.
  */
 @Composable
-fun ChatBottomBar(selected: ChatTab, unread: Int, onSelect: (ChatTab) -> Unit) {
+fun ChatBottomBar(
+    selected: ChatTab,
+    unread: Int,
+    missedCalls: Int,
+    onSelect: (ChatTab) -> Unit,
+) {
     NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
         ChatTab.entries.forEach { tab ->
+            val count = when (tab) {
+                ChatTab.Chats -> unread
+                ChatTab.Calls -> missedCalls
+                else -> 0
+            }
             NavigationBarItem(
                 selected = selected == tab,
                 onClick = { onSelect(tab) },
                 icon = {
-                    if (tab == ChatTab.Chats && unread > 0) {
-                        BadgedBox(badge = { Badge { Text(if (unread > 99) "99+" else "$unread") } }) {
+                    if (count > 0) {
+                        BadgedBox(badge = { Badge { Text(if (count > 99) "99+" else "$count") } }) {
                             Icon(tab.icon, contentDescription = tab.label)
                         }
                     } else {
@@ -85,32 +98,51 @@ fun ChatBottomBar(selected: ChatTab, unread: Int, onSelect: (ChatTab) -> Unit) {
 }
 
 /**
- * The Appels tab.
+ * The Appels tab: this device's own call history, then whoever else can be
+ * called.
  *
- * The module keeps no call history — calls are signalling only, nothing is
- * recorded — so instead of inventing an empty log this lists the people you can
- * call, which is what the tab is actually for.
+ * The history is local — see CallLog. The module signals calls and stores
+ * nothing about them, so there is no server-side log to read and no way to see
+ * calls answered on another device. Saying so on the screen is better than
+ * letting the list look like a gap.
  */
 @Composable
 fun CallsScreen(
+    history: List<CallLog.Entry>,
     conversations: List<UiConversation>,
     onCall: (UiConversation, Boolean) -> Unit,
 ) {
     val direct = conversations.filter { !it.isGroup }.sortedByDescending { it.lastActivityMs }
+    val callable = direct.associateBy { it.otherUserId }
 
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface)) {
         LargeTitle("Appels")
         Text(
-            text = "Votre instance ne conserve pas d'historique d'appels : rien n'est enregistré côté serveur.",
+            text = "Historique local à cet appareil : votre instance n'enregistre rien côté serveur.",
             style = ChatType.RowTime,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = ChatDims.Gutter, vertical = 4.dp),
         )
         Spacer(Modifier.height(8.dp))
-        if (direct.isEmpty()) {
+
+        if (history.isEmpty() && direct.isEmpty()) {
             Placeholder(Icons.Filled.Call, "Personne à appeler", "Démarrez d'abord une discussion.")
-        } else {
-            LazyColumn(Modifier.fillMaxSize()) {
+            return@Column
+        }
+
+        LazyColumn(Modifier.fillMaxSize()) {
+            if (history.isNotEmpty()) {
+                item(key = "recent-header") { SectionLabel("Récents") }
+                items(history, key = { it.id }) { entry ->
+                    CallHistoryRow(
+                        entry = entry,
+                        row = callable[entry.peerUserId],
+                        onCall = onCall,
+                    )
+                }
+            }
+            if (direct.isNotEmpty()) {
+                item(key = "contacts-header") { SectionLabel("Appeler") }
                 items(direct, key = { it.id }) { row ->
                     Row(
                         modifier = Modifier
@@ -136,6 +168,92 @@ fun CallsScreen(
             }
         }
     }
+}
+
+/** One past call: who, which way it went, when, and how to call back. */
+@Composable
+private fun CallHistoryRow(
+    entry: CallLog.Entry,
+    row: UiConversation?,
+    onCall: (UiConversation, Boolean) -> Unit,
+) {
+    val missed = entry.outcome == CallLog.Outcome.Missed
+    val icon = when {
+        missed -> Icons.Filled.CallMissed
+        entry.incoming -> Icons.Filled.CallReceived
+        else -> Icons.Filled.CallMade
+    }
+    val accent = if (missed) MaterialTheme.colorScheme.error
+    else MaterialTheme.colorScheme.onSurfaceVariant
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = ChatDims.Gutter, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ChatAvatar(title = entry.peerName, url = row?.avatarUrl, seed = entry.peerUserId)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(
+                text = entry.peerName,
+                style = if (missed) ChatType.ConversationTitleUnread else ChatType.ConversationTitle,
+                color = if (missed) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Spacer(Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, contentDescription = null, tint = accent, modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = callSubtitle(entry),
+                    style = ChatType.Preview,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        if (row != null) {
+            RoundAction(
+                if (entry.video) Icons.Filled.Videocam else Icons.Filled.Call,
+                "Rappeler",
+            ) { onCall(row, entry.video) }
+        }
+    }
+}
+
+private fun callSubtitle(entry: CallLog.Entry): String {
+    val when_ = Timestamps.rowStamp(entry.startedAtMs)
+    val kind = if (entry.video) "Vidéo" else "Audio"
+    return when (entry.outcome) {
+        CallLog.Outcome.Missed -> "$kind manqué · $when_"
+        CallLog.Outcome.Declined -> "$kind refusé · $when_"
+        CallLog.Outcome.NoAnswer -> "$kind sans réponse · $when_"
+        CallLog.Outcome.Ringing -> "$kind en cours · $when_"
+        CallLog.Outcome.Answered ->
+            if (entry.durationSecs > 0) "$kind · ${duration(entry.durationSecs)} · $when_"
+            else "$kind · $when_"
+    }
+}
+
+private fun duration(seconds: Long): String {
+    val m = seconds / 60
+    val s = seconds % 60
+    return if (m > 0) "$m min $s s" else "$s s"
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text = text,
+        style = ChatType.SenderName,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(start = ChatDims.Gutter, top = 12.dp, bottom = 4.dp),
+    )
 }
 
 /** The Vous tab: who you are signed in as, and what this build does not claim. */

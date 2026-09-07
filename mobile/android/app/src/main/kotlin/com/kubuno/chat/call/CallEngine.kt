@@ -117,6 +117,13 @@ class CallEngine @Inject constructor(
      */
     private val roomPeers: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
+    /**
+     * Whose name this call goes under in the device's call log: the person we
+     * rang, or the one who rang us. A group call is logged under its title
+     * against the first person rung, which is enough for a history.
+     */
+    private var logPeer: String? = null
+
     private class Peer(
         val connection: PeerConnection,
         var name: String,
@@ -174,6 +181,13 @@ class CallEngine @Inject constructor(
         ringTargets = ring
         roomPeers.clear()
         roomPeers += ring.map { it.first }
+        // An outgoing call goes into the device's own log the moment it rings;
+        // the outcome is filled in when it connects or when we give up.
+        CallLog.attach(context)
+        ring.firstOrNull()?.let { (userId, name) ->
+            logPeer = userId
+            CallLog.ringing(room, userId, if (ring.size > 1) title else name, video, incoming = false)
+        }
 
         if (!openLocalMedia(factory, video)) {
             _state.update { State(error = "Micro ou caméra indisponible") }
@@ -206,17 +220,28 @@ class CallEngine @Inject constructor(
         // Answering rings nobody, so the caller would otherwise not be on the
         // list a hang-up notifies until their call_join lands.
         roomPeers += call.fromUserId
+        logPeer = call.fromUserId
+        CallLog.answered(call.room, call.fromUserId)
     }
 
     /** Declines the call being rung. */
     fun decline() {
         val call = _incoming.value ?: return
         _incoming.value = null
+        CallLog.attach(context)
+        CallLog.declined(call.room, call.fromUserId)
         emit(call.fromUserId, CallSignal(type = CallSignal.LEAVE, room = call.room))
     }
 
     fun hangUp() {
         val room = _state.value.room
+        val peer = logPeer
+        if (room != null && peer != null) {
+            val startedAt = _state.value.startedAtMs
+            if (_state.value.ringing) CallLog.noAnswer(room, peer)
+            else CallLog.ended(room, peer, (System.currentTimeMillis() - startedAt) / 1000)
+        }
+        logPeer = null
         // Announce the departure BEFORE tearing anything down: closing a peer
         // connection tells the other end nothing, so a missed call_leave
         // leaves it waiting out an ICE consent timeout instead of hanging up.
@@ -278,12 +303,16 @@ class CallEngine @Inject constructor(
             CallSignal.RING -> {
                 // Only surface a ring we are not already in a call for.
                 if (_state.value.active) return
+                val name = signal.fromName ?: fromUserId.take(6)
+                val isVideo = signal.callType == "video"
                 _incoming.value = Incoming(
                     room = signal.room,
                     fromUserId = fromUserId,
-                    fromName = signal.fromName ?: fromUserId.take(6),
-                    video = signal.callType == "video",
+                    fromName = name,
+                    video = isVideo,
                 )
+                CallLog.attach(context)
+                CallLog.ringing(signal.room, fromUserId, name, isVideo, incoming = true)
             }
 
             CallSignal.JOIN -> {
@@ -346,7 +375,12 @@ class CallEngine @Inject constructor(
             }
 
             CallSignal.LEAVE -> {
-                if (_incoming.value?.fromUserId == fromUserId) _incoming.value = null
+                if (_incoming.value?.fromUserId == fromUserId) {
+                    // The caller gave up while it was still ringing here: that
+                    // is a missed call, and the only moment we can know it.
+                    CallLog.missed(_incoming.value?.room.orEmpty(), fromUserId)
+                    _incoming.value = null
+                }
                 roomPeers -= fromUserId
                 peers.remove(fromUserId)?.let { runCatching { it.connection.close() } }
                 syncParticipants()
@@ -432,6 +466,11 @@ class CallEngine @Inject constructor(
                 override fun onPeerStateChanged(newState: PeerConnection.PeerConnectionState) {
                     Log.d(TAG, "conn $newState for ${userId.take(8)} at ${System.currentTimeMillis()}")
                     val connected = newState == PeerConnection.PeerConnectionState.CONNECTED
+                    if (connected) {
+                        val room = _state.value.room
+                        val peer = logPeer
+                        if (room != null && peer != null) CallLog.answered(room, peer)
+                    }
                     _state.update { current ->
                         current.copy(
                             ringing = if (connected) false else current.ringing,

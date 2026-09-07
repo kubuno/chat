@@ -22,9 +22,13 @@ data class ChatPushPayload(
     /** The conversation to open — resource_id for chat.new_message. */
     val conversationId: String?,
     val senderId: String?,
+    /** "audio" or "video" on a call ring; absent otherwise. */
+    val callType: String? = null,
 ) {
     /** True for an incoming call ring rather than a message. */
     val isCall: Boolean get() = eventType == "chat.call_ring"
+
+    val isVideoCall: Boolean get() = callType == "video"
 
     companion object {
         private const val TAG = "KubunoChatPush"
@@ -41,10 +45,11 @@ data class ChatPushPayload(
                 body = obj.str("body"),
                 conversationId = obj.str("conversation_id") ?: obj.str("resource_id"),
                 senderId = obj.str("sender_id") ?: obj.str("from_user_id"),
+                callType = obj.str("call_type"),
             )
         }
 
-        private fun empty() = ChatPushPayload(null, null, null, null, null)
+        private fun empty() = ChatPushPayload(null, null, null, null, null, null)
 
         /** JSONObject.opt already exists and returns Any?; this one is ours. */
         private fun JSONObject.str(key: String): String? =

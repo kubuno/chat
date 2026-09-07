@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.kubuno.android.account.SharedAccount
 import com.kubuno.android.account.SharedAccounts
 import com.kubuno.chat.call.CallEngine
+import com.kubuno.chat.call.CallLog
 import com.kubuno.chat.call.CallSignal
 import com.kubuno.chat.call.CallSignalEnvelope
 import com.kubuno.chat.net.ChatApi
@@ -70,7 +71,13 @@ class ChatViewModel @Inject constructor(
         val showArchived: Boolean = false,
         val connected: Boolean = false,
         val error: String? = null,
+        /** Ids picked in multi-select mode. */
+        val selection: Set<String> = emptySet(),
+        /** Multi-select is on even before anything has been picked. */
+        val selectionArmed: Boolean = false,
     ) {
+        val selecting: Boolean get() = selectionArmed || selection.isNotEmpty()
+
         val archivedCount: Int get() = conversations.count { it.isArchived }
 
         /** Pinned first, then most recent — the order WhatsApp shows. */
@@ -228,6 +235,102 @@ class ChatViewModel @Inject constructor(
     fun toggleFavorite(id: String) = memberSetting(id) { MemberSettingsBody(favorite = !it.isFavorite) }
     fun markUnread(id: String) = memberSetting(id) { MemberSettingsBody(markUnread = true) }
 
+    /**
+     * Mutes until further notice, or lifts it. The module takes an instant
+     * rather than a duration and has no "forever", so a far date is what
+     * "indefinitely" means on the wire.
+     */
+    fun toggleMute(id: String) = memberSetting(id) { row ->
+        if (row.isMuted) MemberSettingsBody(unmute = true)
+        else MemberSettingsBody(
+            muteUntil = java.time.Instant.now().plus(java.time.Duration.ofDays(3650)).toString()
+        )
+    }
+
+    /** Empties one conversation — destructive for every member; ask first. */
+    fun clearConversation(id: String) {
+        val api = api ?: return
+        viewModelScope.launch {
+            runCatching { api.clearConversation(id) }
+                .onFailure { Log.w(TAG, "clear conversation failed", it) }
+            loadConversations()
+        }
+    }
+
+    // ------------------------------------------------------ list selection
+
+    /** Enters multi-select, or toggles one row once it is on. */
+    fun toggleSelected(id: String) = _list.update { state ->
+        state.copy(selection = if (id in state.selection) state.selection - id else state.selection + id)
+    }
+
+    fun clearListSelection() = _list.update { it.copy(selection = emptySet(), selectionArmed = false) }
+
+    /**
+     * Turns the mode on with nothing picked yet — the "Sélectionner
+     * discussions" entry of the overflow menu. An empty set means "off", so
+     * this needs its own flag rather than an empty selection.
+     */
+    fun startSelection() = _list.update { it.copy(selectionArmed = true) }
+
+    /** Archives (or unarchives, when browsing the archive) everything picked. */
+    fun archiveSelected() {
+        val archive = !_list.value.showArchived
+        _list.value.selection.forEach { id ->
+            memberSetting(id) { MemberSettingsBody(archive = archive) }
+        }
+        clearListSelection()
+    }
+
+    /** Marks everything picked as read. */
+    fun readSelected() {
+        _list.value.selection.forEach(::markConversationRead)
+        clearListSelection()
+    }
+
+    /** The "Tout lire" entry of the overflow menu. */
+    fun markAllRead() {
+        _list.value.conversations
+            .filter { it.isUnread || it.unreadCount > 0 }
+            .forEach { markConversationRead(it.id) }
+    }
+
+    /**
+     * Empties everything picked. Destructive for every member, not just for
+     * this account — the screen asks before calling this.
+     */
+    fun clearSelected() {
+        val api = api ?: return
+        val ids = _list.value.selection.toList()
+        clearListSelection()
+        viewModelScope.launch {
+            ids.forEach { id ->
+                runCatching { api.clearConversation(id) }
+                    .onFailure { Log.w(TAG, "clear conversation failed", it) }
+            }
+            loadConversations()
+        }
+    }
+
+    private fun markConversationRead(id: String) {
+        val row = _list.value.conversations.firstOrNull { it.id == id } ?: return
+        val last = row.lastMessage?.id
+        if (last != null) acknowledge(id, last)
+        else _list.update { state ->
+            state.copy(conversations = state.conversations.map {
+                if (it.id == id) it.copy(unreadCount = 0, isUnread = false) else it
+            })
+        }
+    }
+
+    // ------------------------------------------------------------ call log
+
+    /** This device's own call history, and the Appels tab's badge. */
+    val callLog: StateFlow<List<CallLog.Entry>> = CallLog.entries
+    val missedCalls: StateFlow<Int> = CallLog.missedCount
+
+    fun markCallsSeen() = CallLog.markAllSeen()
+
     private fun memberSetting(id: String, body: (UiConversation) -> MemberSettingsBody) {
         val api = api ?: return
         val row = _list.value.conversations.firstOrNull { it.id == id } ?: return
@@ -240,6 +343,11 @@ class ChatViewModel @Inject constructor(
                     isArchived = payload.archive ?: c.isArchived,
                     isFavorite = payload.favorite ?: c.isFavorite,
                     isUnread = payload.markUnread ?: c.isUnread,
+                    isMuted = when {
+                        payload.unmute == true -> false
+                        payload.muteUntil != null -> true
+                        else -> c.isMuted
+                    },
                 )
             })
         }

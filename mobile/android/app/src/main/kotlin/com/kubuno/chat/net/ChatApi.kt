@@ -88,6 +88,16 @@ interface ChatApi {
     suspend fun memberSettings(@Path("id") id: String, @Body body: MemberSettingsBody)
 
     /**
+     * Empties a conversation.
+     *
+     * The module deletes the messages for EVERY member, not just for the
+     * caller: there is no per-member "delete my copy". Anything that offers
+     * this has to say so first.
+     */
+    @POST("api/v1/chat/conversations/{id}/clear")
+    suspend fun clearConversation(@Path("id") id: String)
+
+    /**
      * Uploads one already-encrypted blob. The server stores opaque bytes and
      * never sees the plaintext; the returned media_id is what the message
      * envelope and media_meta both reference.

@@ -5,6 +5,7 @@ import android.util.Log
 import com.kubuno.android.account.BrokeredClients
 import com.kubuno.android.account.SharedAccount
 import com.kubuno.android.account.SharedAccounts
+import com.kubuno.chat.call.CallLog
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -71,6 +72,20 @@ class KubunoChatPushReceiver : MessagingReceiver() {
             null
         }
         val payload = ChatPushPayload.parse(raw)
+        // A ring that arrives while the app is asleep is the one the user is
+        // most likely to miss, so it goes into the call log here too. It stays
+        // "ringing" until something resolves it — answering, or simply ageing
+        // past a plausible ring, which turns it into the missed call it was.
+        if (payload.isCall && payload.conversationId != null && payload.senderId != null) {
+            CallLog.attach(context)
+            CallLog.ringing(
+                room = payload.conversationId,
+                peerUserId = payload.senderId,
+                peerName = payload.title.orEmpty(),
+                video = payload.isVideoCall,
+                incoming = true,
+            )
+        }
         ChatNotifications.notify(context, payload)
     }
 
