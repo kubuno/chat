@@ -379,7 +379,16 @@ class CallEngine @Inject constructor(
                     }
                 }
 
+                override fun onIceStateChanged(state: PeerConnection.IceConnectionState) {
+                    // Timestamped because the interesting failure is an ICE
+                    // that connects and a connection that fails milliseconds
+                    // later: without the two clocks side by side the two are
+                    // indistinguishable in a log.
+                    Log.d(TAG, "ice $state for ${userId.take(8)} at ${System.currentTimeMillis()}")
+                }
+
                 override fun onPeerStateChanged(newState: PeerConnection.PeerConnectionState) {
+                    Log.d(TAG, "conn $newState for ${userId.take(8)} at ${System.currentTimeMillis()}")
                     val connected = newState == PeerConnection.PeerConnectionState.CONNECTED
                     _state.update { current ->
                         current.copy(
@@ -422,16 +431,15 @@ class CallEngine @Inject constructor(
         peer.connection.createOffer(
             object : SimpleSdpObserver("createOffer") {
                 override fun onSdpReady(description: SessionDescription) {
-                    peer.connection.setLocalDescription(SimpleSdpObserver("setLocal(offer)"), description)
-                    emit(
-                        userId,
-                        CallSignal(
-                            type = CallSignal.OFFER,
-                            room = _state.value.room.orEmpty(),
-                            sdp = description.description,
-                            callType = if (_state.value.video) "video" else "audio",
-                            fromName = myName,
-                        ),
+                    // Send what the connection actually adopted, once it has
+                    // adopted it — see sendLocalDescription.
+                    peer.connection.setLocalDescription(
+                        object : SimpleSdpObserver("setLocal(offer)") {
+                            override fun onSetSuccess() {
+                                sendLocalDescription(userId, peer, CallSignal.OFFER, description)
+                            }
+                        },
+                        description,
                     )
                 }
             },
@@ -439,18 +447,47 @@ class CallEngine @Inject constructor(
         )
     }
 
+    /**
+     * Emits the SDP the PeerConnection actually holds, after it has taken it.
+     *
+     * NOT the object createOffer/createAnswer returned. libwebrtc finalises the
+     * description in setLocalDescription — including the DTLS fingerprint —
+     * so sending the pre-set copy can advertise a certificate the connection
+     * does not use. ICE then pairs happily and the DTLS handshake fails a few
+     * milliseconds later, which is exactly the failure this call showed.
+     */
+    private fun sendLocalDescription(
+        userId: String,
+        peer: Peer,
+        type: String,
+        fallback: SessionDescription,
+    ) {
+        val adopted = peer.connection.localDescription?.description ?: fallback.description
+        emit(
+            userId,
+            CallSignal(
+                type = type,
+                room = _state.value.room.orEmpty(),
+                sdp = adopted,
+                callType = if (type == CallSignal.OFFER) {
+                    if (_state.value.video) "video" else "audio"
+                } else null,
+                fromName = if (type == CallSignal.OFFER) myName else null,
+            ),
+        )
+    }
+
     private fun answerTo(userId: String, peer: Peer) {
         peer.connection.createAnswer(
             object : SimpleSdpObserver("createAnswer") {
                 override fun onSdpReady(description: SessionDescription) {
-                    peer.connection.setLocalDescription(SimpleSdpObserver("setLocal(answer)"), description)
-                    emit(
-                        userId,
-                        CallSignal(
-                            type = CallSignal.ANSWER,
-                            room = _state.value.room.orEmpty(),
-                            sdp = description.description,
-                        ),
+                    peer.connection.setLocalDescription(
+                        object : SimpleSdpObserver("setLocal(answer)") {
+                            override fun onSetSuccess() {
+                                sendLocalDescription(userId, peer, CallSignal.ANSWER, description)
+                            }
+                        },
+                        description,
                     )
                 }
             },
@@ -585,7 +622,10 @@ class CallEngine @Inject constructor(
 /** Only the callbacks this engine acts on; the rest are noise. */
 private abstract class SimplePeerObserver : PeerConnection.Observer {
     override fun onSignalingChange(state: PeerConnection.SignalingState?) = Unit
-    override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) = Unit
+    override fun onIceConnectionChange(state: PeerConnection.IceConnectionState?) {
+        if (state != null) onIceStateChanged(state)
+    }
+    open fun onIceStateChanged(state: PeerConnection.IceConnectionState) = Unit
     override fun onIceConnectionReceivingChange(receiving: Boolean) = Unit
     override fun onIceGatheringChange(state: PeerConnection.IceGatheringState?) = Unit
     override fun onIceCandidatesRemoved(candidates: Array<out RtcIceCandidate>?) = Unit
@@ -609,6 +649,7 @@ private open class SimpleSdpObserver(private val what: String) : SdpObserver {
     }
     open fun onSdpReady(description: SessionDescription) = Unit
     override fun onSetSuccess() = Unit
+
     override fun onCreateFailure(error: String?) {
         Log.w("KubunoChatCall", "$what failed: $error")
     }

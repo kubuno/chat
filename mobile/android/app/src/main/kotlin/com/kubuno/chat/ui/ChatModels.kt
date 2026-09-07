@@ -110,6 +110,14 @@ data class ConversationState(
     val pinned: List<UiMessage> = emptyList(),
     /** Which pinned message the banner is showing, when there are several. */
     val pinnedIndex: Int = 0,
+    /**
+     * Self-destruct delay applied to messages sent from here, in seconds, or
+     * null for none. A per-conversation choice held in the client: the module
+     * takes the delay per message rather than storing a conversation default.
+     */
+    val ephemeralSeconds: Long? = null,
+    /** Members matching the @mention being typed, if any. */
+    val mentionSuggestions: List<Member> = emptyList(),
 ) {
     val selecting: Boolean get() = selection.isNotEmpty()
 

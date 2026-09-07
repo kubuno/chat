@@ -295,6 +295,7 @@ fun ChatApp(
                         onLoadPoll = viewModel::loadPoll,
                         onVote = viewModel::vote,
                         onStepPinned = viewModel::stepPinned,
+                        onEphemeral = viewModel::setEphemeral,
                     )
 
                     if (attaching) {

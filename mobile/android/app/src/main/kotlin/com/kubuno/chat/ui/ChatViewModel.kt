@@ -391,8 +391,35 @@ class ChatViewModel @Inject constructor(
 
     // -------------------------------------------------------------- messaging
 
+    /** How long messages sent from this conversation survive; null = forever. */
+    fun setEphemeral(seconds: Long?) =
+        _conversation.update { it?.copy(ephemeralSeconds = seconds) }
+
+    /**
+     * Offers members whose name matches the @mention being typed.
+     *
+     * Matching on the token after the last "@" of the draft, and only while it
+     * has no space: once the user typed a space the mention is finished, and
+     * keeping the list open would cover the conversation for nothing.
+     */
+    private fun updateMentions(text: String) {
+        val state = _conversation.value ?: return
+        if (!state.isGroup) return
+        val at = text.lastIndexOf('@')
+        val token = if (at < 0) null else text.substring(at + 1)
+        val matches = when {
+            token == null || token.contains(' ') || token.length > MENTION_MAX -> emptyList()
+            else -> state.members.values
+                .filter { it.userId != selfUserId }
+                .filter { token.isEmpty() || it.label.contains(token, ignoreCase = true) }
+                .take(MENTION_SUGGESTIONS)
+        }
+        _conversation.update { it?.copy(mentionSuggestions = matches) }
+    }
+
     /** Signals typing on the socket; harmless to call on every keystroke. */
     fun onDraftChanged(text: String) {
+        updateMentions(text)
         val state = _conversation.value ?: return
         val socket = socket ?: return
         val now = System.currentTimeMillis()
@@ -422,7 +449,10 @@ class ChatViewModel @Inject constructor(
         }
 
         val replyTo = state.replyTo
-        val body = ChatEnvelope.encodeText(trimmed).copy(replyToId = replyTo?.id)
+        val body = ChatEnvelope.encodeText(trimmed).copy(
+            replyToId = replyTo?.id,
+            expiresInSecs = state.ephemeralSeconds,
+        )
         // Optimistic row keyed by the nonce, which is also the module's
         // idempotency key — a retry after a dropped POST returns the same
         // message rather than creating a second one.
@@ -440,7 +470,7 @@ class ChatViewModel @Inject constructor(
             messageType = "text",
             pending = true,
         )
-        _conversation.update { it?.copy(messages = it.messages + optimistic, replyTo = null) }
+        _conversation.update { it?.copy(messages = it.messages + optimistic, replyTo = null, mentionSuggestions = emptyList()) }
         socket?.typing(state.id, started = false)
         typingSentAtMs = 0L
 
@@ -1190,5 +1220,7 @@ class ChatViewModel @Inject constructor(
         const val PREVIEW_CONCURRENCY = 5
         const val TYPING_THROTTLE_MS = 3_000L
         const val SEARCH_DEBOUNCE_MS = 250L
+        const val MENTION_SUGGESTIONS = 6
+        const val MENTION_MAX = 24
     }
 }

@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,6 +48,7 @@ import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -55,6 +57,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
+import androidx.compose.material3.Surface
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -135,6 +138,7 @@ fun ConversationScreen(
     onLoadPoll: (String) -> Unit,
     onVote: (String, Int) -> Unit,
     onStepPinned: () -> Unit,
+    onEphemeral: (Long?) -> Unit,
 ) {
     val palette = ChatTheme.palette
     val listState = rememberLazyListState()
@@ -194,6 +198,7 @@ fun ConversationScreen(
                 onSearch = onOpenSearch,
                 onAudioCall = onAudioCall,
                 onVideoCall = onVideoCall,
+                onEphemeral = onEphemeral,
             )
         }
 
@@ -248,6 +253,18 @@ fun ConversationScreen(
                     item(key = "typing") {
                         if (state.typingUserIds.isNotEmpty()) TypingRow(state) else Spacer(Modifier.height(4.dp))
                     }
+                }
+            }
+        }
+
+        if (state.mentionSuggestions.isNotEmpty()) {
+            MentionSuggestions(state.mentionSuggestions) { name ->
+                // Replace the half-typed token, do not append after it.
+                val at = draft.text.lastIndexOf('@')
+                if (at >= 0) {
+                    val completed = draft.text.take(at) + "@" + name + " "
+                    draft = TextFieldValue(completed, TextRange(completed.length))
+                    onDraftChanged(completed)
                 }
             }
         }
@@ -454,6 +471,7 @@ private fun ConversationHeader(
     onSearch: () -> Unit,
     onAudioCall: () -> Unit,
     onVideoCall: () -> Unit,
+    onEphemeral: (Long?) -> Unit,
 ) {
     val typing = state.typingUserIds.isNotEmpty()
     Row(
@@ -508,6 +526,7 @@ private fun ConversationHeader(
             IconButton(onClick = { menuOpen = true }) {
                 Icon(Icons.Filled.MoreVert, contentDescription = "Plus")
             }
+            var ephemeralOpen by remember { mutableStateOf(false) }
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 DropdownMenuItem(
                     text = { Text("Rechercher", style = ChatType.Preview) },
@@ -517,7 +536,30 @@ private fun ConversationHeader(
                         onSearch()
                     },
                 )
+                DropdownMenuItem(
+                    text = { Text("Messages éphémères", style = ChatType.Preview) },
+                    leadingIcon = { Icon(Icons.Filled.Timer, contentDescription = null) },
+                    trailingIcon = {
+                        if (state.ephemeralSeconds != null) {
+                            Text(
+                                ephemeralLabel(state.ephemeralSeconds),
+                                style = ChatType.BubbleMeta,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    },
+                    onClick = {
+                        menuOpen = false
+                        ephemeralOpen = true
+                    },
+                )
             }
+            EphemeralMenu(
+                current = state.ephemeralSeconds,
+                expanded = ephemeralOpen,
+                onDismiss = { ephemeralOpen = false },
+                onPick = onEphemeral,
+            )
         }
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
@@ -924,4 +966,84 @@ private fun PinnedBanner(message: UiMessage, index: Int, total: Int, onClick: ()
         )
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
+}
+
+/**
+ * The @mention list, shown just above the composer while a mention is being
+ * typed. Tapping completes the name in place rather than appending it, which
+ * is what makes the feature worth having at all.
+ */
+@Composable
+private fun MentionSuggestions(members: List<com.kubuno.chat.net.Member>, onPick: (String) -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.surface,
+        tonalElevation = 2.dp,
+        shadowElevation = 4.dp,
+    ) {
+        LazyColumn(Modifier.fillMaxWidth().heightIn(max = 200.dp)) {
+            items(members, key = { it.userId }) { member ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onPick(member.label) }
+                        .padding(horizontal = ChatDims.Gutter, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ChatAvatar(
+                        title = member.label,
+                        url = member.avatarUrl,
+                        seed = member.userId,
+                        size = 32.dp,
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = member.label,
+                        style = ChatType.Preview,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** How long messages sent from here survive. */
+@Composable
+private fun EphemeralMenu(current: Long?, expanded: Boolean, onDismiss: () -> Unit, onPick: (Long?) -> Unit) {
+    val options = listOf<Pair<String, Long?>>(
+        "Désactivé" to null,
+        "24 heures" to 24L * 3600,
+        "7 jours" to 7L * 24 * 3600,
+        "90 jours" to 90L * 24 * 3600,
+    )
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        options.forEach { (label, seconds) ->
+            DropdownMenuItem(
+                text = { Text(label, style = ChatType.Preview) },
+                trailingIcon = {
+                    if (current == seconds) {
+                        Icon(
+                            Icons.Filled.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                },
+                onClick = {
+                    onDismiss()
+                    onPick(seconds)
+                },
+            )
+        }
+    }
+}
+
+private fun ephemeralLabel(seconds: Long?): String = when (seconds) {
+    null -> ""
+    24L * 3600 -> "24 h"
+    7L * 24 * 3600 -> "7 j"
+    90L * 24 * 3600 -> "90 j"
+    else -> "${seconds / 3600} h"
 }
