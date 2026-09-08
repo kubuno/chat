@@ -55,6 +55,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="kubuno-chat" android:host="conversation" />
             </intent-filter>
+            <!-- Native deep link into a meeting room: kubuno-chat://meet/<id> -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="kubuno-chat" android:host="meet" />
+            </intent-filter>
         </activity>
 
         <!-- UnifiedPush receiver. Declaring these intent-filters here takes

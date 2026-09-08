@@ -1041,6 +1041,71 @@ class ChatViewModel @Inject constructor(
     fun declineCall() = calls.decline()
     fun hangUp() = calls.hangUp()
     fun toggleCallMute() = calls.toggleMute()
+
+    // ------------------------------------------------------------- meetings
+
+    /** The web route a meeting link points at — openable in a browser too. */
+    fun meetingLink(room: String): String =
+        (_account.value?.serverUrl?.trimEnd('/') ?: "") + "/chat/meet/" + room
+
+    /**
+     * Creates a meeting room (an open-join group with is_meeting), then joins
+     * its video call as the host. The returned id is what a link is built from.
+     */
+    fun createMeeting(name: String, onCreated: (String) -> Unit = {}) {
+        val api = api ?: return
+        viewModelScope.launch {
+            val created = runCatching {
+                api.createConversation(
+                    CreateConversationBody(convType = "group", name = name, isMeeting = true)
+                )
+            }.onFailure { Log.w(TAG, "create meeting failed", it) }.getOrNull() ?: return@launch
+            val room = created.conversation.id
+            loadConversations()
+            onCreated(room)
+            // The creator is the owner, hence the host.
+            withIceServers { calls.joinMeeting(room, name, video = true, isHost = true) }
+        }
+    }
+
+    /**
+     * Joins a meeting by id (from a shared link): become a member through the
+     * open-join route, learn the title and whether we host it, then enter the
+     * call. Works whether or not we were already a member.
+     */
+    fun joinMeeting(room: String, videoOn: Boolean = true) {
+        val api = api ?: return
+        viewModelScope.launch {
+            runCatching { api.joinChannel(room) }
+                .onFailure { Log.w(TAG, "join meeting failed (will still try to enter)", it) }
+            val detail = runCatching { api.conversation(room) }.getOrNull()
+            val title = detail?.conversation?.name?.takeIf { it.isNotBlank() } ?: "Réunion"
+            val host = detail?.members?.firstOrNull { it.userId == selfUserId }
+                ?.role?.let { it == "owner" || it == "admin" } ?: false
+            loadConversations()
+            withIceServers { calls.joinMeeting(room, title, videoOn, isHost = host) }
+        }
+    }
+
+    fun endMeeting() = calls.endMeeting()
+    fun muteParticipant(userId: String) = calls.muteParticipant(userId)
+
+    /**
+     * Host removes a participant: first server-side (the module checks the
+     * caller owns/admins the room), then the call_kick signal and the local
+     * peer teardown. Mirrors the web: DELETE the member, then close the call
+     * for them. A meeting stays open by link, so a removed person can still
+     * come back with it — the module has no ban yet.
+     */
+    fun removeParticipant(userId: String) {
+        val api = api ?: return
+        val room = calls.state.value.room ?: return
+        viewModelScope.launch {
+            runCatching { api.removeMember(room, userId) }
+                .onFailure { Log.w(TAG, "remove member failed", it) }
+            calls.removeParticipant(userId)
+        }
+    }
     fun toggleCallCamera() = calls.toggleCamera()
     fun switchCallCamera() = calls.switchCamera()
     fun toggleCallHand() = calls.toggleHand()

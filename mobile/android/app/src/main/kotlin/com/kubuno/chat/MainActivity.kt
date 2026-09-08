@@ -28,15 +28,21 @@ class MainActivity : AppCompatActivity() {
      */
     private var pendingConversation by mutableStateOf<String?>(null)
 
+    /** A meeting room a `kubuno-chat://meet/<id>` link asked us to join. */
+    private var pendingMeeting by mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         pendingConversation = conversationFrom(intent)
+        pendingMeeting = meetingFrom(intent)
         setContent {
             KubunoTheme {
                 ChatApp(
                     openConversationId = pendingConversation,
                     onDeepLinkHandled = { pendingConversation = null },
+                    openMeetingId = pendingMeeting,
+                    onMeetingHandled = { pendingMeeting = null },
                 )
             }
         }
@@ -46,6 +52,14 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         conversationFrom(intent)?.let { pendingConversation = it }
+        meetingFrom(intent)?.let { pendingMeeting = it }
+    }
+
+    /** Reads `kubuno-chat://meet/<id>` — the native form of a meeting link. */
+    private fun meetingFrom(intent: Intent?): String? {
+        val uri: Uri = intent?.data ?: return null
+        if (uri.scheme != ChatNotifications.DEEP_LINK_SCHEME || uri.host != "meet") return null
+        return uri.pathSegments.firstOrNull()?.takeIf { it.isNotBlank() }
     }
 
     /** Reads `kubuno-chat://conversation/<id>` and dismisses its notification. */

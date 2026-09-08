@@ -252,6 +252,8 @@ data class CreateConversationBody(
     val name: String? = null,
     val description: String? = null,
     @SerialName("member_ids") val memberIds: List<String>? = null,
+    /** A meeting room: an open-join group anyone with the link can enter. */
+    @SerialName("is_meeting") val isMeeting: Boolean? = null,
 )
 
 @Serializable

@@ -1,6 +1,8 @@
 package com.kubuno.chat.ui
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,6 +22,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Cameraswitch
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
@@ -72,6 +75,9 @@ fun CallScreen(
     onToggleHand: () -> Unit,
     onSwitchToVideo: () -> Unit,
     onHangUp: () -> Unit,
+    onShareMeeting: () -> Unit = {},
+    onEndForAll: () -> Unit = {},
+    onParticipantMenu: (String) -> Unit = {},
 ) {
     var elapsed by remember(state.startedAtMs) { mutableLongStateOf(0L) }
     LaunchedEffect(state.startedAtMs, state.ringing) {
@@ -119,7 +125,13 @@ fun CallScreen(
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(4.dp),
             ) {
                 items(state.participants, key = { it.userId }) { participant ->
-                    ParticipantTile(participant, eglBase)
+                    ParticipantTile(
+                        participant = participant,
+                        eglBase = eglBase,
+                        // The host reaches a participant's mute/remove menu by
+                        // long-pressing their tile.
+                        onLongPress = if (state.isHost) { { onParticipantMenu(participant.userId) } } else null,
+                    )
                 }
             }
         }
@@ -152,11 +164,33 @@ fun CallScreen(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = if (state.ringing) "Sonnerie…" else duration(elapsed),
-                color = Color(0xFFB0B6BE),
-                style = ChatType.HeaderSub,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = if (state.ringing) "Sonnerie…" else duration(elapsed),
+                    color = Color(0xFFB0B6BE),
+                    style = ChatType.HeaderSub,
+                )
+                // A meeting says so on the subtitle; a recording announces
+                // itself with a red dot, the way a call must.
+                if (state.recording) {
+                    Spacer(Modifier.width(10.dp))
+                    Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFFD93025)))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Enregistrement", color = Color(0xFFFF8A80), style = ChatType.HeaderSub)
+                }
+            }
+            // Meeting actions sit under the title, clear of the self-view that
+            // occupies the top-right corner: share the link, and (host) end
+            // the meeting for everyone.
+            if (state.meeting) {
+                Spacer(Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MeetingHeaderButton(Icons.Filled.Share, "Partager le lien", onShareMeeting)
+                    if (state.isHost) {
+                        MeetingHeaderButton(Icons.Filled.CallEnd, "Terminer pour tous", onEndForAll, danger = true)
+                    }
+                }
+            }
         }
 
         // Controls.
@@ -227,15 +261,24 @@ fun CallScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun ParticipantTile(participant: CallEngine.Participant, eglBase: EglBase) {
+private fun ParticipantTile(
+    participant: CallEngine.Participant,
+    eglBase: EglBase,
+    onLongPress: (() -> Unit)? = null,
+) {
     Box(
         modifier = Modifier
             .padding(4.dp)
             .height(260.dp)
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF1A1D21)),
+            .background(Color(0xFF1A1D21))
+            .then(
+                if (onLongPress != null) Modifier.combinedClickable(onClick = {}, onLongClick = onLongPress)
+                else Modifier
+            ),
         contentAlignment = Alignment.Center,
     ) {
         val track = participant.videoTrack
@@ -396,6 +439,36 @@ private fun CallButton(
             contentDescription = description,
             tint = if (active) Color(0xFF17181B) else Color.White,
             modifier = Modifier.size(24.dp),
+        )
+    }
+}
+
+@Composable
+private fun MeetingHeaderButton(
+    icon: ImageVector,
+    description: String,
+    onClick: () -> Unit,
+    danger: Boolean = false,
+) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (danger) Color(0x33D93025) else Color(0x33FFFFFF))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            icon,
+            contentDescription = description,
+            tint = if (danger) Color(0xFFFF8A80) else Color.White,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(6.dp))
+        Text(
+            description,
+            color = if (danger) Color(0xFFFF8A80) else Color.White,
+            style = ChatType.HeaderSub,
         )
     }
 }

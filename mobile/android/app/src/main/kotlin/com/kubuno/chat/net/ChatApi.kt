@@ -113,6 +113,14 @@ interface ChatApi {
     suspend fun joinChannel(@Path("id") id: String)
 
     /**
+     * Removes a member from a conversation. The module checks the caller is an
+     * owner or admin, so the right is enforced server-side; a meeting host uses
+     * it to remove a participant.
+     */
+    @DELETE("api/v1/chat/conversations/{id}/members/{uid}")
+    suspend fun removeMember(@Path("id") id: String, @Path("uid") uid: String)
+
+    /**
      * Uploads one already-encrypted blob. The server stores opaque bytes and
      * never sees the plaintext; the returned media_id is what the message
      * envelope and media_meta both reference.

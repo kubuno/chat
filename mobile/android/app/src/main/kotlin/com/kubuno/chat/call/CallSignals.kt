@@ -27,6 +27,8 @@ data class CallSignal(
     val muted: Boolean? = null,
     @SerialName("cam_off") val camOff: Boolean? = null,
     val emoji: String? = null,
+    /** Announced on call_state while a participant is recording the meeting. */
+    val recording: Boolean? = null,
 ) {
     companion object {
         const val RING = "call_ring"
@@ -38,6 +40,15 @@ data class CallSignal(
         const val LEAVE = "call_leave"
         const val STATE = "call_state"
         const val REACTION = "call_reaction"
+
+        // Host actions in a meeting, mirrored from the web client. All three
+        // travel over the same call_signal channel; none needs a server route.
+        /** The host ends the meeting for everyone at once (broadcast). */
+        const val END = "call_end"
+        /** The host removes one participant (targeted). */
+        const val KICK = "call_kick"
+        /** The host mutes one participant (targeted); a host mutes, never unmutes. */
+        const val MUTE = "call_mute"
     }
 }
 

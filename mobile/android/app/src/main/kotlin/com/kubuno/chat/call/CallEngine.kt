@@ -69,6 +69,18 @@ class CallEngine @Inject constructor(
         val participants: List<Participant> = emptyList(),
         val startedAtMs: Long = 0,
         val error: String? = null,
+        /**
+         * A meeting room rather than a one-to-one call. A meeting fills the
+         * screen, keeps its own name, stays open even when you are the only one
+         * in it, and only the host ending it closes it for everyone.
+         */
+        val meeting: Boolean = false,
+        /** This user hosts the meeting (owner/admin): the host controls show. */
+        val isHost: Boolean = false,
+        /** Someone in the meeting announced they are recording it. */
+        val recording: Boolean = false,
+        /** Set when the meeting ended for a reason other than our own hang-up. */
+        val endedReason: String? = null,
     )
 
     /** An inbound ring the user has not answered yet. */
@@ -174,19 +186,32 @@ class CallEngine @Inject constructor(
     /**
      * Starts a call in [room]. [ring] is who to ring; passing an empty list
      * joins an existing call instead of starting one.
+     *
+     * A [meeting] room fills the screen, keeps [title], stays open when alone,
+     * and rings no one — people arrive by its link. [isHost] unlocks the host
+     * controls (end for all, mute, remove).
      */
-    fun start(room: String, title: String, video: Boolean, ring: List<Pair<String, String>>) {
+    fun start(
+        room: String,
+        title: String,
+        video: Boolean,
+        ring: List<Pair<String, String>>,
+        meeting: Boolean = false,
+        isHost: Boolean = false,
+    ) {
         if (_state.value.active) return
         val factory = ensureFactory()
         ringTargets = ring
         roomPeers.clear()
         roomPeers += ring.map { it.first }
-        // An outgoing call goes into the device's own log the moment it rings;
-        // the outcome is filled in when it connects or when we give up.
-        CallLog.attach(context)
-        ring.firstOrNull()?.let { (userId, name) ->
-            logPeer = userId
-            CallLog.ringing(room, userId, if (ring.size > 1) title else name, video, incoming = false)
+        // A meeting is a room, not a person-to-person call: it is not filed in
+        // the call log, which is a history of who called whom.
+        if (!meeting) {
+            CallLog.attach(context)
+            ring.firstOrNull()?.let { (userId, name) ->
+                logPeer = userId
+                CallLog.ringing(room, userId, if (ring.size > 1) title else name, video, incoming = false)
+            }
         }
 
         if (!openLocalMedia(factory, video)) {
@@ -201,6 +226,8 @@ class CallEngine @Inject constructor(
             active = true,
             ringing = ring.isNotEmpty(),
             startedAtMs = System.currentTimeMillis(),
+            meeting = meeting,
+            isHost = isHost,
         )
 
         val callType = if (video) "video" else "audio"
@@ -211,6 +238,10 @@ class CallEngine @Inject constructor(
         }
         broadcast(CallSignal(type = CallSignal.JOIN, room = room, callType = callType, fromName = myName))
     }
+
+    /** Joins a meeting room by its id: no ring, host status decided by [isHost]. */
+    fun joinMeeting(room: String, title: String, video: Boolean, isHost: Boolean) =
+        start(room, title, video, ring = emptyList(), meeting = true, isHost = isHost)
 
     /** Accepts the call being rung. */
     fun accept() {
@@ -252,6 +283,64 @@ class CallEngine @Inject constructor(
         roomPeers.clear()
         closeLocalMedia()
         _state.value = State()
+    }
+
+    // -------------------------------------------------------- host actions
+
+    /**
+     * Ends the meeting for everyone. Only the host calls this: the departure is
+     * broadcast as call_end (not call_leave), so every participant closes at
+     * once rather than waiting the room out.
+     */
+    fun endMeeting() {
+        val room = _state.value.room ?: return hangUp()
+        if (!_state.value.isHost) return hangUp()
+        broadcast(CallSignal(type = CallSignal.END, room = room))
+        hangUp()
+    }
+
+    /**
+     * Sends our current mic/camera/hand state to a newcomer, so a late arrival
+     * sees it rather than a default. Without this, someone who joins after we
+     * muted appears un-muted to us and we to them — the bug the web hit and
+     * fixed by re-announcing state on every join.
+     */
+    private fun announceStateTo(userId: String) {
+        val s = _state.value
+        val room = s.room ?: return
+        emit(userId, CallSignal(type = CallSignal.STATE, room = room, muted = s.muted, camOff = s.camOff, hand = s.handUp))
+    }
+
+    /** Host: mutes one participant. A host mutes, never unmutes. */
+    fun muteParticipant(userId: String) {
+        val room = _state.value.room ?: return
+        if (!_state.value.isHost) return
+        emit(userId, CallSignal(type = CallSignal.MUTE, room = room))
+    }
+
+    /** Host: removes one participant from the meeting. */
+    fun removeParticipant(userId: String) {
+        val room = _state.value.room ?: return
+        if (!_state.value.isHost) return
+        emit(userId, CallSignal(type = CallSignal.KICK, room = room))
+        roomPeers -= userId
+        peers.remove(userId)?.let { runCatching { it.connection.close() } }
+        syncParticipants()
+    }
+
+    /**
+     * Tears the call down locally after the host ended it or removed us —
+     * without re-broadcasting a departure, since the room is already closing.
+     * [reason] surfaces to the UI so it can say why.
+     */
+    private fun endLocally(reason: String) {
+        peers.values.forEach { runCatching { it.connection.close() } }
+        peers.clear()
+        ringTargets = emptyList()
+        roomPeers.clear()
+        logPeer = null
+        closeLocalMedia()
+        _state.value = State(endedReason = reason)
     }
 
     // ---------------------------------------------------------------- toggles
@@ -323,6 +412,7 @@ class CallEngine @Inject constructor(
                 emit(fromUserId, CallSignal(type = CallSignal.PRESENT, room = signal.room, fromName = myName))
                 val peer = peerFor(fromUserId, signal.fromName)
                 if (amOfferer(fromUserId)) offerTo(fromUserId, peer)
+                announceStateTo(fromUserId)
             }
 
             CallSignal.PRESENT -> {
@@ -330,6 +420,7 @@ class CallEngine @Inject constructor(
                 _state.update { it.copy(ringing = false) }
                 val peer = peerFor(fromUserId, signal.fromName)
                 if (amOfferer(fromUserId)) offerTo(fromUserId, peer)
+                announceStateTo(fromUserId)
             }
 
             CallSignal.OFFER -> {
@@ -384,20 +475,47 @@ class CallEngine @Inject constructor(
                 roomPeers -= fromUserId
                 peers.remove(fromUserId)?.let { runCatching { it.connection.close() } }
                 syncParticipants()
-                // A one-to-one call is over when the other side leaves.
-                if (peers.isEmpty() && _state.value.active && ringTargets.size <= 1) hangUp()
+                // A one-to-one call is over when the other side leaves. A
+                // meeting is a room: it stays open even when you are the only
+                // one left — only the host ending it closes it for everyone.
+                if (!_state.value.meeting && peers.isEmpty() && _state.value.active && ringTargets.size <= 1) hangUp()
             }
 
             CallSignal.STATE -> {
                 _state.update { current ->
-                    current.copy(participants = current.participants.map { participant ->
-                        if (participant.userId != fromUserId) participant
-                        else participant.copy(
-                            muted = signal.muted ?: participant.muted,
-                            camOff = signal.camOff ?: participant.camOff,
-                            handUp = signal.hand ?: participant.handUp,
-                        )
-                    })
+                    current.copy(
+                        recording = signal.recording ?: current.recording,
+                        participants = current.participants.map { participant ->
+                            if (participant.userId != fromUserId) participant
+                            else participant.copy(
+                                muted = signal.muted ?: participant.muted,
+                                camOff = signal.camOff ?: participant.camOff,
+                                handUp = signal.hand ?: participant.handUp,
+                            )
+                        },
+                    )
+                }
+            }
+
+            // --- host actions, only honoured from the meeting's host ---
+
+            CallSignal.END -> {
+                // The host ended the meeting: over for everyone at once.
+                if (_state.value.meeting) endLocally(reason = "ended")
+            }
+
+            CallSignal.KICK -> {
+                // The host removed us from the meeting.
+                if (_state.value.meeting) endLocally(reason = "removed")
+            }
+
+            CallSignal.MUTE -> {
+                // The host muted us. A host mutes, never unmutes: we go muted
+                // and tell the room, exactly as the web does.
+                if (_state.value.meeting && !_state.value.muted) {
+                    localAudio?.setEnabled(false)
+                    _state.update { it.copy(muted = true) }
+                    _state.value.room?.let { broadcast(CallSignal(type = CallSignal.STATE, room = it, muted = true)) }
                 }
             }
         }

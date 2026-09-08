@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -67,6 +68,7 @@ fun NewChatScreen(
     onSetGroupMode: (Boolean) -> Unit,
     onGroupName: (String) -> Unit,
     onCreateGroup: () -> Unit,
+    onNewMeeting: () -> Unit,
 ) {
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface).imePadding()) {
 
@@ -129,6 +131,33 @@ fun NewChatScreen(
                 Spacer(Modifier.width(12.dp))
                 Text(
                     "Nouveau groupe",
+                    style = ChatType.ConversationTitle,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+            }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onNewMeeting)
+                    .padding(horizontal = ChatDims.Gutter, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(ChatDims.Avatar)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        Icons.Filled.Videocam,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    "Nouvelle réunion",
                     style = ChatType.ConversationTitle,
                     color = MaterialTheme.colorScheme.onSurface,
                 )

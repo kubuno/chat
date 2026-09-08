@@ -44,6 +44,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 fun ChatApp(
     openConversationId: String? = null,
     onDeepLinkHandled: () -> Unit = {},
+    openMeetingId: String? = null,
+    onMeetingHandled: () -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val accounts by viewModel.accounts.collectAsStateWithLifecycle()
@@ -63,6 +65,9 @@ fun ChatApp(
     var composingPoll by remember { mutableStateOf(false) }
     var pendingCall by remember { mutableStateOf<Pair<UiConversation, Boolean>?>(null) }
     var pendingHereCall by remember { mutableStateOf<Boolean?>(null) }
+    var pendingMeetingName by remember { mutableStateOf<String?>(null) }
+    var pendingJoinMeeting by remember { mutableStateOf<String?>(null) }
+    var showNewMeeting by remember { mutableStateOf(false) }
 
     // Gallery uses the photo picker, which needs no storage permission at all:
     // the system UI hands back exactly what the user chose.
@@ -141,6 +146,10 @@ fun ChatApp(
     var youSheet by remember { mutableStateOf<YouSheet?>(null) }
     /** Whether the channel explorer sheet is open. */
     var showExplorer by remember { mutableStateOf(false) }
+    /** The participant whose host-action sheet is open in a meeting, if any. */
+    var hostTarget by remember { mutableStateOf<String?>(null) }
+    /** A meeting created and waiting for its link to be shared, if any. */
+    var meetingToShare by remember { mutableStateOf<String?>(null) }
     val pushEnabled = remember(accounts) { PushPrefs.registrationId(context) != null }
 
     // Opening the Appels tab is what clears its badge, exactly as looking at a
@@ -162,9 +171,37 @@ fun ChatApp(
         if (granted.values.all { it }) {
             pendingCall?.let { (row, video) -> viewModel.startCall(row, video) }
             pendingHereCall?.let { viewModel.startCallHere(it) }
+            pendingMeetingName?.let { viewModel.createMeeting(it) }
+            pendingJoinMeeting?.let { viewModel.joinMeeting(it) }
         }
         pendingCall = null
         pendingHereCall = null
+        pendingMeetingName = null
+        pendingJoinMeeting = null
+    }
+
+    // A meeting joins a video call, so it needs the same camera+mic grant. The
+    // name (create) or the room id (join by link) waits for it.
+    fun withCallPermissions(onGranted: () -> Unit, stash: () -> Unit) {
+        val needed = arrayOf(Manifest.permission.RECORD_AUDIO, Manifest.permission.CAMERA)
+        val missing = needed.filter {
+            ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isEmpty()) onGranted() else { stash(); askCallPermissions.launch(missing.toTypedArray()) }
+    }
+
+    fun createMeeting(name: String) =
+        withCallPermissions({ viewModel.createMeeting(name) }, { pendingMeetingName = name })
+
+    fun joinMeeting(room: String) =
+        withCallPermissions({ viewModel.joinMeeting(room) }, { pendingJoinMeeting = room })
+
+    // A meeting link (kubuno-chat://meet/<id>) joins that room once, then is
+    // cleared so a recomposition does not rejoin it.
+    LaunchedEffect(openMeetingId) {
+        val room = openMeetingId ?: return@LaunchedEffect
+        joinMeeting(room)
+        onMeetingHandled()
     }
 
     fun placeCallHere(video: Boolean) {
@@ -222,7 +259,19 @@ fun ChatApp(
             onToggleHand = viewModel::toggleCallHand,
             onSwitchToVideo = ::switchToVideo,
             onHangUp = viewModel::hangUp,
+            onShareMeeting = { shareText(context, viewModel.meetingLink(callState.room.orEmpty())) },
+            onEndForAll = viewModel::endMeeting,
+            onParticipantMenu = { hostTarget = it },
         )
+        hostTarget?.let { userId ->
+            val name = callState.participants.firstOrNull { it.userId == userId }?.name ?: "Ce participant"
+            MeetingHostSheet(
+                name = name,
+                onMute = { viewModel.muteParticipant(userId); hostTarget = null },
+                onRemove = { viewModel.removeParticipant(userId); hostTarget = null },
+                onDismiss = { hostTarget = null },
+            )
+        }
         return
     }
 
@@ -269,6 +318,7 @@ fun ChatApp(
                         onSetGroupMode = viewModel::setGroupMode,
                         onGroupName = viewModel::setGroupName,
                         onCreateGroup = viewModel::createGroup,
+                        onNewMeeting = { showNewMeeting = true },
                     )
                 }
 
@@ -474,6 +524,17 @@ fun ChatApp(
             title = row.title,
             onDismiss = { confirmClearOne = null },
             onConfirm = { viewModel.clearConversation(row.id); confirmClearOne = null },
+        )
+    }
+
+    if (showNewMeeting) {
+        NewMeetingDialog(
+            onDismiss = { showNewMeeting = false },
+            onCreate = { name ->
+                showNewMeeting = false
+                viewModel.closeNewChat()
+                createMeeting(name)
+            },
         )
     }
 
