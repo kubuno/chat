@@ -208,26 +208,22 @@ class ChatViewModel @Inject constructor(
         (e as? retrofit2.HttpException)?.code() in setOf(401, 403)
 
     /**
-     * Re-signs into the current account when its session has expired, using the
-     * same system re-authentication every Kubuno app shares, then reloads. The
-     * [activity] is needed because the sign-in surfaces as a screen.
+     * Called after chat's own sign-in flow registers (or re-registers) an
+     * account. Rebinds everything to the fresh session: a re-auth keeps the
+     * same account, so [selectAccount] would no-op — the cached client and the
+     * socket are still on the dead token — hence the explicit rebuild here. A
+     * first-ever sign-in has no current account, so it just picks up the new one.
      */
-    fun reauthenticate(activity: android.app.Activity) {
-        val account = _account.value ?: return
-        _list.update { it.copy(reauthenticating = true) }
-        viewModelScope.launch {
-            val ok = runCatching { clients.reauthenticate(activity, account) }.getOrDefault(false)
-            _list.update { it.copy(reauthenticating = false) }
-            if (ok) {
-                _list.update { it.copy(authExpired = false, error = null) }
-                loadConversations()
-                // The socket borrowed the dead token too; stop it and rebuild
-                // on the refreshed session.
-                socket?.stop()
-                socketJob?.cancel()
-                openSocket(account)
-            }
-        }
+    fun onSignedIn() {
+        val account = _account.value
+        if (account == null) { refreshAccounts(); return }
+        clients.evict(account)
+        _list.update { it.copy(authExpired = false, error = null) }
+        socket?.stop()
+        socketJob?.cancel()
+        loadConversations()
+        openSocket(account)
+        refreshAccounts()
     }
 
     /**

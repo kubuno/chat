@@ -154,6 +154,8 @@ fun ChatApp(
     var meetingToShare by remember { mutableStateOf<String?>(null) }
     /** Whether the in-call meeting chat panel is open. */
     var showCallChat by remember { mutableStateOf(false) }
+    /** Whether chat's own sign-in flow is showing (no account, or re-auth). */
+    var showOnboarding by remember { mutableStateOf(false) }
     val pushEnabled = remember(accounts) { PushPrefs.registrationId(context) != null }
 
     // Opening the Appels tab is what clears its badge, exactly as looking at a
@@ -254,6 +256,17 @@ fun ChatApp(
         }
     }
 
+    // Chat signs in on its own — the same flow as the other Kubuno apps —
+    // rather than sending the user to Drive. Success registers the account with
+    // the system, where the sibling apps reuse it.
+    if (showOnboarding) {
+        BackHandler(enabled = accounts.isNotEmpty()) { showOnboarding = false }
+        com.kubuno.chat.ui.onboarding.OnboardingScreen(
+            onDone = { showOnboarding = false; viewModel.onSignedIn() },
+        )
+        return
+    }
+
     if (callState.active) {
         BackHandler { if (showCallChat) showCallChat = false else viewModel.hangUp() }
         CallScreen(
@@ -325,7 +338,7 @@ fun ChatApp(
         // adding statusBarsPadding() on top of it would double the gap.
         Column(Modifier.fillMaxSize().padding(padding)) {
             when {
-                accounts.isEmpty() -> NoAccount()
+                accounts.isEmpty() -> NoAccount(onSignIn = { showOnboarding = true })
 
                 newChat.open -> {
                     BackHandler { viewModel.closeNewChat() }
@@ -489,7 +502,8 @@ fun ChatApp(
                             onReadSelected = viewModel::readSelected,
                             onClearSelected = viewModel::clearSelected,
                             onRetry = viewModel::loadConversations,
-                            onReauth = { activity?.let(viewModel::reauthenticate) },
+                            // Re-sign-in through chat's own flow, not another app.
+                            onReauth = { showOnboarding = true },
                             onNewChat = viewModel::openNewChat,
                             onCamera = ::openCamera,
                         )
@@ -609,11 +623,12 @@ private fun ClearOneConversationDialog(title: String, onDismiss: () -> Unit, onC
 }
 
 /**
- * Chat is a consumer app: it never signs anyone in, it borrows the accounts a
- * sibling Kubuno app already registered with the system AccountManager.
+ * No account yet. Chat signs one in on its own — like the other Kubuno apps —
+ * and the account it registers is shared with them through the system
+ * AccountManager, so it need not be created from Drive or Mail first.
  */
 @Composable
-private fun NoAccount() {
+private fun NoAccount(onSignIn: () -> Unit) {
     Column(
         modifier = Modifier.fillMaxSize().padding(32.dp),
         verticalArrangement = Arrangement.Center,
@@ -627,11 +642,13 @@ private fun NoAccount() {
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "Ouvrez Kubuno Drive ou Mail pour ajouter un compte, puis revenez.",
+            "Connectez-vous à votre instance ; le compte sera partagé avec les autres applications Kubuno.",
             style = ChatType.Preview,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
+        Spacer(Modifier.height(20.dp))
+        androidx.compose.material3.Button(onClick = onSignIn) { Text("Se connecter") }
     }
 }
 
