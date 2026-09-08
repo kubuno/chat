@@ -38,4 +38,15 @@ class ChatClients @Inject constructor(
 
     /** The authenticated client itself, for the WebSocket and media byte streams. */
     fun raw(account: SharedAccount): BrokeredClient = brokered.of(account)
+
+    /**
+     * Re-authenticates a shared account whose session has expired, then drops
+     * the cached ChatApi so the next call binds to the refreshed token. Returns
+     * true when a usable session came back.
+     */
+    suspend fun reauthenticate(activity: android.app.Activity, account: SharedAccount): Boolean {
+        val ok = brokered.reauthenticate(activity, account)
+        if (ok) apis.remove(account.systemName)
+        return ok
+    }
 }

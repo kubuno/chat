@@ -71,6 +71,10 @@ class ChatViewModel @Inject constructor(
         val showArchived: Boolean = false,
         val connected: Boolean = false,
         val error: String? = null,
+        /** The session has expired server-side: the list offers to re-sign-in. */
+        val authExpired: Boolean = false,
+        /** A re-authentication is in flight (the sign-in screen is up). */
+        val reauthenticating: Boolean = false,
         /** Ids picked in multi-select mode. */
         val selection: Set<String> = emptySet(),
         /** Multi-select is on even before anything has been picked. */
@@ -162,7 +166,7 @@ class ChatViewModel @Inject constructor(
     fun loadConversations() {
         val api = api ?: return
         viewModelScope.launch {
-            _list.update { it.copy(loading = it.conversations.isEmpty(), error = null) }
+            _list.update { it.copy(loading = it.conversations.isEmpty(), error = null, authExpired = false) }
             runCatching { api.conversations() }
                 .onSuccess { response ->
                     val now = System.currentTimeMillis()
@@ -190,8 +194,39 @@ class ChatViewModel @Inject constructor(
                 }
                 .onFailure { e ->
                     Log.w(TAG, "conversations failed", e)
-                    _list.update { it.copy(loading = false, error = friendly(e)) }
+                    // A dead session (no borrowable token) surfaces as a 401.
+                    // The list then offers to sign back in rather than dead-end.
+                    _list.update {
+                        it.copy(loading = false, error = friendly(e), authExpired = isAuthError(e))
+                    }
                 }
+        }
+    }
+
+    /** A 401/403 from a shared-account call: the borrowed session is dead. */
+    private fun isAuthError(e: Throwable): Boolean =
+        (e as? retrofit2.HttpException)?.code() in setOf(401, 403)
+
+    /**
+     * Re-signs into the current account when its session has expired, using the
+     * same system re-authentication every Kubuno app shares, then reloads. The
+     * [activity] is needed because the sign-in surfaces as a screen.
+     */
+    fun reauthenticate(activity: android.app.Activity) {
+        val account = _account.value ?: return
+        _list.update { it.copy(reauthenticating = true) }
+        viewModelScope.launch {
+            val ok = runCatching { clients.reauthenticate(activity, account) }.getOrDefault(false)
+            _list.update { it.copy(reauthenticating = false) }
+            if (ok) {
+                _list.update { it.copy(authExpired = false, error = null) }
+                loadConversations()
+                // The socket borrowed the dead token too; stop it and rebuild
+                // on the refreshed session.
+                socket?.stop()
+                socketJob?.cancel()
+                openSocket(account)
+            }
         }
     }
 

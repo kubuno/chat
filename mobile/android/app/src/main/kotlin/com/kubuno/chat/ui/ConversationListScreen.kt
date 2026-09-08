@@ -80,6 +80,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -113,6 +114,7 @@ fun ConversationListScreen(
     onReadSelected: () -> Unit,
     onClearSelected: () -> Unit,
     onRetry: () -> Unit,
+    onReauth: () -> Unit,
     onNewChat: () -> Unit,
     onCamera: () -> Unit,
 ) {
@@ -162,6 +164,11 @@ fun ConversationListScreen(
         Box(Modifier.weight(1f)) {
             when {
                 state.loading -> Box(Modifier.fillMaxSize(), Alignment.Center) { CircularProgressIndicator() }
+
+                state.authExpired -> SessionExpiredState(
+                    busy = state.reauthenticating,
+                    onReauth = onReauth,
+                )
 
                 state.error != null -> ErrorState(state.error, onRetry)
 
@@ -595,6 +602,43 @@ private fun EmptyState(title: String, hint: String?) {
         if (hint != null) {
             Spacer(Modifier.height(6.dp))
             Text(hint, style = ChatType.Preview, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun SessionExpiredState(busy: Boolean, onReauth: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(
+            "Session expirée",
+            style = ChatType.ConversationTitleUnread,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            "Reconnectez-vous pour continuer.",
+            style = ChatType.Preview,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(16.dp))
+        if (busy) {
+            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+        } else {
+            Text(
+                "Se reconnecter",
+                style = ChatType.ConversationTitle,
+                color = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable(onClick = onReauth)
+                    .padding(horizontal = 24.dp, vertical = 12.dp),
+            )
         }
     }
 }

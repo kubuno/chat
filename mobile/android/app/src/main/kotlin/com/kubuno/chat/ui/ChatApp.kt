@@ -53,6 +53,8 @@ fun ChatApp(
     val conversation by viewModel.conversation.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
+    // The re-authentication launches a sign-in screen, which needs an Activity.
+    val activity = remember(context) { context.findActivity() }
     val mediaFiles by viewModel.mediaFiles.collectAsStateWithLifecycle()
     val playback by viewModel.playback.collectAsStateWithLifecycle()
     val recording by viewModel.voice.state.collectAsStateWithLifecycle()
@@ -469,6 +471,7 @@ fun ChatApp(
                             onReadSelected = viewModel::readSelected,
                             onClearSelected = viewModel::clearSelected,
                             onRetry = viewModel::loadConversations,
+                            onReauth = { activity?.let(viewModel::reauthenticate) },
                             onNewChat = viewModel::openNewChat,
                             onCamera = ::openCamera,
                         )
@@ -616,3 +619,10 @@ private fun NoAccount() {
 
 /** The photo picker caps a single selection; ten is what fits one message run. */
 private const val MAX_ATTACHMENTS = 10
+
+/** Walks the ContextWrapper chain to the hosting Activity, if any. */
+private tailrec fun android.content.Context.findActivity(): android.app.Activity? = when (this) {
+    is android.app.Activity -> this
+    is android.content.ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
