@@ -152,11 +152,16 @@ fun ChatApp(
     var hostTarget by remember { mutableStateOf<String?>(null) }
     /** A meeting created and waiting for its link to be shared, if any. */
     var meetingToShare by remember { mutableStateOf<String?>(null) }
+    /** Whether the in-call meeting chat panel is open. */
+    var showCallChat by remember { mutableStateOf(false) }
     val pushEnabled = remember(accounts) { PushPrefs.registrationId(context) != null }
 
     // Opening the Appels tab is what clears its badge, exactly as looking at a
     // missed call on a phone does.
     LaunchedEffect(tab) { if (tab == ChatTab.Calls) viewModel.markCallsSeen() }
+
+    // The in-call chat belongs to the call; it closes when the call does.
+    LaunchedEffect(callState.active) { if (!callState.active) showCallChat = false }
 
     val askCameraForCall = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -250,7 +255,7 @@ fun ChatApp(
     }
 
     if (callState.active) {
-        BackHandler { viewModel.hangUp() }
+        BackHandler { if (showCallChat) showCallChat = false else viewModel.hangUp() }
         CallScreen(
             state = callState,
             eglBase = viewModel.callEngine.eglBase,
@@ -264,7 +269,20 @@ fun ChatApp(
             onShareMeeting = { shareText(context, viewModel.meetingLink(callState.room.orEmpty())) },
             onEndForAll = viewModel::endMeeting,
             onParticipantMenu = { hostTarget = it },
+            // The meeting's chat, alongside the video — same conversation, so
+            // same group capabilities (who sent what, live).
+            onOpenChat = {
+                callState.room?.let { viewModel.openConversation(it) }
+                showCallChat = true
+            },
         )
+        if (showCallChat) {
+            InCallChatPanel(
+                state = conversation,
+                onSend = viewModel::send,
+                onDismiss = { showCallChat = false },
+            )
+        }
         hostTarget?.let { userId ->
             val name = callState.participants.firstOrNull { it.userId == userId }?.name ?: "Ce participant"
             MeetingHostSheet(

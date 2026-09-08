@@ -21,6 +21,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Cameraswitch
@@ -78,6 +79,7 @@ fun CallScreen(
     onShareMeeting: () -> Unit = {},
     onEndForAll: () -> Unit = {},
     onParticipantMenu: (String) -> Unit = {},
+    onOpenChat: (() -> Unit)? = null,
 ) {
     var elapsed by remember(state.startedAtMs) { mutableLongStateOf(0L) }
     LaunchedEffect(state.startedAtMs, state.ringing) {
@@ -242,6 +244,15 @@ fun CallScreen(
                 active = state.handUp,
                 onClick = onToggleHand,
             )
+            // Chatting alongside a meeting, without leaving the video.
+            if (onOpenChat != null) {
+                CallButton(
+                    icon = Icons.AutoMirrored.Filled.Chat,
+                    description = "Chat de la réunion",
+                    active = false,
+                    onClick = onOpenChat,
+                )
+            }
             Box(
                 modifier = Modifier
                     .size(60.dp)
