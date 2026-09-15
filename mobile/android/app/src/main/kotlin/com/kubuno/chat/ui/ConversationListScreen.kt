@@ -64,8 +64,6 @@ import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -84,6 +82,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kubuno.android.ui.components.KubunoChip
 
 /**
  * The conversation list — the app's front door.
@@ -342,16 +341,10 @@ private fun FilterRow(selected: ChatFilter, unread: Int, onFilter: (ChatFilter) 
                 ChatFilter.Favorites -> "Favoris"
                 ChatFilter.Groups -> "Groupes"
             }
-            FilterChip(
+            KubunoChip(
+                label = label,
                 selected = selected == filter,
                 onClick = { onFilter(filter) },
-                label = { Text(label, style = ChatType.RowTime) },
-                shape = ChatShapes.Chip,
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                ),
-                border = null,
             )
         }
     }
