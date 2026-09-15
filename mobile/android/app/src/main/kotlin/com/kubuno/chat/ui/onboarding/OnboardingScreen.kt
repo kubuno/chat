@@ -13,12 +13,9 @@ import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,6 +31,10 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kubuno.android.account.R
+import com.kubuno.android.ui.components.KubunoButton
+import com.kubuno.android.ui.components.KubunoButtonSize
+import com.kubuno.android.ui.components.KubunoButtonVariant
+import com.kubuno.android.ui.components.KubunoTextField
 
 /**
  * Chat's own sign-in flow — server address, credentials, then a TOTP step when
@@ -90,22 +91,23 @@ private fun ServerScreen(viewModel: OnboardingViewModel) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(24.dp))
-        OutlinedTextField(
+        KubunoTextField(
             value = state.serverInput,
             onValueChange = viewModel::onServerInput,
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            placeholder = { Text(stringResource(R.string.server_hint)) },
+            placeholder = stringResource(R.string.server_hint),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-            isError = state.serverError != null,
-            supportingText = { state.serverError?.let { Text(stringResource(it)) } },
+            error = state.serverError?.let { stringResource(it) },
         )
         Spacer(Modifier.height(16.dp))
-        Button(
+        KubunoButton(
+            text = stringResource(R.string.server_continue),
             onClick = viewModel::checkServer,
             enabled = !state.serverBusy && state.serverInput.isNotBlank(),
+            loading = state.serverBusy,
+            size = KubunoButtonSize.LG,
             modifier = Modifier.fillMaxWidth(),
-        ) { BusyButtonLabel(state.serverBusy, R.string.server_continue) }
+        )
     }
 }
 
@@ -118,35 +120,37 @@ private fun LoginScreen(viewModel: OnboardingViewModel) {
     OnboardingColumn {
         Text(stringResource(R.string.login_title), style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(24.dp))
-        OutlinedTextField(
+        KubunoTextField(
             value = login,
             onValueChange = { login = it },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            label = { Text(stringResource(R.string.login_login_label)) },
+            label = stringResource(R.string.login_login_label),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
         )
         Spacer(Modifier.height(12.dp))
-        OutlinedTextField(
+        KubunoTextField(
             value = password,
             onValueChange = { password = it },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            label = { Text(stringResource(R.string.login_password_label)) },
+            label = stringResource(R.string.login_password_label),
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            isError = state.loginError != null,
-            supportingText = { state.loginError?.let { Text(stringResource(it)) } },
+            error = state.loginError?.let { stringResource(it) },
         )
         Spacer(Modifier.height(16.dp))
-        Button(
+        KubunoButton(
+            text = stringResource(R.string.login_submit),
             onClick = { viewModel.login(login, password) },
             enabled = !state.loginBusy && login.isNotBlank() && password.isNotEmpty(),
+            loading = state.loginBusy,
+            size = KubunoButtonSize.LG,
             modifier = Modifier.fillMaxWidth(),
-        ) { BusyButtonLabel(state.loginBusy, R.string.login_submit) }
-        TextButton(onClick = viewModel::resetServer) {
-            Text(stringResource(R.string.login_change_server))
-        }
+        )
+        KubunoButton(
+            text = stringResource(R.string.login_change_server),
+            onClick = viewModel::resetServer,
+            variant = KubunoButtonVariant.TEXT,
+        )
     }
 }
 
@@ -164,21 +168,22 @@ private fun TotpScreen(viewModel: OnboardingViewModel) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(24.dp))
-        OutlinedTextField(
+        KubunoTextField(
             value = code,
             onValueChange = { code = it.filter(Char::isDigit).take(8) },
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            label = { Text(stringResource(R.string.totp_code_label)) },
+            label = stringResource(R.string.totp_code_label),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-            isError = state.totpError != null,
-            supportingText = { state.totpError?.let { Text(stringResource(it)) } },
+            error = state.totpError?.let { stringResource(it) },
         )
         Spacer(Modifier.height(16.dp))
-        Button(
+        KubunoButton(
+            text = stringResource(R.string.totp_submit),
             onClick = { viewModel.verifyTotp(code) },
             enabled = !state.totpBusy && code.length >= 6,
+            loading = state.totpBusy,
+            size = KubunoButtonSize.LG,
             modifier = Modifier.fillMaxWidth(),
-        ) { BusyButtonLabel(state.totpBusy, R.string.totp_submit) }
+        )
     }
 }
