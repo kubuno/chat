@@ -39,6 +39,13 @@ class ChatClients @Inject constructor(
     }
     private val apis = ConcurrentHashMap<String, ChatApi>()
 
+    /**
+     * Accounts whose OWN session turned out to be dead. The account itself is
+     * still signed in on this device — a sibling app holds a live session for
+     * it — so we borrow from now on instead of declaring the user signed out.
+     */
+    private val borrowInstead = ConcurrentHashMap.newKeySet<String>()
+
     fun api(account: SharedAccount): ChatApi = apis.computeIfAbsent(account.systemName) {
         val client = raw(account)
         Retrofit.Builder()
@@ -55,13 +62,39 @@ class ChatClients @Inject constructor(
      * is borrowed from the owning app.
      */
     fun raw(account: SharedAccount): BrokeredClient {
-        ownedClient(account)?.let { return it }
+        if (account.systemName !in borrowInstead) {
+            ownedClient(account)?.let { return it }
+        }
         return brokered.of(account)
+    }
+
+    /**
+     * Our own session for [account] is dead. Before telling the user to sign in
+     * again, fall back to the access token the system authenticator can still
+     * borrow from whichever sibling app holds a live session for the SAME
+     * account — the account is shared, only the refresh token is not.
+     *
+     * Returns true when that fallback is newly available, i.e. we were serving
+     * this account from our own session until now; false when we were already
+     * borrowing, in which case the session really is gone.
+     */
+    fun demoteToBorrowed(account: SharedAccount): Boolean {
+        if (ownedClient(account) == null) return false
+        if (!borrowInstead.add(account.systemName)) return false
+        evict(account)
+        brokered.reset(account)
+        return true
     }
 
     /** Drops the cached ChatApi so the next call rebinds (after a re-auth). */
     fun evict(account: SharedAccount) {
         apis.remove(account.systemName)
+    }
+
+    /** A fresh sign-in of our own supersedes any borrowing fallback. */
+    fun promoteToOwned(account: SharedAccount) {
+        borrowInstead.remove(account.systemName)
+        evict(account)
     }
 
     /**

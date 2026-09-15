@@ -194,8 +194,20 @@ class ChatViewModel @Inject constructor(
                 }
                 .onFailure { e ->
                     Log.w(TAG, "conversations failed", e)
-                    // A dead session (no borrowable token) surfaces as a 401.
-                    // The list then offers to sign back in rather than dead-end.
+                    val account = _account.value
+                    // Our own session can be dead while the ACCOUNT is still
+                    // signed in on this device: another Kubuno app holds a live
+                    // one for it. Borrow from there and retry before telling the
+                    // user to sign in again.
+                    if (isAuthError(e) && account != null && clients.demoteToBorrowed(account)) {
+                        Log.i(TAG, "own session dead; borrowing a token from the shared account")
+                        socket?.stop()
+                        socketJob?.cancel()
+                        loadConversations()
+                        openSocket(account)
+                        return@onFailure
+                    }
+                    // Only now is the session genuinely gone: offer to sign in.
                     _list.update {
                         it.copy(loading = false, error = friendly(e), authExpired = isAuthError(e))
                     }
@@ -217,7 +229,8 @@ class ChatViewModel @Inject constructor(
     fun onSignedIn() {
         val account = _account.value
         if (account == null) { refreshAccounts(); return }
-        clients.evict(account)
+        // A sign-in of our own supersedes any borrowing fallback we fell back to.
+        clients.promoteToOwned(account)
         _list.update { it.copy(authExpired = false, error = null) }
         socket?.stop()
         socketJob?.cancel()
