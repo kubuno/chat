@@ -34,6 +34,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.kubuno.android.ui.components.KubunoButton
+import com.kubuno.android.ui.components.KubunoButtonSize
+import com.kubuno.android.ui.components.KubunoButtonVariant
+import com.kubuno.android.ui.components.KubunoTextField
 import com.kubuno.chat.net.ChannelInfo
 
 /**
@@ -58,20 +62,18 @@ fun ChannelExplorerSheet(
                 color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.padding(horizontal = ChatDims.Gutter, vertical = 8.dp),
             )
-            TextField(
+            KubunoTextField(
                 value = state.query,
                 onValueChange = onQuery,
-                singleLine = true,
-                placeholder = { Text("Rechercher une chaîne", style = ChatType.Preview) },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-                shape = ChatShapes.Chip,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                ),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = ChatDims.Gutter).heightIn(min = 48.dp),
+                placeholder = "Rechercher une chaîne",
+                leadingIcon = {
+                    Icon(
+                        Icons.Filled.Search,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = ChatDims.Gutter),
             )
             Spacer(Modifier.height(8.dp))
 
@@ -152,11 +154,13 @@ private fun ExplorerRow(channel: ChannelInfo, joining: Boolean, onJoin: () -> Un
             )
         }
         Spacer(Modifier.width(8.dp))
-        TextButton(
+        KubunoButton(
+            text = "Suivre",
             onClick = onJoin,
             enabled = !joining,
-        ) {
-            Text(if (joining) "…" else "Suivre", color = MaterialTheme.colorScheme.primary)
-        }
+            loading = joining,
+            variant = KubunoButtonVariant.TEXT,
+            size = KubunoButtonSize.SM,
+        )
     }
 }

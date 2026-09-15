@@ -31,6 +31,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.kubuno.android.ui.components.KubunoButton
+import com.kubuno.android.ui.components.KubunoButtonSize
+import com.kubuno.android.ui.components.KubunoButtonVariant
+import com.kubuno.android.ui.components.KubunoTextField
 import com.kubuno.chat.push.PushPrefs
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -614,11 +618,11 @@ private fun ClearOneConversationDialog(title: String, onDismiss: () -> Unit, onC
             )
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text("Effacer", color = MaterialTheme.colorScheme.error)
-            }
+            KubunoButton("Effacer", onClick = onConfirm, variant = KubunoButtonVariant.TEXT_DANGER, size = KubunoButtonSize.SM)
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } },
+        dismissButton = {
+            KubunoButton("Annuler", onClick = onDismiss, variant = KubunoButtonVariant.GHOST, size = KubunoButtonSize.SM)
+        },
     )
 }
 
@@ -648,7 +652,7 @@ private fun NoAccount(onSignIn: () -> Unit) {
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(20.dp))
-        androidx.compose.material3.Button(onClick = onSignIn) { Text("Se connecter") }
+        KubunoButton("Se connecter", onClick = onSignIn, size = KubunoButtonSize.LG)
     }
 }
 

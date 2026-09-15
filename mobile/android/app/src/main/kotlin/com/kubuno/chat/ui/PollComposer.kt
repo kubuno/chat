@@ -34,6 +34,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.kubuno.android.ui.components.KubunoButton
+import com.kubuno.android.ui.components.KubunoButtonSize
+import com.kubuno.android.ui.components.KubunoButtonVariant
+import com.kubuno.android.ui.components.KubunoTextField
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 
@@ -144,18 +148,10 @@ fun PollComposer(onDismiss: () -> Unit, onSend: (String, List<String>) -> Unit) 
 
 @Composable
 private fun Field(value: String, hint: String, onValue: (String) -> Unit, modifier: Modifier = Modifier) {
-    TextField(
+    KubunoTextField(
         value = value,
         onValueChange = onValue,
-        singleLine = true,
-        placeholder = { Text(hint, style = ChatType.Preview) },
-        shape = RoundedCornerShape(10.dp),
-        colors = TextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent,
-        ),
+        placeholder = hint,
         modifier = modifier.fillMaxWidth(),
     )
 }

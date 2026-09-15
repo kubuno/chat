@@ -33,6 +33,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.kubuno.android.ui.components.KubunoButton
+import com.kubuno.android.ui.components.KubunoButtonSize
+import com.kubuno.android.ui.components.KubunoButtonVariant
+import com.kubuno.android.ui.components.KubunoTextField
 
 /** Opens the Android share sheet with [text] — used to share a meeting link. */
 fun shareText(context: Context, text: String) {
@@ -99,19 +103,23 @@ fun NewMeetingDialog(onDismiss: () -> Unit, onCreate: (String) -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(Modifier.height(12.dp))
-                TextField(
+                KubunoTextField(
                     value = name,
                     onValueChange = { name = it },
-                    singleLine = true,
-                    placeholder = { Text("Nom de la réunion") },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = "Nom de la réunion",
                 )
             }
         },
         confirmButton = {
-            TextButton(
+            KubunoButton(
+                "Créer et rejoindre",
                 onClick = { onCreate(name.trim().ifBlank { "Réunion" }) },
-            ) { Text("Créer et rejoindre") }
+                size = KubunoButtonSize.SM,
+            )
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } },
+        dismissButton = {
+            KubunoButton("Annuler", onClick = onDismiss, variant = KubunoButtonVariant.GHOST, size = KubunoButtonSize.SM)
+        },
     )
 }

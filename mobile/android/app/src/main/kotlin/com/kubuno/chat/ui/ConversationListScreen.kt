@@ -81,6 +81,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.kubuno.android.ui.components.KubunoButton
+import com.kubuno.android.ui.components.KubunoButtonSize
+import com.kubuno.android.ui.components.KubunoButtonVariant
+import com.kubuno.android.ui.components.KubunoTextField
 import androidx.compose.ui.unit.sp
 import com.kubuno.android.ui.components.KubunoChip
 
@@ -619,20 +623,12 @@ private fun SessionExpiredState(busy: Boolean, onReauth: () -> Unit) {
             textAlign = TextAlign.Center,
         )
         Spacer(Modifier.height(16.dp))
-        if (busy) {
-            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-        } else {
-            Text(
-                "Se reconnecter",
-                style = ChatType.ConversationTitle,
-                color = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(MaterialTheme.colorScheme.primary)
-                    .clickable(onClick = onReauth)
-                    .padding(horizontal = 24.dp, vertical = 12.dp),
-            )
-        }
+        KubunoButton(
+            text = "Se reconnecter",
+            onClick = onReauth,
+            loading = busy,
+            size = KubunoButtonSize.LG,
+        )
     }
 }
 
@@ -745,11 +741,11 @@ private fun ClearConversationsDialog(count: Int, onDismiss: () -> Unit, onConfir
             )
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) {
-                Text("Effacer", color = MaterialTheme.colorScheme.error)
-            }
+            KubunoButton("Effacer", onClick = onConfirm, variant = KubunoButtonVariant.TEXT_DANGER, size = KubunoButtonSize.SM)
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Annuler") } },
+        dismissButton = {
+            KubunoButton("Annuler", onClick = onDismiss, variant = KubunoButtonVariant.GHOST, size = KubunoButtonSize.SM)
+        },
     )
 }
 

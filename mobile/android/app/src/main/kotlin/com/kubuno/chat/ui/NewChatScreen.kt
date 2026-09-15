@@ -47,6 +47,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.kubuno.android.ui.components.KubunoButton
+import com.kubuno.android.ui.components.KubunoButtonSize
+import com.kubuno.android.ui.components.KubunoButtonVariant
+import com.kubuno.android.ui.components.KubunoTextField
 import androidx.compose.ui.unit.sp
 import com.kubuno.chat.net.UserSuggestion
 
@@ -163,18 +167,10 @@ fun NewChatScreen(
                 )
             }
         } else {
-            TextField(
+            KubunoTextField(
                 value = state.groupName,
                 onValueChange = onGroupName,
-                singleLine = true,
-                placeholder = { Text("Nom du groupe", style = ChatType.Preview) },
-                shape = ChatShapes.Chip,
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                ),
+                placeholder = "Nom du groupe",
                 modifier = Modifier.fillMaxWidth().padding(horizontal = ChatDims.Gutter, vertical = 4.dp),
             )
             if (state.selected.isNotEmpty()) {
@@ -222,18 +218,10 @@ fun NewChatScreen(
             }
         }
 
-        TextField(
+        KubunoTextField(
             value = state.query,
             onValueChange = onQuery,
-            singleLine = true,
-            placeholder = { Text("Rechercher une personne", style = ChatType.Preview) },
-            shape = ChatShapes.Chip,
-            colors = TextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
-                focusedIndicatorColor = Color.Transparent,
-                unfocusedIndicatorColor = Color.Transparent,
-            ),
+            placeholder = "Rechercher une personne",
             modifier = Modifier.fillMaxWidth().padding(horizontal = ChatDims.Gutter, vertical = 6.dp),
         )
 

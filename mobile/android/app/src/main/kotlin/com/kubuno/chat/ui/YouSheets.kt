@@ -26,6 +26,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.kubuno.android.ui.components.KubunoButton
+import com.kubuno.android.ui.components.KubunoButtonSize
+import com.kubuno.android.ui.components.KubunoButtonVariant
+import com.kubuno.android.ui.components.KubunoTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import com.kubuno.android.account.SharedAccount
@@ -193,15 +197,15 @@ private fun StorageSheet(context: Context) {
         "Les photos, vidéos et messages vocaux téléchargés sont mis en cache pour un accès rapide. " +
             "Les vider les retéléchargera à la demande ; aucun message n'est supprimé."
     )
-    TextButton(
+    KubunoButton(
+        text = "Vider le cache",
         onClick = {
             clearCache(context)
             cleared = true
         },
+        variant = KubunoButtonVariant.TEXT,
         modifier = Modifier.padding(horizontal = 8.dp),
-    ) {
-        Text("Vider le cache", color = MaterialTheme.colorScheme.primary)
-    }
+    )
 }
 
 @Composable
