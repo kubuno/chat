@@ -59,7 +59,7 @@ export default function InfoPanel({ conversation, otherUser, onClose, onLeft }: 
     searchRef.current = setTimeout(async () => {
       try {
         const existingIds = new Set(members.map(m => m.user_id))
-        const res = await api.get<{ users: UserSuggestion[] }>('/users/search', { params: { q, limit: 8 } })
+        const res = await api.get<{ users: UserSuggestion[] }>('/users/search', { params: { q, limit: 8, scope: 'unit' } })
         setSuggestions(res.data.users.filter(u => !existingIds.has(u.id)))
       } catch { setSuggestions([]) }
       finally { setSearching(false) }

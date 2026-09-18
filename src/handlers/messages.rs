@@ -28,13 +28,26 @@ pub async fn list_messages(
     message_service::assert_member(&st.db, conv_id, user.id).await?;
 
     let limit = params.limit.unwrap_or(st.settings.chat.messages_page_size as i64).min(200);
+    // A message someone deleted stays in the thread as a tombstone (type
+    // `deleted`, empty envelope) so nobody wonders what used to be there.
+    // The two automatic purges also tombstone rows, and those must NOT show:
+    // an expired ephemeral message is hidden by the `expires_at` clause below,
+    // and a row past the instance retention by its age (0 = keep forever).
+    let retention_days = st.instance().retention_days;
 
+    // `before` names the oldest message the client already holds. Ids are
+    // random UUIDs, so the cursor is resolved to that message's (created_at, id)
+    // and the page is everything strictly older in the same order the page is
+    // sorted by — the only way the walk is deterministic and loses nothing.
     let messages: Vec<Message> = if let Some(before) = params.before {
         sqlx::query_as(
             "SELECT m.* FROM chat.messages m
              WHERE m.conversation_id = $1
-               AND m.id < $2
-               AND m.deleted_at IS NULL
+               AND (m.created_at, m.id) < (
+                   SELECT b.created_at, b.id FROM chat.messages b
+                   WHERE b.id = $2 AND b.conversation_id = $1)
+               AND (m.deleted_at IS NULL OR $5 <= 0
+                    OR m.created_at > NOW() - make_interval(days => $5))
                AND (m.scheduled_at IS NULL OR m.scheduled_at <= NOW() OR m.sender_id = $4)
                AND (m.expires_at IS NULL OR m.expires_at > NOW())
                AND m.created_at > COALESCE(
@@ -42,20 +55,22 @@ pub async fn list_messages(
                     WHERE conversation_id = $1 AND user_id = $4),
                    '-infinity'::timestamptz
                )
-             ORDER BY m.created_at DESC
+             ORDER BY m.created_at DESC, m.id DESC
              LIMIT $3",
         )
         .bind(conv_id)
         .bind(before)
         .bind(limit)
         .bind(user.id)
+        .bind(retention_days)
         .fetch_all(&st.db)
         .await?
     } else {
         sqlx::query_as(
             "SELECT m.* FROM chat.messages m
              WHERE m.conversation_id = $1
-               AND m.deleted_at IS NULL
+               AND (m.deleted_at IS NULL OR $4 <= 0
+                    OR m.created_at > NOW() - make_interval(days => $4))
                AND (m.scheduled_at IS NULL OR m.scheduled_at <= NOW() OR m.sender_id = $3)
                AND (m.expires_at IS NULL OR m.expires_at > NOW())
                AND m.created_at > COALESCE(
@@ -63,12 +78,13 @@ pub async fn list_messages(
                     WHERE conversation_id = $1 AND user_id = $3),
                    '-infinity'::timestamptz
                )
-             ORDER BY m.created_at DESC
+             ORDER BY m.created_at DESC, m.id DESC
              LIMIT $2",
         )
         .bind(conv_id)
         .bind(limit)
         .bind(user.id)
+        .bind(retention_days)
         .fetch_all(&st.db)
         .await?
     };
@@ -179,16 +195,43 @@ pub async fn send_message(
 ) -> ChatResult<Json<Value>> {
     message_service::assert_member(&st.db, conv_id, user.id).await?;
 
-    // Anti-replay : vérifier le nonce
-    let nonce_exists: Option<Uuid> = sqlx::query_scalar(
-        "SELECT id FROM chat.messages WHERE conversation_id = $1 AND nonce = $2",
+    // Chat moderation: in a moderated meeting, only a host writes. Checked on
+    // the SERVER — hiding the composer would stop a person, not a client.
+    let room: Option<(bool, serde_json::Value, Option<String>)> = sqlx::query_as(
+        "SELECT c.is_meeting, c.meeting_settings, m.role
+           FROM chat.conversations c
+           LEFT JOIN chat.conversation_members m
+             ON m.conversation_id = c.id AND m.user_id = $2 AND m.left_at IS NULL
+          WHERE c.id = $1",
+    )
+    .bind(conv_id)
+    .bind(user.id)
+    .fetch_optional(&st.db)
+    .await?;
+    if let Some((true, settings, role)) = room {
+        let s = crate::models::conversation::MeetingSettings::read(&settings);
+        let is_host = matches!(role.as_deref(), Some("owner") | Some("admin"));
+        if s.restricts() && !s.allow_messages && !is_host {
+            return Err(ChatError::Forbidden);
+        }
+    }
+
+    // The nonce is the client's idempotency key. A retry of the same send
+    // (the network dropped mid-POST, an offline relay re-injected the same
+    // envelope) gets the message that already exists instead of an error;
+    // only a nonce reused by ANOTHER sender is a replay and is refused.
+    let existing: Option<Message> = sqlx::query_as(
+        "SELECT * FROM chat.messages WHERE conversation_id = $1 AND nonce = $2",
     )
     .bind(conv_id)
     .bind(&dto.nonce)
     .fetch_optional(&st.db)
     .await?;
 
-    if nonce_exists.is_some() {
+    if let Some(existing) = existing {
+        if existing.sender_id == user.id {
+            return Ok(Json(json!({ "message": existing, "duplicate": true })));
+        }
         return Err(ChatError::Conflict("Nonce déjà utilisé (anti-replay)".into()));
     }
 
@@ -286,9 +329,15 @@ pub async fn send_message(
             .send_to_many(
                 &members,
                 WsEnvelope { event: WsEvent::NewMessage, payload },
-                Some(user.id),
+                // No exclusion: the sender's OTHER tabs and devices must see the
+                // message live. The tab that sent it already holds the message
+                // (appended from the HTTP response) and drops the duplicate by id.
+                None,
             )
             .await;
+
+        // Wake up the recipients' devices through the core (push), content-free.
+        crate::events::publisher::emit_new_message(&st, &msg).await;
     }
 
     Ok(Json(json!({ "message": msg })))
@@ -505,7 +554,8 @@ pub async fn mark_read(
     .execute(&st.db)
     .await?;
 
-    // Notifier l'expéditeur que ses messages ont été lus
+    // Tell the sender their messages were read — and the reader's OWN other
+    // devices, so a conversation read on one device clears on the others too.
     let members = message_service::get_member_ids(&st.db, conv_id).await?;
     st.ws_hub
         .send_to_many(
@@ -518,7 +568,7 @@ pub async fn mark_read(
                     "up_to":           dto.up_to_message_id,
                 }),
             },
-            Some(user.id),
+            None,
         )
         .await;
 

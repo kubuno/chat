@@ -31,7 +31,7 @@ pub enum SpaceInvitePolicy {
     Managers,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct InstanceConfig {
     /// Days a message is kept before the retention worker tombstones its
     /// ciphertext. `0` = keep forever.
@@ -56,6 +56,19 @@ pub struct InstanceConfig {
     /// Whether guest accounts (the core's `guest` role — the local equivalent of
     /// an outside participant) may start a conversation or be added to a space.
     pub allow_guest_conversations: bool,
+    /// STUN server URLs handed to every call (`stun:host:port`). Empty = none:
+    /// calls then only work between hosts that can reach each other directly.
+    pub ice_stun_urls: Vec<String>,
+    /// TURN relay URLs (`turn:` / `turns:`). Empty = no relay, so a call
+    /// between two different networks behind NAT fails.
+    pub ice_turn_urls: Vec<String>,
+    /// coturn's `static-auth-secret`. When set, every client gets its own
+    /// short-lived TURN credential derived from it (the TURN REST API), and
+    /// the secret itself never leaves the server.
+    pub ice_turn_secret: String,
+    /// Static TURN credential, used only when no shared secret is configured.
+    pub ice_turn_username: String,
+    pub ice_turn_credential: String,
 }
 
 impl Default for InstanceConfig {
@@ -70,6 +83,11 @@ impl Default for InstanceConfig {
             space_invite_policy:  SpaceInvitePolicy::Members,
             allow_public_spaces:  true,
             allow_guest_conversations: true,
+            ice_stun_urls:        Vec::new(),
+            ice_turn_urls:        Vec::new(),
+            ice_turn_secret:      String::new(),
+            ice_turn_username:    String::new(),
+            ice_turn_credential:  String::new(),
         }
     }
 }
@@ -119,7 +137,40 @@ impl InstanceConfig {
                 "allow_guest_conversations",
                 d.allow_guest_conversations,
             ),
+            ice_stun_urls: url_list(str_at("ice_stun_urls").as_deref(), &["stun:", "stuns:"]),
+            ice_turn_urls: url_list(str_at("ice_turn_urls").as_deref(), &["turn:", "turns:"]),
+            ice_turn_secret: str_at("ice_turn_secret").unwrap_or_default().trim().to_owned(),
+            ice_turn_username: str_at("ice_turn_username").unwrap_or_default().trim().to_owned(),
+            ice_turn_credential: str_at("ice_turn_credential").unwrap_or_default().trim().to_owned(),
         }
+    }
+
+    /// The ICE servers a client should hand to its `RTCPeerConnection`, as
+    /// `[{urls, username?, credential?}]`. STUN entries are plain; the TURN
+    /// entry carries either a credential minted for `user_id` (TURN REST API,
+    /// valid `ttl_secs`) or the static one. Nothing is returned when the
+    /// administrator configured nothing — the client then decides what to do.
+    pub fn ice_servers(&self, user_id: uuid::Uuid, now_unix: i64, ttl_secs: i64) -> Vec<Value> {
+        let mut out = Vec::new();
+        if !self.ice_stun_urls.is_empty() {
+            out.push(serde_json::json!({ "urls": self.ice_stun_urls }));
+        }
+        if !self.ice_turn_urls.is_empty() {
+            if !self.ice_turn_secret.is_empty() {
+                let (username, credential) = turn_rest_credential(&self.ice_turn_secret, user_id, now_unix + ttl_secs);
+                out.push(serde_json::json!({
+                    "urls": self.ice_turn_urls, "username": username, "credential": credential,
+                }));
+            } else if !self.ice_turn_username.is_empty() {
+                out.push(serde_json::json!({
+                    "urls": self.ice_turn_urls,
+                    "username": self.ice_turn_username, "credential": self.ice_turn_credential,
+                }));
+            } else {
+                out.push(serde_json::json!({ "urls": self.ice_turn_urls }));
+            }
+        }
+        out
     }
 
     /// The flags the browser is allowed to know about, so the interface can hide
@@ -142,6 +193,33 @@ impl InstanceConfig {
             "default_expiry_hours": self.default_expiry_hours,
         })
     }
+}
+
+/// Splits an administrator's comma/whitespace-separated list, keeping only the
+/// entries that start with one of `schemes` — a typo never reaches a client.
+fn url_list(raw: Option<&str>, schemes: &[&str]) -> Vec<String> {
+    raw.unwrap_or("")
+        .split([',', ' ', '\n', ';'])
+        .map(str::trim)
+        .filter(|u| !u.is_empty() && schemes.iter().any(|s| u.starts_with(s)))
+        .map(str::to_owned)
+        .collect()
+}
+
+/// TURN REST API credential (coturn `use-auth-secret`): the username is
+/// `<expiry-unix>:<user>` and the password is `base64(HMAC-SHA1(secret, username))`.
+fn turn_rest_credential(secret: &str, user_id: uuid::Uuid, expires_unix: i64) -> (String, String) {
+    use base64::Engine;
+    use hmac::{Hmac, Mac};
+    let username = format!("{expires_unix}:{user_id}");
+    // HMAC accepts a key of any length; the error branch is unreachable but
+    // an empty credential is still safer than a panic on the request path.
+    let Ok(mut mac) = Hmac::<sha1::Sha1>::new_from_slice(secret.as_bytes()) else {
+        return (username, String::new());
+    };
+    mac.update(username.as_bytes());
+    let credential = base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes());
+    (username, credential)
 }
 
 /// Reads the instance settings from the core. Any failure yields `None`, so the

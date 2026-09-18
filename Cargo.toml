@@ -44,6 +44,9 @@ kubuno-storage     = { workspace = true }
 tokio-tungstenite  = "0.24"
 sha2               = { workspace = true }
 base64             = { workspace = true }
+# TURN REST credentials (coturn `use-auth-secret`): HMAC-SHA1 of a time-limited username.
+hmac               = "0.12"
+sha1               = "0.10"
 
 # ─── Workspace mono-crate (deps tierces recopiées du monorepo kubuno/core ;
 #     crates partagées consommées via dépendances git taguées) ───

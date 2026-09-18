@@ -13,6 +13,29 @@ export interface ChatInstanceConfig {
   space_creation:       'everyone' | 'admins'
   space_invite_policy:  'members' | 'managers'
   default_expiry_hours: number
+  /** STUN/TURN servers set by the administrator, ready for RTCPeerConnection.
+   *  A TURN credential in here is minted for the caller and short-lived. */
+  ice_servers:          RTCIceServer[]
+}
+
+/**
+ * True when a request was refused because the meeting has been ended. The core
+ * client flattens errors to `{ code, message }` at the root, so the code is
+ * read there first, with the axios shape kept as a fallback for any caller
+ * that bypasses the interceptor.
+ */
+export function isMeetingEnded(e: unknown): boolean {
+  return errorCode(e) === 'MEETING_ENDED'
+}
+
+/** True when the meeting is restricted but this person may ask to be let in. */
+export function isKnockRequired(e: unknown): boolean {
+  return errorCode(e) === 'KNOCK_REQUIRED'
+}
+
+function errorCode(e: unknown): string | undefined {
+  const err = e as { code?: string; response?: { data?: { error?: string } } }
+  return err?.code ?? err?.response?.data?.error
 }
 
 export interface Conversation {
@@ -27,6 +50,38 @@ export interface Conversation {
   created_at:  string
   updated_at:  string
   is_meeting?: boolean
+  meeting_settings?: MeetingSettings
+  /** Set while the room belongs to a form that has not been saved yet. */
+  provisional_until?: string | null
+  /** `<module>:<id>` of whatever owns this room's title, when something does. */
+  linked_ref?: string | null
+}
+
+/** What a host decided about a meeting, ahead of it. Every field is enforced —
+ *  the first two by the meeting page (the media is peer-to-peer), the last two
+ *  by the server. See `MeetingSettingsDialog`. */
+export interface MeetingSettings {
+  host_management:    boolean
+  allow_screen_share: boolean
+  allow_reactions:    boolean
+  allow_messages:     boolean
+  host_joins_first:   boolean
+  /** `open`: whoever holds the link walks in. `trusted`: only people the host
+   *  put in the room — anyone else asks, when `allow_knocking` is on. */
+  access_type:        'open' | 'trusted'
+  allow_knocking:     boolean
+  /** May a guest launch an in-meeting activity, or only the host? */
+  allow_participant_activities: boolean
+  /** May another module obtain the meeting's audio and video? */
+  allow_media_capture:          boolean
+  /** Start recording as soon as someone who may record is in the room. */
+  auto_record:                  boolean
+}
+
+/** Someone waiting to be let into a restricted meeting. */
+export interface MeetingKnock {
+  user_id:      string
+  requested_at: string
 }
 
 export interface OtherUser {
@@ -56,6 +111,16 @@ export interface ConversationSummary {
   is_favorite:   boolean
   muted_until:   string | null
   other_user:    OtherUser | null
+  /** Newest message the caller may see, for a per-row preview (same envelope as in the list). */
+  last_message:  LastMessagePreview | null
+}
+
+export interface LastMessagePreview {
+  id:             string
+  sender_id:      string
+  message_type:   string
+  encrypted_data: string
+  created_at:     string
 }
 
 export interface Message {
@@ -168,10 +233,48 @@ export const chatApi = {
     }).then(r => r.data.conversation),
 
   // Meeting room = open-join group conversation (scheduled video meetings).
-  createMeeting: (name: string, memberIds: string[] = []) =>
+  //
+  // `provisional` asks for a room that belongs to a form still being written:
+  // it stays out of everyone's meeting list and goes away on its own unless the
+  // form says it was saved. See the three calls below.
+  createMeeting: (name: string, memberIds: string[] = [], provisional = false) =>
     api.post<{ conversation: Conversation }>('/chat/conversations', {
       conv_type: 'group', name, member_ids: memberIds, is_meeting: true,
+      ...(provisional ? { provisional: true } : {}),
     }).then(r => r.data.conversation),
+
+  /** The form holding this draft room is still open — push its deadline back. */
+  keepProvisional: (convId: string) =>
+    api.post(`/chat/conversations/${convId}/provisional/keep`).then(() => undefined),
+
+  /** The form was saved: the room stops being a draft and becomes a real one. */
+  confirmProvisional: (convId: string) =>
+    api.post(`/chat/conversations/${convId}/provisional/confirm`).then(() => undefined),
+
+  /** The call was taken off the form, or the form was thrown away. */
+  dropProvisional: (convId: string) =>
+    api.delete<{ deleted: boolean }>(`/chat/conversations/${convId}/provisional`)
+      .then(r => r.data.deleted),
+
+  updateMeetingSettings: (convId: string, settings: MeetingSettings) =>
+    api.patch<{ meeting_settings: MeetingSettings }>(`/chat/conversations/${convId}/meeting-settings`, settings)
+      .then(r => r.data.meeting_settings),
+
+  /** "Let me in." Idempotent: asking twice is asking once. */
+  knock: (convId: string) =>
+    api.post<{ status: string }>(`/chat/conversations/${convId}/knock`).then(r => r.data.status),
+
+  /** Who is waiting (host), or — with `me` — where my own request stands. */
+  listKnocks: (convId: string) =>
+    api.get<{ knocks: MeetingKnock[] }>(`/chat/conversations/${convId}/knocks`).then(r => r.data.knocks),
+
+  /** Where my own request stands, and whether I may still ask at all. */
+  myKnock: (convId: string) =>
+    api.get<{ status: string | null; exhausted: boolean }>(`/chat/conversations/${convId}/knocks?me=true`)
+      .then(r => r.data),
+
+  decideKnock: (convId: string, userId: string, admit: boolean) =>
+    api.post<{ ok: boolean }>(`/chat/conversations/${convId}/knocks/${userId}`, { admit }).then(r => r.data),
 
   joinMeeting: (convId: string) =>
     api.post<{ ok: boolean }>(`/chat/conversations/${convId}/join`).then(r => r.data),
@@ -253,6 +356,15 @@ export const chatApi = {
   // uploaded like any other media (the recipient never contacts GIPHY).
   fetchGif: (url: string) =>
     api.get<Blob>('/chat/gifs/fetch', { params: { url }, responseType: 'blob' }).then(r => r.data),
+
+  // Ends a meeting for everyone: the room is closed on the server, so a client
+  // that missed the direct signal still leaves and nobody walks back in.
+  endMeeting: (convId: string) =>
+    api.post<{ ok: boolean }>(`/chat/conversations/${convId}/end-meeting`).then(r => r.data),
+
+  // How the audio and video of a call were rated, asked once it is left.
+  rateCall: (convId: string, rating: number) =>
+    api.post(`/chat/conversations/${convId}/call-rating`, { rating }),
 
   getReadState: (convId: string) =>
     api.get<{ members: { user_id: string; last_read_message_id: string | null; last_read_at: string }[] }>(
@@ -338,4 +450,27 @@ export const chatApi = {
     api.get<ArrayBuffer>(`/chat/media/${mediaId}`, { responseType: 'arraybuffer' }).then(r => r.data),
 
   getMediaUrl: (mediaId: string) => `/api/v1/chat/media/${mediaId}`,
+}
+
+/**
+ * Drop a draft room from a page that is on its way out.
+ *
+ * Not the usual client: on `pagehide` the browser cancels requests still in
+ * flight, and this one has to outlive the page — which is what `keepalive` is
+ * for. It carries no header because there is no code left to add one; the proxy
+ * falls back to the session cookie, which is still being sent.
+ *
+ * Best effort, and deliberately so: a page can also be killed, lose the network
+ * or crash, and none of those send anything. The room's own deadline is what
+ * actually guarantees it goes away — this only makes it immediate in the common
+ * case of a reload or a closed tab.
+ */
+export function dropProvisionalOnUnload(convId: string): void {
+  try {
+    void fetch(`/api/v1/chat/conversations/${convId}/provisional`, {
+      method:      'DELETE',
+      credentials: 'same-origin',
+      keepalive:   true,
+    }).catch(() => { /* the sweep is the backstop */ })
+  } catch { /* idem */ }
 }

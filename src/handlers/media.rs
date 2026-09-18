@@ -34,31 +34,28 @@ pub async fn upload_media(
         .map_err(|e| ChatError::Validation(e.to_string()))?
     {
         let field_name = field.name().unwrap_or("").to_string();
-        match field_name.as_str() {
-            "file" => {
-                if let Some(ct) = field.content_type() {
-                    content_type = ct.to_string();
-                }
-                if let Some(name) = field.file_name() {
-                    filename = name.to_string();
-                }
-                let data = field
-                    .bytes()
-                    .await
-                    .map_err(|e| ChatError::Validation(e.to_string()))?;
-
-                // Instance cap on (encrypted) attachment size — a bound on the
-                // bytes received, the one media policy E2E leaves possible.
-                let max_mb = st.instance().max_media_mb;
-                let max_bytes = max_mb as u64 * 1024 * 1024;
-                if data.len() as u64 > max_bytes {
-                    return Err(ChatError::Validation(format!(
-                        "Fichier trop volumineux (max {max_mb} MB)"
-                    )));
-                }
-                file_data = Some(data);
+        if field_name == "file" {
+            if let Some(ct) = field.content_type() {
+                content_type = ct.to_string();
             }
-            _ => {}
+            if let Some(name) = field.file_name() {
+                filename = name.to_string();
+            }
+            let data = field
+                .bytes()
+                .await
+                .map_err(|e| ChatError::Validation(e.to_string()))?;
+
+            // Instance cap on (encrypted) attachment size — a bound on the
+            // bytes received, the one media policy E2E leaves possible.
+            let max_mb = st.instance().max_media_mb;
+            let max_bytes = max_mb as u64 * 1024 * 1024;
+            if data.len() as u64 > max_bytes {
+                return Err(ChatError::Validation(format!(
+                    "Fichier trop volumineux (max {max_mb} MB)"
+                )));
+            }
+            file_data = Some(data);
         }
     }
 
@@ -120,19 +117,26 @@ pub async fn download_media(
 
     // Vérifier que l'utilisateur a accès (uploader ou membre d'une conv qui contient ce média)
     if row.uploader_id != user.id {
-        let has_access: Option<i64> = sqlx::query_scalar(
-            "SELECT 1 FROM chat.messages m
-             JOIN chat.conversation_members cm
-               ON cm.conversation_id = m.conversation_id AND cm.user_id = $2 AND cm.left_at IS NULL
-             WHERE m.media_meta->>'media_id' = $1::text
-             LIMIT 1",
+        // `EXISTS` yields a boolean; the previous `SELECT 1` was decoded as i64
+        // while Postgres types the literal as int4, so this query failed for
+        // every non-uploader — i.e. the recipient of any media saw a database
+        // error and a permanent "media unavailable", while the uploader (who
+        // skips this check) always saw it fine.
+        let has_access: bool = sqlx::query_scalar(
+            "SELECT EXISTS (
+                 SELECT 1 FROM chat.messages m
+                 JOIN chat.conversation_members cm
+                   ON cm.conversation_id = m.conversation_id
+                  AND cm.user_id = $2 AND cm.left_at IS NULL
+                 WHERE m.media_meta->>'media_id' = $1::text
+             )",
         )
         .bind(media_id)
         .bind(user.id)
-        .fetch_optional(&st.db)
+        .fetch_one(&st.db)
         .await?;
 
-        if has_access.is_none() {
+        if !has_access {
             return Err(ChatError::Forbidden);
         }
     }

@@ -13,7 +13,7 @@
  */
 import type { HomeView } from './chatStore'
 
-const VIEWS: readonly HomeView[] = ['home', 'mentions', 'starred', 'browse']
+const VIEWS: readonly HomeView[] = ['home', 'mentions', 'starred', 'browse', 'meetings']
 
 /** Target encoded in a chat URL. */
 export interface ChatTarget {

@@ -183,7 +183,7 @@ export default function ConversationList({ onSelect, activeId }: Props) {
     setSearching(true)
     searchTimeout.current = setTimeout(async () => {
       try {
-        const res = await api.get<{ users: UserSuggestion[] }>('/users/search', { params: { q, limit: 8 } })
+        const res = await api.get<{ users: UserSuggestion[] }>('/users/search', { params: { q, limit: 8, scope: 'unit' } })
         setSuggestions(res.data.users.filter(u => u.id !== myId))
       } catch {
         setSuggestions([])
@@ -508,7 +508,7 @@ function GroupCreateForm({
     setSearching(true)
     searchRef.current = setTimeout(async () => {
       try {
-        const res = await api.get<{ users: UserSuggestion[] }>('/users/search', { params: { q, limit: 8 } })
+        const res = await api.get<{ users: UserSuggestion[] }>('/users/search', { params: { q, limit: 8, scope: 'unit' } })
         const filtered = res.data.users.filter(u => u.id !== myId && !selected.find(s => s.id === u.id))
         setSuggestions(filtered)
       } catch { setSuggestions([]) }

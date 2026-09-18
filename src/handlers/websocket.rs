@@ -59,7 +59,7 @@ async fn handle_socket(socket: WebSocket, st: AppState, user: ChatUser) {
     let mut send_task = tokio::spawn(async move {
         while let Ok(env) = rx.recv().await {
             if let Ok(json_str) = serde_json::to_string(&env) {
-                if sink.send(Message::Text(json_str.into())).await.is_err() {
+                if sink.send(Message::Text(json_str)).await.is_err() {
                     break;
                 }
             }
@@ -137,6 +137,16 @@ async fn handle_client_message(st: &AppState, user_id: Uuid, raw: &str) {
                 payload: json!({ "from_user_id": user_id, "signal": val.get("signal") }),
             };
             st.ws_hub.send_to(to_user, env).await;
+
+            // A ring also reaches the callee's asleep devices through the core
+            // push, so a native client can show its incoming-call screen.
+            let signal = val.get("signal");
+            let kind = signal.and_then(|s| s.get("type")).and_then(|v| v.as_str());
+            let room = signal.and_then(|s| s.get("room")).and_then(|v| v.as_str()).and_then(|s| Uuid::parse_str(s).ok());
+            if let (Some("call_ring"), Some(room)) = (kind, room) {
+                let call_type = signal.and_then(|s| s.get("call_type")).and_then(|v| v.as_str()).unwrap_or("audio");
+                crate::events::publisher::emit_call_ring(st, room, user_id, to_user, call_type).await;
+            }
         }
         _ => {}
     }

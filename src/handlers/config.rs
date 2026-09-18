@@ -16,7 +16,12 @@ use crate::state::AppState;
 /// GET /config — public flags of the instance settings.
 pub async fn get_config(
     State(st): State<AppState>,
-    _user: ChatUser,
+    user: ChatUser,
 ) -> ChatResult<Json<Value>> {
-    Ok(Json(st.instance().public_flags()))
+    let cfg = st.instance();
+    let mut flags = cfg.public_flags();
+    // ICE servers are per caller: a TURN credential is minted for this user
+    // and lives one day, so a client re-reads the config when a call starts.
+    flags["ice_servers"] = Value::Array(cfg.ice_servers(user.id, chrono::Utc::now().timestamp(), 24 * 3600));
+    Ok(Json(flags))
 }

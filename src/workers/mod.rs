@@ -22,15 +22,52 @@ pub async fn run(state: Arc<AppState>) {
         if let Err(e) = purge_expired(&state).await {
             tracing::warn!(error = %e, "Purge des messages éphémères échouée");
         }
+        // Draft rooms whose form never came back. Nothing is waiting on this,
+        // so once every five minutes (20 × 15s) is soon enough.
+        ticks = ticks.wrapping_add(1);
+        if ticks.is_multiple_of(20) {
+            if let Err(e) = purge_provisional(&state).await {
+                tracing::warn!(error = %e, "Purge des salles de réunion provisoires échouée");
+            }
+        }
         // The retention purge scans by age, not by a per-message TTL, so it runs
         // about once an hour (240 × 15s) rather than on every tick.
-        ticks = ticks.wrapping_add(1);
-        if ticks % 240 == 0 {
+        if ticks.is_multiple_of(240) {
             if let Err(e) = purge_by_retention(&state).await {
                 tracing::warn!(error = %e, "Purge de rétention chat échouée");
             }
         }
     }
+}
+
+/// Delete the rooms of drafts that were never finished.
+///
+/// A room attached to an event has to be created before the event is saved —
+/// the link is what gets saved. Closing the form tells us to take it back, but
+/// a refreshed page, a closed tab, a crash or a lost network tell us nothing at
+/// all. So the room carries its own deadline and this is what reads it: no
+/// message from the browser is required for the room to go away, which is the
+/// whole point.
+///
+/// Guarded twice over: still provisional (the form never confirmed it), and
+/// never used (nobody joined it, nobody wrote in it). A room someone walked
+/// into is not a leftover, whatever happened to the form that made it.
+async fn purge_provisional(st: &AppState) -> anyhow::Result<()> {
+    let deleted = sqlx::query(&format!(
+        "DELETE FROM chat.conversations c
+          WHERE c.provisional_until IS NOT NULL
+            AND c.provisional_until < NOW()
+            AND {}",
+        crate::handlers::conversations::UNUSED_ROOM
+    ))
+    .execute(&st.db)
+    .await?
+    .rows_affected();
+
+    if deleted > 0 {
+        tracing::info!(count = deleted, "Salles de réunion provisoires abandonnées supprimées");
+    }
+    Ok(())
 }
 
 /// Tombstone messages older than the instance retention window (`0` = keep
@@ -95,6 +132,7 @@ async fn deliver_scheduled(st: &AppState) -> anyhow::Result<()> {
                 None,
             )
             .await;
+        crate::events::publisher::emit_new_message(st, &msg).await;
     }
     Ok(())
 }

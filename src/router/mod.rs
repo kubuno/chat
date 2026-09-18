@@ -6,7 +6,7 @@ use axum::{
 use tower_http::{cors::CorsLayer, trace::TraceLayer};
 
 use crate::{
-    handlers::{config, conversations, gifs, keys, media, messages, presence, unfurl, websocket},
+    handlers::{calls, config, conversations, gifs, internal_events, keys, media, messages, presence, unfurl, websocket},
     state::AppState,
 };
 
@@ -20,6 +20,15 @@ pub fn build(state: AppState) -> Router {
         .route("/conversations/:id/leave",             post(conversations::leave_conversation))
         .route("/conversations/:id/join",              post(conversations::join_meeting))
         .route("/conversations/:id/member-settings",   patch(conversations::update_member_settings))
+        .route("/conversations/:id/meeting-settings",  patch(conversations::update_meeting_settings))
+        // A room that only exists for a form still being filled in: kept alive
+        // while it is open, made permanent when it is saved, dropped otherwise.
+        .route("/conversations/:id/provisional",         delete(conversations::drop_provisional))
+        .route("/conversations/:id/provisional/keep",    post(conversations::keep_provisional))
+        .route("/conversations/:id/provisional/confirm", post(conversations::confirm_provisional))
+        .route("/conversations/:id/knock",             post(conversations::knock))
+        .route("/conversations/:id/knocks",            get(conversations::list_knocks))
+        .route("/conversations/:id/knocks/:uid",       post(conversations::decide_knock))
         .route("/conversations/:id/clear",             post(conversations::clear_messages))
         .route("/conversations/:id/members",           post(conversations::add_members))
         .route("/conversations/:id/members/:uid",      delete(conversations::remove_member))
@@ -29,6 +38,8 @@ pub fn build(state: AppState) -> Router {
         .route("/conversations/:id/read",              post(messages::mark_read))
         .route("/conversations/:id/read-state",        get(messages::read_state))
         .route("/conversations/:id/pinned",            get(messages::list_pinned))
+        .route("/conversations/:id/call-rating",       post(calls::rate_call))
+        .route("/conversations/:id/end-meeting",       post(calls::end_meeting))
         .route("/unfurl",                              get(unfurl::unfurl))
         .route("/messages/:id",                        patch(messages::edit_message).delete(messages::delete_message))
         .route("/messages/:id/pin",                    post(messages::pin_message))
@@ -55,12 +66,21 @@ pub fn build(state: AppState) -> Router {
         .route("/ws",                                  get(websocket::ws_handler))
         .with_state(state.clone());
 
+    // Internal routes (core → module event delivery). Reached directly by the
+    // core, not through its proxy, so guarded by the shared internal secret and
+    // never by the per-user token.
+    let internal = Router::new()
+        .route("/ipc/events", post(internal_events::handle_event))
+        .layer(axum::middleware::from_fn_with_state(state.clone(), crate::middleware::require_internal_secret))
+        .with_state(state.clone());
+
     let health = Router::new()
         .route("/health", get(health_handler))
         .with_state(state);
 
     Router::new()
         .merge(health)
+        .merge(internal)
         .merge(chat_routes)
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024)) // 100 MB max pour les médias
         .layer(CorsLayer::permissive())

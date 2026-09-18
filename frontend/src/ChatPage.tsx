@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useChatStore, getConvName, type HomeView } from './chatStore'
+import MeetingsView from './MeetingsView'
 import { chatApi, type ConversationSummary } from './api'
 import { useAuthStore } from '@kubuno/sdk'
 import { ConfirmDialog, MenuDropdown, useMenuDropdown, Toggle, type MenuItem } from '@ui'
@@ -128,8 +129,10 @@ export default function ChatPage() {
   // Single pane: an open conversation replaces the list entirely. Dual pane: the
   // list stays in a narrow left column and the conversation fills the rest —
   // unless it was expanded, which makes it full width there too.
-  const fullConv = activeConvId && (layout === 'single' || convDisplay === 'full')
-  const dual = layout === 'dual' && !fullConv
+  const fullConv = activeConvId && homeView !== 'meetings' && (layout === 'single' || convDisplay === 'full')
+  // The meetings view is a full-width standalone page (its own week strip and
+  // agenda), never the narrow master column of the dual layout.
+  const dual = layout === 'dual' && !fullConv && homeView !== 'meetings'
 
   const mainView = (
     <>
@@ -137,6 +140,7 @@ export default function ChatPage() {
       {homeView === 'starred'  && <HomeList starred layout={layout} onLayout={setLayout} />}
       {homeView === 'mentions' && <MentionsView />}
       {homeView === 'browse'   && <BrowseSpaces />}
+      {homeView === 'meetings' && <MeetingsView />}
     </>
   )
 
@@ -302,7 +306,9 @@ function HomeList({ starred = false, layout, onLayout }: {
                 {name[0]?.toUpperCase() ?? '?'}
               </div>
               <div className="flex-1 min-w-0 border-b border-gray-100 pb-2.5 -mb-2.5 group-last:border-0">
-                <div className="flex items-baseline justify-between gap-3">
+                {/* Fixed height so the row does not grow when the hover
+                    actions (taller than the text) appear. */}
+                <div className="flex items-center justify-between gap-3 h-7">
                   <p className={`text-[15px] truncate ${isUnread(summary) ? 'font-semibold text-gray-900' : 'text-gray-800'}`}>
                     {name}
                   </p>

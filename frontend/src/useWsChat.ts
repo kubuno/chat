@@ -68,10 +68,16 @@ export function useWsChat(isOnChatPage: () => boolean) {
   useEffect(() => {
     if (!accessToken) return
 
+    // One flag per effect run, not a shared ref: when the access token is
+    // renewed the previous socket is closed by the cleanup below, but its
+    // `onclose` fires AFTER the next run has already re-armed a shared flag —
+    // so it used to schedule a reconnect of its own, leaking one extra socket
+    // per renewal (every event then arrived once per leaked socket).
+    let alive = true
     activeRef.current = true
 
     function connect() {
-      if (!activeRef.current) return
+      if (!alive) return
       setWsStatus('connecting')
       const token = useAuthStore.getState().accessToken ?? ''
       const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/v1/chat/ws?token=${encodeURIComponent(token)}`)
@@ -79,7 +85,7 @@ export function useWsChat(isOnChatPage: () => boolean) {
 
       const connectTime = Date.now()
       ws.onopen = () => {
-        if (!activeRef.current) { ws.close(); return }
+        if (!alive) { ws.close(); return }
         reconnectDelayRef.current = 2_000  // reset backoff on successful open
         setWsStatus('connected')
         timerRef.current = window.setInterval(() => {
@@ -89,7 +95,7 @@ export function useWsChat(isOnChatPage: () => boolean) {
 
       ws.onclose = () => {
         if (timerRef.current) clearInterval(timerRef.current)
-        if (!activeRef.current) return
+        if (!alive) return
         setWsStatus('disconnected')
 
         const openedSuccessfully = Date.now() - connectTime > 2_000
@@ -104,7 +110,7 @@ export function useWsChat(isOnChatPage: () => boolean) {
       ws.onerror = () => ws.close()
 
       ws.onmessage = (ev) => {
-        if (!activeRef.current) return
+        if (!alive) return
         try {
           const env = JSON.parse(ev.data) as { event: string; payload: Record<string, unknown> }
           handleEvent(env.event, env.payload)
@@ -133,7 +139,10 @@ export function useWsChat(isOnChatPage: () => boolean) {
           // ou si la conversation n'est pas celle actuellement affichée
           const onChat = isOnChatRef.current()
           const isActiveConv = useChatStore.getState().activeConvId === msg.conversation_id
-          if (!onChat || !isActiveConv) {
+          const fromMe = msg.sender_id === currentUserRef.current?.id
+          // A message the user sent from another device arrives here too now:
+          // update the thread, but never raise a notification for one's own message.
+          if (!fromMe && (!onChat || !isActiveConv)) {
             const convSummary = useChatStore.getState().conversations.find(
               c => c.conversation.id === msg.conversation_id
             )
@@ -213,10 +222,12 @@ export function useWsChat(isOnChatPage: () => boolean) {
             // Ne pas sonner si déjà en appel.
             if (!useChatStore.getState().activeCall) {
               setIncomingCall({
-                room:       room ?? '',
-                fromUserId: fromUser,
-                fromName:   (sig.from_name as string) ?? fromUser.slice(0, 8),
-                type:       (sig.call_type as 'audio' | 'video') ?? 'audio',
+                room:         room ?? '',
+                fromUserId:   fromUser,
+                fromName:     (sig.from_name as string) ?? fromUser.slice(0, 8),
+                type:         (sig.call_type as 'audio' | 'video') ?? 'audio',
+                meeting:      sig.is_meeting === true,
+                meetingTitle: (sig.meeting_title as string) ?? undefined,
               })
             }
           } else if (sigType === 'call_leave') {
@@ -247,6 +258,7 @@ export function useWsChat(isOnChatPage: () => boolean) {
     connect()
 
     return () => {
+      alive = false
       activeRef.current = false
       if (timerRef.current) clearInterval(timerRef.current)
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)

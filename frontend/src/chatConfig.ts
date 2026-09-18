@@ -18,6 +18,7 @@ const FALLBACK: ChatInstanceConfig = {
   space_creation:       'everyone',
   space_invite_policy:  'members',
   default_expiry_hours: 0,
+  ice_servers:          [],
 }
 
 let cached: ChatInstanceConfig | null = null
@@ -33,6 +34,13 @@ export function loadChatConfig(): Promise<ChatInstanceConfig> {
       .finally(() => { inflight = null })
   }
   return inflight
+}
+
+/** Re-reads the policy. A call needs it fresh: the TURN credential inside is
+ *  minted per user with a limited lifetime, and a tab may stay open for days. */
+export function refreshChatConfig(): Promise<ChatInstanceConfig> {
+  cached = null
+  return loadChatConfig()
 }
 
 /** The policy already known, without waiting — the permissive fallback until then. */

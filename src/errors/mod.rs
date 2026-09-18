@@ -17,6 +17,14 @@ pub enum ChatError {
     Validation(String),
     #[error("Conflit: {0}")]
     Conflict(String),
+    /// A meeting that has been ended: the door is closed until its host
+    /// reopens it. Its own code, so a client can say so rather than guess.
+    #[error("Cette réunion est terminée")]
+    MeetingEnded,
+    /// A restricted meeting the caller may ASK to enter. Its own code, so the
+    /// page can offer to knock instead of showing a flat refusal.
+    #[error("Cette réunion est restreinte : demandez à y participer")]
+    KnockRequired,
     #[error("Trop de requêtes")]
     TooManyRequests,
     #[error("Erreur base de données")]
@@ -33,6 +41,8 @@ impl IntoResponse for ChatError {
             ChatError::NotFound(m)       => (StatusCode::NOT_FOUND,              "NOT_FOUND",           m.clone()),
             ChatError::Validation(m)     => (StatusCode::UNPROCESSABLE_ENTITY,   "VALIDATION_ERROR",    m.clone()),
             ChatError::Conflict(m)       => (StatusCode::CONFLICT,               "CONFLICT",            m.clone()),
+            ChatError::MeetingEnded      => (StatusCode::GONE,                   "MEETING_ENDED",       self.to_string()),
+            ChatError::KnockRequired     => (StatusCode::FORBIDDEN,              "KNOCK_REQUIRED",      self.to_string()),
             ChatError::TooManyRequests   => (StatusCode::TOO_MANY_REQUESTS,      "TOO_MANY_REQUESTS",   self.to_string()),
             ChatError::Database(e)       => {
                 tracing::error!(error = %e, "Erreur DB chat");

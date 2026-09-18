@@ -19,14 +19,16 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Link, useLocation } from 'react-router-dom'
 import {
-  MessageSquarePlus, Home, AtSign, Star, Pin, BellOff, ChevronDown,
+  MessageSquarePlus, Home, AtSign, Star, Pin, BellOff, ChevronDown, CalendarClock,
   MoreVertical, Users, Compass, Plus, History, ArrowDownAZ, X, ArrowUp, ArrowDown,
+  Video, Link2, CalendarPlus,
 } from 'lucide-react'
 import { useChatStore, getConvName, type HomeView } from './chatStore'
-import { useAuthStore, useUiStore, api } from '@kubuno/sdk'
+import { useAuthStore, useUiStore, ModuleServiceRegistry, api } from '@kubuno/sdk'
 import { chatApi, type ConversationSummary } from './api'
 import { ConfirmDialog, MenuDropdown, useMenuDropdown, type MenuItem, Input, Button, AnchoredPopover } from '@ui'
 import { useConvActions } from './useConvActions'
+import { useMeetingActions } from './useMeetingActions'
 import { chatTo, chatFromLocation } from './chatRoute'
 
 interface UserSuggestion {
@@ -112,6 +114,23 @@ export default function ChatSidebarBody({ collapsed = false }: { collapsed?: boo
   const [order, setOrder] = useState<SectionId[]>(readOrder)
   const [showNewSpace, setShowNewSpace] = useState(false)
   const newChatBtnRef = useRef<HTMLAnchorElement>(null)
+  // Menu of the "New" button: new message + the meeting actions (shared hook).
+  const newMenu = useMenuDropdown()
+  const meeting = useMeetingActions()
+
+  // "Schedule a meeting": hand off to the calendar module if it is installed —
+  // no hard dependency, discovered at runtime like the tasks integration.
+  const calendarOpenDate = ModuleServiceRegistry.get<(arg?: { date?: string } | string) => void>('calendar', 'openDate')
+
+  const newMenuItems: MenuItem[] = [
+    { type: 'action', label: t('chat_new_message'), icon: <MessageSquarePlus size={16} />, onClick: () => setShowNewChat(true) },
+    { type: 'separator' },
+    { type: 'action', label: t('chat_meeting_new_later'), icon: <Link2 size={16} />, onClick: () => meeting.createMeeting(false) },
+    { type: 'action', label: t('chat_meeting_new_instant'), icon: <Video size={16} />, onClick: () => meeting.createMeeting(true) },
+    ...(calendarOpenDate
+      ? [{ type: 'action' as const, label: t('chat_meeting_new_schedule'), icon: <CalendarPlus size={16} />, onClick: () => calendarOpenDate() }]
+      : []),
+  ]
 
   // The sidebar links are real links: read the selection back from the URL so a
   // pasted link, a reload and the browser Back button all land on the right view.
@@ -178,6 +197,7 @@ export default function ChatSidebarBody({ collapsed = false }: { collapsed?: boo
     { view: 'home',     icon: Home,   label: t('chat_home',     { defaultValue: 'Accueil' }) },
     { view: 'mentions', icon: AtSign, label: t('chat_mentions', { defaultValue: 'Mentions' }) },
     { view: 'starred',  icon: Star,   label: t('chat_followed', { defaultValue: 'Suivis' }) },
+    { view: 'meetings', icon: CalendarClock, label: t('chat_meetings', { defaultValue: 'Réunions' }) },
   ]
 
   const sectionItems = (section: 'dm' | 'spaces'): MenuItem[] => {
@@ -230,9 +250,10 @@ export default function ChatSidebarBody({ collapsed = false }: { collapsed?: boo
           ref={newChatBtnRef}
           href="#"
           role="button"
-          aria-expanded={showNewChat}
-          onClick={e => { e.preventDefault(); setShowNewChat(v => !v) }}
-          onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); setShowNewChat(v => !v) } }}
+          aria-haspopup="menu"
+          aria-expanded={!!newMenu.pos}
+          onClick={e => { e.preventDefault(); newMenu.open(e) }}
+          onKeyDown={e => { if (e.key === ' ') { e.preventDefault(); newMenu.open(e as unknown as React.MouseEvent) } }}
           className="flex items-center gap-2 bg-white text-sm font-medium text-text-primary
                      cursor-pointer w-full hover:shadow-md transition-shadow
                      outline-none focus-visible:ring-2 focus-visible:ring-primary"
@@ -354,6 +375,14 @@ export default function ChatSidebarBody({ collapsed = false }: { collapsed?: boo
             openConv(convId)
           }}
         />
+      )}
+
+      {newMenu.pos && (
+        <MenuDropdown pos={newMenu.pos} onClose={newMenu.close} items={newMenuItems} />
+      )}
+
+      {meeting.confirmState && (
+        <ConfirmDialog {...meeting.confirmState} onConfirm={meeting.handleConfirm} onCancel={meeting.handleCancel} />
       )}
 
       {confirmState && (
@@ -512,7 +541,7 @@ function NewChatPanel({ anchorRef, myId, directs, onlineUsers, onClose, onOpenCo
     setSearching(true)
     timer.current = setTimeout(async () => {
       try {
-        const res = await api.get<{ users: UserSuggestion[] }>('/users/search', { params: { q, limit: 8 } })
+        const res = await api.get<{ users: UserSuggestion[] }>('/users/search', { params: { q, limit: 8, scope: 'unit' } })
         setSuggestions(res.data.users.filter(u => u.id !== myId))
       } catch {
         setSuggestions([])

@@ -7,6 +7,10 @@ export interface IncomingCall {
   fromUserId:  string
   fromName:    string
   type:        'audio' | 'video'
+  /** Set when someone invited us into a meeting rather than calling us
+   *  directly: accepting then goes through the meeting lobby. */
+  meeting?:      boolean
+  meetingTitle?: string
 }
 
 export interface CallParticipant {
@@ -22,6 +26,15 @@ export interface ActiveCall {
   type:        'audio' | 'video'
   isInitiator: boolean
   ring:        CallParticipant[]  // members to ring when starting (empty when joining)
+  initialMuted?:  boolean         // start muted (chosen in the meeting lobby)
+  initialCamOff?: boolean         // start with the camera off (meeting lobby)
+}
+
+/** A meeting the user is about to join: the lobby (camera/mic check) is shown
+ *  before the call actually starts. Cleared on join or cancel. */
+export interface MeetingLobby {
+  room:  string
+  title: string
 }
 
 export interface PreCallState {
@@ -32,7 +45,7 @@ export interface PreCallState {
 }
 
 /** Main-area view selected from the sidebar shortcuts. */
-export type HomeView = 'home' | 'mentions' | 'starred' | 'browse'
+export type HomeView = 'home' | 'mentions' | 'starred' | 'browse' | 'meetings'
 /** Presence, as accepted by chat.presence.status. */
 export type PresenceStatus = 'online' | 'away' | 'dnd' | 'offline'
 /** How the active conversation is displayed: side panel over the home list, or full width. */
@@ -64,6 +77,7 @@ interface ChatState {
   incomingCall:       IncomingCall | null
   activeCall:         ActiveCall | null
   preCallState:       PreCallState | null
+  meetingLobby:       MeetingLobby | null
 
   // Actions
   setActiveConv:        (convId: string | null) => void
@@ -95,6 +109,7 @@ interface ChatState {
   setIncomingCall:      (call: IncomingCall | null) => void
   setActiveCall:        (call: ActiveCall | null) => void
   setPreCallState:      (state: PreCallState | null) => void
+  setMeetingLobby:      (lobby: MeetingLobby | null) => void
 }
 
 // Replies grouped under their root message — a workspace-wide preference.
@@ -147,6 +162,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   incomingCall:       null,
   activeCall:         null,
   preCallState:       null,
+  meetingLobby:       null,
 
   setActiveConv: (convId) => set({ activeConvId: convId }),
   setHomeView: (view) => set({ homeView: view, activeConvId: null }),
@@ -325,6 +341,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setIncomingCall:      (call) => set({ incomingCall: call }),
   setActiveCall:        (call) => set({ activeCall: call }),
   setPreCallState:      (state) => set({ preCallState: state }),
+  setMeetingLobby:      (lobby) => set({ meetingLobby: lobby }),
 
   // A user counts as reachable ("online dot") for online AND dnd/away — they are
   // connected, just not to be disturbed; only 'offline' clears the dot.

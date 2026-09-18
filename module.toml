@@ -76,10 +76,17 @@ position    = 4
 description  = "Qui peut créer des espaces, qui peut y ajouter des membres, et si les espaces publics sont découvrables."
 
 [[setting_groups]]
+id          = "calls"
+label       = "Appels"
+icon        = "Phone"
+position    = 5
+description  = "Les serveurs STUN/TURN que les appels audio et vidéo utilisent pour traverser les NAT. Sans TURN, un appel entre deux réseaux différents (4G, NAT symétrique) échoue."
+
+[[setting_groups]]
 id          = "integrations"
 label       = "Intégrations"
 icon        = "Sparkles"
-position    = 5
+position    = 6
 description  = "Les services externes : clé serveur GIPHY pour la recherche de GIF."
 
 [[settings]]
@@ -181,6 +188,51 @@ label   = "Espaces publics découvrables"
 description = "Autorise les espaces que n'importe quel utilisateur de l'instance peut parcourir et rejoindre sans invitation. Désactivé, les espaces existants restent accessibles à leurs membres mais ne sont plus listés ni rejoignables librement."
 
 [[settings]]
+key     = "ice_stun_urls"
+scope   = "global"
+group   = "calls"
+type    = "string"
+default = ""
+label   = "Serveurs STUN"
+description = "Adresses « stun:hôte:port », séparées par des virgules. Un serveur STUN révèle à chaque participant son adresse publique ; il ne relaie rien. Un coturn auto-hébergé fait STUN et TURN à la fois. Laisser vide pour n'utiliser que les adresses locales (appels sur le même réseau uniquement)."
+
+[[settings]]
+key     = "ice_turn_urls"
+scope   = "global"
+group   = "calls"
+type    = "string"
+default = ""
+label   = "Serveurs TURN"
+description = "Adresses « turn:hôte:port?transport=udp » ou « turns:hôte:443?transport=tcp », séparées par des virgules. Un serveur TURN relaie le flux quand la connexion directe est impossible ; c'est lui qui rend les appels fiables en mobilité. Recommandé : coturn sur cette instance."
+
+[[settings]]
+key     = "ice_turn_secret"
+scope   = "global"
+group   = "calls"
+type    = "string"
+default = ""
+label   = "Secret partagé TURN (mode REST)"
+description = "Le « static-auth-secret » de coturn (option use-auth-secret). Le serveur de chat en dérive pour chaque utilisateur des identifiants TURN à durée limitée, jamais stockés côté client. Prioritaire sur l'identifiant statique ci-dessous."
+
+[[settings]]
+key     = "ice_turn_username"
+scope   = "global"
+group   = "calls"
+type    = "string"
+default = ""
+label   = "Identifiant TURN statique"
+description = "À n'utiliser qu'à défaut de secret partagé (coturn en mode lt-cred-mech). Cet identifiant est transmis tel quel à chaque client."
+
+[[settings]]
+key     = "ice_turn_credential"
+scope   = "global"
+group   = "calls"
+type    = "string"
+default = ""
+label   = "Mot de passe TURN statique"
+description = "Le mot de passe associé à l'identifiant statique. Transmis à chaque client : préférer le secret partagé."
+
+[[settings]]
 key     = "giphy_api_key"
 scope   = "global"
 group   = "integrations"
@@ -190,5 +242,16 @@ label   = "Clé API GIPHY"
 description = "Clé serveur utilisée pour la recherche de GIF dans la barre de saisie. Laisser vide pour désactiver l'onglet GIF."
 
 [events]
-subscribed = ["UserDeleted", "UserUpdated"]
-publishes  = ["MessageSent", "MessageReceived"]
+subscribed = [
+    "UserDeleted",
+    "UserUpdated",
+    # A form elsewhere (a calendar event today) telling us that one of our
+    # meetings belongs to it, and what it is called.
+    "calendar.meeting_link",
+]
+publishes  = [
+    "MessageSent",
+    "MessageReceived",
+    # The other direction: a linked meeting renamed here, so its owner follows.
+    "chat.meeting_renamed",
+]
