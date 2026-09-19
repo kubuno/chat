@@ -886,10 +886,11 @@ pub async fn drop_provisional(
     Path(conv_id): Path<Uuid>,
 ) -> ChatResult<Json<Value>> {
     assert_meeting_host(&st.db, conv_id, user.id).await?;
-    let deleted = sqlx::query(&format!(
+    // Audited: the only interpolation is UNUSED_ROOM, a const of this module.
+    let deleted = sqlx::query(sqlx::AssertSqlSafe(format!(
         "DELETE FROM chat.conversations c
           WHERE c.id = $1 AND c.provisional_until IS NOT NULL AND {UNUSED_ROOM}"
-    ))
+    )))
     .bind(conv_id)
     .execute(&st.db)
     .await

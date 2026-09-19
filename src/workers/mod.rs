@@ -53,13 +53,15 @@ pub async fn run(state: Arc<AppState>) {
 /// never used (nobody joined it, nobody wrote in it). A room someone walked
 /// into is not a leftover, whatever happened to the form that made it.
 async fn purge_provisional(st: &AppState) -> anyhow::Result<()> {
-    let deleted = sqlx::query(&format!(
+    // Audited: the only interpolation is the UNUSED_ROOM const; no value is
+    // taken from a request at all — this runs on a timer.
+    let deleted = sqlx::query(sqlx::AssertSqlSafe(format!(
         "DELETE FROM chat.conversations c
           WHERE c.provisional_until IS NOT NULL
             AND c.provisional_until < NOW()
             AND {}",
         crate::handlers::conversations::UNUSED_ROOM
-    ))
+    )))
     .execute(&st.db)
     .await?
     .rows_affected();
