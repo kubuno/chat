@@ -9,6 +9,8 @@ use axum::{
     response::Response,
 };
 use futures::{SinkExt, StreamExt};
+use kubuno_db::dialect::Backend;
+use kubuno_db::params;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
@@ -37,20 +39,52 @@ async fn handle_socket(socket: WebSocket, st: AppState, user: ChatUser) {
 
     // Mettre à jour la présence — un statut choisi à la main (absent / ne pas
     // déranger) prime sur le « en ligne » impliqué par la connexion.
-    let effective: String = sqlx::query_scalar(
-        "INSERT INTO chat.presence (user_id, status, last_seen_at)
-         VALUES ($1, 'online', NOW())
-         ON CONFLICT (user_id) DO UPDATE
-         SET status = COALESCE(chat.presence.manual_status, 'online'), last_seen_at = NOW()
-         RETURNING status",
-    )
-    .bind(user_id)
-    .fetch_one(&st.db)
-    .await
-    .unwrap_or_else(|e| {
-        tracing::error!(error = %e, "ws presence upsert");
-        "online".to_string()
-    });
+    // A manually chosen Away/DND wins over the "online" implied by connecting.
+    // The upsert's UPDATE branch reads the row's current `manual_status`, which
+    // the dialect helper spells differently per engine; MySQL lacks RETURNING,
+    // so the effective status is re-selected there instead.
+    let now = chrono::Utc::now();
+    // `last_seen_at` in the UPDATE branch is a THIRD placeholder (bound to the
+    // same `now`): sql::prepare forbids reusing $2 from the VALUES list.
+    let conflict = match st.db.backend() {
+        Backend::Postgres | Backend::Sqlite => {
+            " ON CONFLICT (user_id) DO UPDATE \
+              SET status = COALESCE(chat.presence.manual_status, 'online'), last_seen_at = $3"
+        }
+        Backend::MySql => {
+            " ON DUPLICATE KEY UPDATE \
+              status = COALESCE(manual_status, 'online'), last_seen_at = $3"
+        }
+    };
+    let insert = format!(
+        "INSERT INTO chat.presence (user_id, status, last_seen_at) VALUES ($1, 'online', $2){conflict}"
+    );
+    let effective: String = if st.db.backend().supports_returning() {
+        st.db
+            .fetch_scalar::<String>(&format!("{insert} RETURNING status"), params![user_id, now, now])
+            .await
+            .unwrap_or_else(|e| {
+                tracing::error!(error = %e, "ws presence upsert");
+                "online".to_string()
+            })
+    } else {
+        match st.db.execute(&insert, params![user_id, now, now]).await {
+            Ok(_) => st
+                .db
+                .fetch_optional_scalar::<String>(
+                    "SELECT status FROM chat.presence WHERE user_id = $1",
+                    params![user_id],
+                )
+                .await
+                .ok()
+                .flatten()
+                .unwrap_or_else(|| "online".to_string()),
+            Err(e) => {
+                tracing::error!(error = %e, "ws presence upsert");
+                "online".to_string()
+            }
+        }
+    };
 
     // Notifier les contacts du statut effectif
     broadcast_presence(&st, user_id, &effective).await;
@@ -93,14 +127,13 @@ async fn handle_socket(socket: WebSocket, st: AppState, user: ChatUser) {
     // Déconnexion: mettre à jour la présence
     st.ws_hub.disconnect(user_id).await;
 
-    sqlx::query(
-        "UPDATE chat.presence SET status = 'offline', last_seen_at = NOW()
-         WHERE user_id = $1",
-    )
-    .bind(user_id)
-    .execute(&st.db)
-    .await
-    .ok();
+    st.db
+        .execute(
+            "UPDATE chat.presence SET status = 'offline', last_seen_at = $1 WHERE user_id = $2",
+            params![chrono::Utc::now(), user_id],
+        )
+        .await
+        .ok();
 
     broadcast_presence(&st, user_id, "offline").await;
 }
@@ -114,14 +147,18 @@ async fn handle_client_message(st: &AppState, user_id: Uuid, raw: &str) {
         "typing_start" | "typing_stop" => {
             let Some(conv_id) = val.get("conversation_id").and_then(|v| v.as_str()).and_then(|s| Uuid::parse_str(s).ok()) else { return };
 
-            let members: Vec<Uuid> = sqlx::query_scalar(
-                "SELECT user_id FROM chat.conversation_members
-                 WHERE conversation_id = $1 AND left_at IS NULL",
-            )
-            .bind(conv_id)
-            .fetch_all(&st.db)
-            .await
-            .unwrap_or_default();
+            let members: Vec<Uuid> = st
+                .db
+                .fetch_all_as::<(Uuid,)>(
+                    "SELECT user_id FROM chat.conversation_members
+                     WHERE conversation_id = $1 AND left_at IS NULL",
+                    params![conv_id],
+                )
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(id,)| id)
+                .collect();
 
             let event = if action == "typing_start" { WsEvent::TypingStart } else { WsEvent::TypingStop };
             let env = WsEnvelope {
@@ -154,17 +191,21 @@ async fn handle_client_message(st: &AppState, user_id: Uuid, raw: &str) {
 
 async fn broadcast_presence(st: &AppState, user_id: Uuid, status: &str) {
     // Trouver tous les users qui ont une conversation avec cet user
-    let contacts: Vec<Uuid> = sqlx::query_scalar(
-        "SELECT DISTINCT
-             CASE WHEN user_a_id = $1 THEN user_b_id ELSE user_a_id END
-         FROM chat.conversations
-         WHERE conv_type = 'direct'
-           AND (user_a_id = $1 OR user_b_id = $1)",
-    )
-    .bind(user_id)
-    .fetch_all(&st.db)
-    .await
-    .unwrap_or_default();
+    let contacts: Vec<Uuid> = st
+        .db
+        .fetch_all_as::<(Uuid,)>(
+            "SELECT DISTINCT
+                 CASE WHEN user_a_id = $1 THEN user_b_id ELSE user_a_id END
+             FROM chat.conversations
+             WHERE conv_type = 'direct'
+               AND (user_a_id = $2 OR user_b_id = $3)",
+            params![user_id, user_id, user_id],
+        )
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(id,)| id)
+        .collect();
 
     if !contacts.is_empty() {
         let env = WsEnvelope {

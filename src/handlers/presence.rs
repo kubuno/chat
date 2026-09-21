@@ -7,6 +7,8 @@ use axum::{
     extract::{Path, State},
     Json,
 };
+use kubuno_db::dialect::Assign;
+use kubuno_db::params;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
@@ -20,11 +22,10 @@ pub async fn get_presence(
     _user: ChatUser,
     Path(target_id): Path<Uuid>,
 ) -> ChatResult<Json<Value>> {
-    let presence: Option<Presence> =
-        sqlx::query_as("SELECT * FROM chat.presence WHERE user_id = $1")
-            .bind(target_id)
-            .fetch_optional(&st.db)
-            .await?;
+    let presence: Option<Presence> = st
+        .db
+        .fetch_optional_as("SELECT * FROM chat.presence WHERE user_id = $1", params![target_id])
+        .await?;
 
     Ok(Json(json!({
         "presence": presence.unwrap_or(Presence {
@@ -59,25 +60,29 @@ pub async fn update_presence(
     // (which flips `status` back to 'online') doesn't silently undo it.
     let manual = if status == "away" || status == "dnd" { Some(status) } else { None };
 
-    sqlx::query(
-        "INSERT INTO chat.presence (user_id, status, custom_status, manual_status, last_seen_at)
-         VALUES ($1, $2, $3, $4, NOW())
-         ON CONFLICT (user_id) DO UPDATE
-         SET status = EXCLUDED.status,
-             custom_status = EXCLUDED.custom_status,
-             manual_status = EXCLUDED.manual_status,
-             last_seen_at = NOW()",
-    )
-    .bind(user.id)
-    .bind(status)
-    .bind(custom)
-    .bind(manual)
-    .execute(&st.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "update_presence");
-        e
-    })?;
+    let upsert = st.db.backend().upsert(
+        "chat.presence",
+        &["user_id"],
+        &[
+            Assign::Incoming("status"),
+            Assign::Incoming("custom_status"),
+            Assign::Incoming("manual_status"),
+            Assign::Incoming("last_seen_at"),
+        ],
+    );
+    st.db
+        .execute(
+            &format!(
+                "INSERT INTO chat.presence (user_id, status, custom_status, manual_status, last_seen_at)
+                 VALUES ($1, $2, $3, $4, $5){upsert}"
+            ),
+            params![user.id, status, custom, manual, chrono::Utc::now()],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "update_presence");
+            e
+        })?;
 
     // Tell the user's contacts about it — without this, a status picked by hand
     // would only show up after they reload.
@@ -88,17 +93,18 @@ pub async fn update_presence(
 
 /// Push a presence change to everyone this user has a direct conversation with.
 async fn broadcast_presence(st: &AppState, user_id: Uuid, status: &str, custom: Option<&str>) {
-    let contacts: Vec<Uuid> = match sqlx::query_scalar(
-        "SELECT DISTINCT
-             CASE WHEN user_a_id = $1 THEN user_b_id ELSE user_a_id END
-         FROM chat.conversations
-         WHERE conv_type = 'direct' AND (user_a_id = $1 OR user_b_id = $1)",
-    )
-    .bind(user_id)
-    .fetch_all(&st.db)
-    .await
+    let contacts: Vec<Uuid> = match st
+        .db
+        .fetch_all_as::<(Uuid,)>(
+            "SELECT DISTINCT
+                 CASE WHEN user_a_id = $1 THEN user_b_id ELSE user_a_id END
+             FROM chat.conversations
+             WHERE conv_type = 'direct' AND (user_a_id = $2 OR user_b_id = $3)",
+            params![user_id, user_id, user_id],
+        )
+        .await
     {
-        Ok(rows) => rows,
+        Ok(rows) => rows.into_iter().map(|(id,)| id).collect(),
         Err(e) => {
             tracing::error!(error = %e, "broadcast_presence: contacts");
             return;

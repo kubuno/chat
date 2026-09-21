@@ -1,11 +1,10 @@
 use anyhow::{Context, Result};
 use clap::Parser;
-use kubuno_chat::{config::Settings, router, state::AppState};
+use kubuno_chat::{config::Settings, router, state::AppState, SCHEMA};
 use kubuno_storage::LocalStorage;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -156,52 +155,33 @@ async fn main() -> Result<()> {
     // Sécurité : interdire toute exécution de processus sur l’hôte (voir kubuno-seccomp).
     kubuno_seccomp::lock_down_process_execution("chat");
 
-    // Pool PostgreSQL avec search_path=chat,public
-    let opts = settings.database.connect_options()?
-        .options([("search_path", "chat,public")]);
-    let pool = PgPoolOptions::new()
-        .max_connections(settings.database.max_connections)
-        .min_connections(settings.database.min_connections)
-        .acquire_timeout(settings.database.connect_timeout)
-        .connect_with(opts)
+    // Database pool. The engine (PostgreSQL / MySQL / SQLite) is the
+    // administrator's choice in `[database] engine`, read at run time; `connect`
+    // also creates the module's namespace (PostgreSQL schema, MySQL database, or
+    // the ATTACHed SQLite file).
+    let pool = kubuno_db::connect(&settings.database, SCHEMA)
         .await
-        .context("Connexion PostgreSQL")?;
+        .context("Connexion à la base de données")?;
 
-    // Migrations
+    // Migrations: the set for the pool's engine, kept inside the module's own
+    // namespace (the table PostgreSQL already used through its search_path).
     if settings.database.run_migrations {
-        sqlx::query("CREATE SCHEMA IF NOT EXISTS chat")
-            .execute(&pool)
-            .await
-            .context("Création du schéma chat")?;
-
-        sqlx::query(
-            r#"CREATE TABLE IF NOT EXISTS chat._sqlx_migrations (
-                version        BIGINT      PRIMARY KEY,
-                description    TEXT        NOT NULL,
-                installed_on   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-                success        BOOLEAN     NOT NULL,
-                checksum       BYTEA       NOT NULL,
-                execution_time BIGINT      NOT NULL
-            )"#,
+        kubuno_db::migrations!(
+            "./migrations/postgres",
+            "./migrations/mysql",
+            "./migrations/sqlite",
         )
-        .execute(&pool)
+        .run(&pool, SCHEMA)
         .await
-        .context("Création table chat._sqlx_migrations")?;
-
-        let migration_opts = settings.database.connect_options()?
-            .options([("search_path", "chat,public")]);
-        let migration_pool = PgPoolOptions::new()
-            .max_connections(1)
-            .acquire_timeout(settings.database.connect_timeout)
-            .connect_with(migration_opts)
-            .await
-            .context("Pool migration chat")?;
-
-        sqlx::migrate!("./migrations")
-            .run(&migration_pool)
-            .await
-            .context("Migrations chat")?;
+        .context("Migrations chat")?;
     }
+
+    // On MySQL/SQLite (no LISTEN/NOTIFY), events are durably recorded in a
+    // transactional outbox the core polls; this creates that table. A no-op on
+    // PostgreSQL, which uses pg_notify directly.
+    kubuno_db::events::ensure_outbox(&pool, SCHEMA)
+        .await
+        .context("Création de l'outbox d'événements")?;
 
     // Créer les dossiers de stockage
     tokio::fs::create_dir_all(&settings.storage.local_path).await.ok();

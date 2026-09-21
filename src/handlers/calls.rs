@@ -6,6 +6,8 @@ use axum::{
     extract::{Path, State},
     Json,
 };
+use kubuno_db::dialect::{Assign, SqlType};
+use kubuno_db::params;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
@@ -30,40 +32,47 @@ pub async fn rate_call(
         return Err(ChatError::Validation("Note invalide".into()));
     }
 
-    // Only someone who belongs to the call can rate it.
-    let is_member: bool = sqlx::query_scalar(
-        "SELECT EXISTS (
-             SELECT 1 FROM chat.conversation_members
-             WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL
-         )",
-    )
-    .bind(conv_id)
-    .bind(user.id)
-    .fetch_one(&st.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "call rating: appartenance illisible");
-        ChatError::Database(e)
-    })?;
+    // Only someone who belongs to the call can rate it. `EXISTS` decodes as a
+    // bool only on PostgreSQL; a `SELECT 1 ... LIMIT 1` (cast to a portable
+    // width) whose presence is the answer works on every engine.
+    let is_member = st
+        .db
+        .fetch_optional_scalar::<i64>(
+            &format!(
+                "SELECT {} FROM chat.conversation_members
+                 WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL LIMIT 1",
+                st.db.backend().cast("1", SqlType::BigInt)
+            ),
+            params![conv_id, user.id],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "call rating: appartenance illisible");
+            ChatError::Database(e)
+        })?
+        .is_some();
     if !is_member {
         return Err(ChatError::Forbidden);
     }
 
-    sqlx::query(
-        "INSERT INTO chat.call_ratings (conversation_id, user_id, rating)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (conversation_id, user_id)
-         DO UPDATE SET rating = EXCLUDED.rating, created_at = NOW()",
-    )
-    .bind(conv_id)
-    .bind(user.id)
-    .bind(dto.rating)
-    .execute(&st.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "call rating: écriture impossible");
-        ChatError::Database(e)
-    })?;
+    let upsert = st.db.backend().upsert(
+        "chat.call_ratings",
+        &["conversation_id", "user_id"],
+        &[Assign::Incoming("rating"), Assign::Incoming("created_at")],
+    );
+    st.db
+        .execute(
+            &format!(
+                "INSERT INTO chat.call_ratings (id, conversation_id, user_id, rating, created_at)
+                 VALUES ($1, $2, $3, $4, $5){upsert}"
+            ),
+            params![kubuno_db::new_id(), conv_id, user.id, dto.rating, chrono::Utc::now()],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "call rating: écriture impossible");
+            ChatError::Database(e)
+        })?;
 
     Ok(Json(json!({ "ok": true })))
 }
@@ -80,16 +89,17 @@ pub async fn end_meeting(
     user: ChatUser,
     Path(conv_id): Path<Uuid>,
 ) -> ChatResult<Json<Value>> {
-    let row: Option<(bool, Option<Uuid>)> = sqlx::query_as(
-        "SELECT is_meeting, created_by FROM chat.conversations WHERE id = $1",
-    )
-    .bind(conv_id)
-    .fetch_optional(&st.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "fin de réunion: conversation illisible");
-        ChatError::Database(e)
-    })?;
+    let row: Option<(bool, Option<Uuid>)> = st
+        .db
+        .fetch_optional_as(
+            "SELECT is_meeting, created_by FROM chat.conversations WHERE id = $1",
+            params![conv_id],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "fin de réunion: conversation illisible");
+            ChatError::Database(e)
+        })?;
     let Some((is_meeting, created_by)) = row else { return Err(ChatError::NotFound("Réunion introuvable".into())) };
     if !is_meeting {
         return Err(ChatError::Validation("Cette conversation n'est pas une réunion".into()));
@@ -97,27 +107,29 @@ pub async fn end_meeting(
 
     // Whoever opened the room holds it; so does anyone the room made an owner
     // or an administrator.
-    let role: Option<String> = sqlx::query_scalar(
-        "SELECT role FROM chat.conversation_members
-         WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL",
-    )
-    .bind(conv_id)
-    .bind(user.id)
-    .fetch_optional(&st.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "fin de réunion: rôle illisible");
-        ChatError::Database(e)
-    })?;
+    let role: Option<String> = st
+        .db
+        .fetch_optional_scalar(
+            "SELECT role FROM chat.conversation_members
+             WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL",
+            params![conv_id, user.id],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "fin de réunion: rôle illisible");
+            ChatError::Database(e)
+        })?;
     let is_host = created_by == Some(user.id)
         || matches!(role.as_deref(), Some("owner") | Some("admin"));
     if !is_host {
         return Err(ChatError::Forbidden);
     }
 
-    sqlx::query("UPDATE chat.conversations SET meeting_ended_at = NOW() WHERE id = $1")
-        .bind(conv_id)
-        .execute(&st.db)
+    st.db
+        .execute(
+            "UPDATE chat.conversations SET meeting_ended_at = $1 WHERE id = $2",
+            params![chrono::Utc::now(), conv_id],
+        )
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "fin de réunion: écriture impossible");
@@ -126,14 +138,18 @@ pub async fn end_meeting(
 
     // Told to everyone, over their own connection: a client that missed the
     // direct signal still leaves.
-    let members: Vec<Uuid> = sqlx::query_scalar(
-        "SELECT user_id FROM chat.conversation_members
-         WHERE conversation_id = $1 AND left_at IS NULL",
-    )
-    .bind(conv_id)
-    .fetch_all(&st.db)
-    .await
-    .unwrap_or_default();
+    let members: Vec<Uuid> = st
+        .db
+        .fetch_all_as::<(Uuid,)>(
+            "SELECT user_id FROM chat.conversation_members
+             WHERE conversation_id = $1 AND left_at IS NULL",
+            params![conv_id],
+        )
+        .await
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(id,)| id)
+        .collect();
     let env = WsEnvelope {
         event:   WsEvent::CallSignal,
         payload: json!({

@@ -48,8 +48,13 @@ pub struct FetchQuery {
 /// Read the instance-wide GIPHY key seeded from `module.toml` into core.settings.
 /// Empty (or absent) means the feature is disabled — the client hides the tab.
 async fn giphy_key(st: &AppState) -> ChatResult<String> {
-    let raw: Option<Value> = sqlx::query_scalar("SELECT value FROM core.settings WHERE key = 'chat.giphy_api_key'")
-        .fetch_optional(&st.db)
+    // NOTE: cross-schema read of core.settings (PostgreSQL/MySQL only).
+    let raw: Option<Value> = st
+        .db
+        .fetch_optional_scalar::<Value>(
+            "SELECT value FROM core.settings WHERE key = 'chat.giphy_api_key'",
+            kubuno_db::params![],
+        )
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "Lecture de chat.giphy_api_key");

@@ -1,9 +1,12 @@
 use crate::models::message::Message;
 use crate::state::AppState;
+use kubuno_db::params;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-/// Publish an event to the core through PostgreSQL NOTIFY.
+/// Publish an event to the core. On PostgreSQL this is `pg_notify`; on
+/// MySQL/SQLite (no LISTEN/NOTIFY) it is a durable row in the module's event
+/// outbox, which the core polls — both handled by `kubuno_db::events::notify`.
 pub async fn publish_to_core(st: &AppState, event_type: &str, payload: Value) {
     let event = json!({
         "type":    event_type,
@@ -11,11 +14,9 @@ pub async fn publish_to_core(st: &AppState, event_type: &str, payload: Value) {
         "module":  "chat",
     });
     let payload_str = event.to_string();
-    sqlx::query("SELECT pg_notify('kubuno_events', $1)")
-        .bind(&payload_str)
-        .execute(&st.db)
+    kubuno_db::events::notify(&st.db, crate::SCHEMA, kubuno_db::events::CHANNEL, &payload_str)
         .await
-        .map_err(|e| tracing::warn!(error = %e, event_type, "pg_notify failed"))
+        .map_err(|e| tracing::warn!(error = %e, event_type, "event publish failed"))
         .ok();
 }
 
@@ -45,44 +46,46 @@ pub async fn emit_message_sent(st: &AppState, chat_id: Uuid, from_user_id: Uuid)
 /// user did: everyone still in it except that user, minus those who muted the
 /// conversation and those in Do-Not-Disturb.
 async fn notifiable_members(st: &AppState, conv_id: Uuid, actor_id: Uuid) -> Vec<Uuid> {
-    sqlx::query_scalar::<_, Uuid>(
-        "SELECT cm.user_id
-         FROM chat.conversation_members cm
-         LEFT JOIN chat.presence p ON p.user_id = cm.user_id
-         WHERE cm.conversation_id = $1
-           AND cm.left_at IS NULL
-           AND cm.user_id <> $2
-           AND (cm.muted_until IS NULL OR cm.muted_until <= NOW())
-           AND COALESCE(p.status, 'offline') <> 'dnd'
-           AND COALESCE(p.manual_status, '') <> 'dnd'",
-    )
-    .bind(conv_id)
-    .bind(actor_id)
-    .fetch_all(&st.db)
-    .await
-    .map_err(|e| tracing::error!(error = %e, %conv_id, "notifiable_members"))
-    .unwrap_or_default()
+    st.db
+        .fetch_all_as::<(Uuid,)>(
+            "SELECT cm.user_id
+             FROM chat.conversation_members cm
+             LEFT JOIN chat.presence p ON p.user_id = cm.user_id
+             WHERE cm.conversation_id = $1
+               AND cm.left_at IS NULL
+               AND cm.user_id <> $2
+               AND (cm.muted_until IS NULL OR cm.muted_until <= $3)
+               AND COALESCE(p.status, 'offline') <> 'dnd'
+               AND COALESCE(p.manual_status, '') <> 'dnd'",
+            params![conv_id, actor_id, chrono::Utc::now()],
+        )
+        .await
+        .map_err(|e| tracing::error!(error = %e, %conv_id, "notifiable_members"))
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(id,)| id)
+        .collect()
 }
 
 /// How a conversation and its author present themselves in a notification:
 /// `(conversation name if it has one, author's display name)`. Neither is
 /// message content: names are the only thing the server may put in a push.
 async fn notification_names(st: &AppState, conv_id: Uuid, actor_id: Uuid) -> (Option<String>, String) {
-    sqlx::query_as::<_, (Option<String>, Option<String>)>(
-        "SELECT NULLIF(c.name, ''), u.display_name
-         FROM chat.conversations c
-         LEFT JOIN core.users u ON u.id = $2
-         WHERE c.id = $1",
-    )
-    .bind(conv_id)
-    .bind(actor_id)
-    .fetch_optional(&st.db)
-    .await
-    .map_err(|e| tracing::error!(error = %e, %conv_id, "notification_names"))
-    .ok()
-    .flatten()
-    .map(|(conv, who)| (conv, who.unwrap_or_else(|| "Un contact".to_string())))
-    .unwrap_or((None, "Un contact".to_string()))
+    // NOTE: cross-schema lookup of core.users (PostgreSQL/MySQL only).
+    st.db
+        .fetch_optional_as::<(Option<String>, Option<String>)>(
+            "SELECT NULLIF(c.name, ''), u.display_name
+             FROM chat.conversations c
+             LEFT JOIN core.users u ON u.id = $2
+             WHERE c.id = $1",
+            params![conv_id, actor_id],
+        )
+        .await
+        .map_err(|e| tracing::error!(error = %e, %conv_id, "notification_names"))
+        .ok()
+        .flatten()
+        .map(|(conv, who)| (conv, who.unwrap_or_else(|| "Un contact".to_string())))
+        .unwrap_or((None, "Un contact".to_string()))
 }
 
 /// `chat.new_message`: a message became visible to the other members (sent

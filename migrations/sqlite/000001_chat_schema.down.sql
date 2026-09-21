@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS chat.meeting_knocks;
+DROP TABLE IF EXISTS chat.call_ratings;
+DROP TABLE IF EXISTS chat.poll_votes;
+DROP TABLE IF EXISTS chat.media_files;
+DROP TABLE IF EXISTS chat.group_invites;
+DROP TABLE IF EXISTS chat.group_sender_keys;
+DROP TABLE IF EXISTS chat.presence;
+DROP TABLE IF EXISTS chat.devices;
+DROP TABLE IF EXISTS chat.one_time_prekeys;
+DROP TABLE IF EXISTS chat.signed_prekeys;
+DROP TABLE IF EXISTS chat.identity_keys;
+DROP TABLE IF EXISTS chat.read_receipts;
+DROP TABLE IF EXISTS chat.message_reactions;
+DROP TABLE IF EXISTS chat.messages;
+DROP TABLE IF EXISTS chat.conversation_members;
+DROP TABLE IF EXISTS chat.conversations;

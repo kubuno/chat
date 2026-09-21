@@ -7,6 +7,8 @@ use axum::{
     http::{header, HeaderMap},
     Json,
 };
+use kubuno_db::dialect::SqlType;
+use kubuno_db::params;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
@@ -74,17 +76,13 @@ pub async fn upload_media(
         .map_err(|e| ChatError::Internal(anyhow::anyhow!(e)))?;
 
     // Enregistrer les métadonnées
-    sqlx::query(
-        "INSERT INTO chat.media_files (id, uploader_id, storage_path, original_name, content_type)
-         VALUES ($1, $2, $3, $4, $5)",
-    )
-    .bind(media_id)
-    .bind(user.id)
-    .bind(&storage_path)
-    .bind(&filename)
-    .bind(&content_type)
-    .execute(&st.db)
-    .await?;
+    st.db
+        .execute(
+            "INSERT INTO chat.media_files (id, uploader_id, storage_path, original_name, content_type)
+             VALUES ($1, $2, $3, $4, $5)",
+            params![media_id, user.id, &storage_path, &filename, &content_type],
+        )
+        .await?;
 
     Ok(Json(json!({
         "media_id":    media_id,
@@ -106,35 +104,40 @@ pub async fn download_media(
         uploader_id:   uuid::Uuid,
     }
 
-    let row: MediaRow = sqlx::query_as(
-        "SELECT storage_path, original_name, content_type, uploader_id
-         FROM chat.media_files WHERE id = $1",
-    )
-    .bind(media_id)
-    .fetch_optional(&st.db)
-    .await?
-    .ok_or_else(|| ChatError::NotFound(media_id.to_string()))?;
+    let row: MediaRow = st
+        .db
+        .fetch_optional_as(
+            "SELECT storage_path, original_name, content_type, uploader_id
+             FROM chat.media_files WHERE id = $1",
+            params![media_id],
+        )
+        .await?
+        .ok_or_else(|| ChatError::NotFound(media_id.to_string()))?;
 
     // Vérifier que l'utilisateur a accès (uploader ou membre d'une conv qui contient ce média)
     if row.uploader_id != user.id {
-        // `EXISTS` yields a boolean; the previous `SELECT 1` was decoded as i64
-        // while Postgres types the literal as int4, so this query failed for
-        // every non-uploader — i.e. the recipient of any media saw a database
-        // error and a permanent "media unavailable", while the uploader (who
-        // skips this check) always saw it fine.
-        let has_access: bool = sqlx::query_scalar(
-            "SELECT EXISTS (
-                 SELECT 1 FROM chat.messages m
-                 JOIN chat.conversation_members cm
-                   ON cm.conversation_id = m.conversation_id
-                  AND cm.user_id = $2 AND cm.left_at IS NULL
-                 WHERE m.media_meta->>'media_id' = $1::text
-             )",
-        )
-        .bind(media_id)
-        .bind(user.id)
-        .fetch_one(&st.db)
-        .await?;
+        // Portable access probe. Two engine differences are handled here: the
+        // JSON field extraction (`->>` is PostgreSQL-only, so the dialect helper
+        // spells it per engine) and the existence test (a cast `SELECT 1 ...
+        // LIMIT 1` whose presence is the answer, rather than `SELECT EXISTS(..)`
+        // which decodes as bool only on PostgreSQL). The media id is bound as
+        // text, never cast in SQL. This is the query whose old `SELECT 1`/int4
+        // decode failed for every non-uploader (the "media unavailable" bug).
+        let backend = st.db.backend();
+        let media_json = backend.json_text("m.media_meta", &["media_id"]);
+        let sql = format!(
+            "SELECT {} FROM chat.messages m
+             JOIN chat.conversation_members cm
+               ON cm.conversation_id = m.conversation_id
+              AND cm.user_id = $2 AND cm.left_at IS NULL
+             WHERE {media_json} = $1 LIMIT 1",
+            backend.cast("1", SqlType::BigInt)
+        );
+        let has_access = st
+            .db
+            .fetch_optional_scalar::<i64>(&sql, params![media_id.to_string(), user.id])
+            .await?
+            .is_some();
 
         if !has_access {
             return Err(ChatError::Forbidden);

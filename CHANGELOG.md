@@ -9,6 +9,32 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ## [Unreleased]
 
+### Changed
+
+- **Runs on PostgreSQL, MySQL/MariaDB or SQLite.** Chat moves off its
+  PostgreSQL-only stack onto the runtime-dispatch kubuno-db 0.6.0 foundation:
+  the same binary connects to whichever engine the administrator names in
+  `[database] engine`, read at start-up. All queries were rewritten off the
+  driver-specific paths — `RETURNING` inserts became a Rust-minted id plus a
+  re-select (MySQL has no `RETURNING`), `ON CONFLICT` and case-insensitive
+  matching go through the dialect layer, `= ANY(array)` becomes a portable
+  `IN (...)`, `NOW()`/`make_interval`/`'-infinity'` are computed in Rust and
+  bound, `LEFT JOIN LATERAL` (unsupported by MariaDB/SQLite) becomes a
+  correlated subquery, and every integer read is decoded at a width that holds
+  on a strict PostgreSQL. Events are published through kubuno-db, which uses
+  `pg_notify` on PostgreSQL and a durable outbox the core polls on the other
+  engines. The one-time-prekey claim no longer relies on `FOR UPDATE SKIP
+  LOCKED`; it is a guarded update proven by its affected-row count.
+  (Cross-schema reads of `core.users`/`core.settings` remain PostgreSQL/MySQL
+  only, as they touch another module's namespace.)
+
+### Fixed
+
+- **Media downloads no longer fail for recipients.** The access check read a
+  `SELECT 1` probe at a width PostgreSQL rejected, so every non-uploader saw a
+  database error and a permanent "media unavailable"; the check is now decoded
+  portably and passes for anyone in the conversation.
+
 ### Security
 
 - **Database driver updated past an unfixable advisory.** The previous line

@@ -4,6 +4,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use kubuno_db::{params, DbQueryBuilder};
 use serde_json::json;
 use uuid::Uuid;
 
@@ -53,18 +54,35 @@ pub async fn run(state: Arc<AppState>) {
 /// never used (nobody joined it, nobody wrote in it). A room someone walked
 /// into is not a leftover, whatever happened to the form that made it.
 async fn purge_provisional(st: &AppState) -> anyhow::Result<()> {
-    // Audited: the only interpolation is the UNUSED_ROOM const; no value is
-    // taken from a request at all — this runs on a timer.
-    let deleted = sqlx::query(sqlx::AssertSqlSafe(format!(
-        "DELETE FROM chat.conversations c
-          WHERE c.provisional_until IS NOT NULL
-            AND c.provisional_until < NOW()
-            AND {}",
-        crate::handlers::conversations::UNUSED_ROOM
-    )))
-    .execute(&st.db)
-    .await?
-    .rows_affected();
+    // Portable form of the old aliased `DELETE ... c WHERE {UNUSED_ROOM}`: the
+    // ids are collected first (a plain SELECT may correlate on the target table),
+    // then deleted by an `IN (...)` (no alias, no correlation on the DELETE
+    // target — what MySQL/SQLite refuse). The only interpolation is the
+    // UNUSED_ROOM const; no request value is involved — this runs on a timer.
+    let now = chrono::Utc::now();
+    let ids: Vec<Uuid> = st
+        .db
+        .fetch_all_as::<(Uuid,)>(
+            &format!(
+                "SELECT id FROM chat.conversations
+                  WHERE provisional_until IS NOT NULL
+                    AND provisional_until < $1
+                    AND {}",
+                crate::handlers::conversations::UNUSED_ROOM
+            ),
+            params![now],
+        )
+        .await?
+        .into_iter()
+        .map(|(id,)| id)
+        .collect();
+
+    if ids.is_empty() {
+        return Ok(());
+    }
+    let mut qb = DbQueryBuilder::new(st.db.backend(), "DELETE FROM chat.conversations WHERE id");
+    qb.push_in(ids.iter().copied());
+    let deleted = qb.execute(&st.db).await?;
 
     if deleted > 0 {
         tracing::info!(count = deleted, "Salles de réunion provisoires abandonnées supprimées");
@@ -80,19 +98,30 @@ async fn purge_by_retention(st: &AppState) -> anyhow::Result<()> {
     if days <= 0 {
         return Ok(());
     }
-    let purged: Vec<(Uuid, Uuid)> = sqlx::query_as(
-        "UPDATE chat.messages
-         SET message_type = 'deleted', encrypted_data = '', deleted_at = NOW()
-         WHERE id IN (
-             SELECT id FROM chat.messages
-             WHERE created_at < NOW() - make_interval(days => $1) AND deleted_at IS NULL
-             LIMIT 1000
-         )
-         RETURNING id, conversation_id",
-    )
-    .bind(days)
-    .fetch_all(&st.db)
-    .await?;
+    // Rows older than the retention window (cutoff computed in Rust — no
+    // make_interval), collected then tombstoned by id. MySQL has no UPDATE ...
+    // RETURNING, so the ids are taken by a bounded SELECT first.
+    let now = chrono::Utc::now();
+    let cutoff = now - chrono::Duration::days(days as i64);
+    let purged: Vec<(Uuid, Uuid)> = st
+        .db
+        .fetch_all_as(
+            "SELECT id, conversation_id FROM chat.messages
+             WHERE created_at < $1 AND deleted_at IS NULL
+             LIMIT 1000",
+            params![cutoff],
+        )
+        .await?;
+
+    if !purged.is_empty() {
+        let ids: Vec<Uuid> = purged.iter().map(|(id, _)| *id).collect();
+        let mut qb = DbQueryBuilder::new(
+            st.db.backend(),
+            "UPDATE chat.messages SET message_type = 'deleted', encrypted_data = '', deleted_at = ",
+        );
+        qb.push_bind(now).push(" WHERE id").push_in(ids);
+        qb.execute(&st.db).await?;
+    }
 
     for (id, conv_id) in purged {
         let members = message_service::get_member_ids(&st.db, conv_id).await.unwrap_or_default();
@@ -110,18 +139,36 @@ async fn purge_by_retention(st: &AppState) -> anyhow::Result<()> {
 /// Deliver scheduled messages whose time has come (clear scheduled_at, bump the
 /// conversation, broadcast them like a fresh message).
 async fn deliver_scheduled(st: &AppState) -> anyhow::Result<()> {
-    let due: Vec<Message> = sqlx::query_as(
-        "UPDATE chat.messages SET scheduled_at = NULL
-         WHERE scheduled_at IS NOT NULL AND scheduled_at <= NOW() AND deleted_at IS NULL
-         RETURNING *",
-    )
-    .fetch_all(&st.db)
-    .await?;
+    // Collect the due messages, then clear scheduled_at by id (no UPDATE ...
+    // RETURNING on MySQL). The in-memory copies have scheduled_at zeroed to match
+    // what a client sees for a freshly delivered message.
+    let now = chrono::Utc::now();
+    let mut due: Vec<Message> = st
+        .db
+        .fetch_all_as(
+            "SELECT * FROM chat.messages
+             WHERE scheduled_at IS NOT NULL AND scheduled_at <= $1 AND deleted_at IS NULL",
+            params![now],
+        )
+        .await?;
+
+    if !due.is_empty() {
+        let ids: Vec<Uuid> = due.iter().map(|m| m.id).collect();
+        let mut qb =
+            DbQueryBuilder::new(st.db.backend(), "UPDATE chat.messages SET scheduled_at = NULL WHERE id");
+        qb.push_in(ids);
+        qb.execute(&st.db).await?;
+        for msg in &mut due {
+            msg.scheduled_at = None;
+        }
+    }
 
     for msg in due {
-        sqlx::query("UPDATE chat.conversations SET updated_at = NOW() WHERE id = $1")
-            .bind(msg.conversation_id)
-            .execute(&st.db)
+        st.db
+            .execute(
+                "UPDATE chat.conversations SET updated_at = $1 WHERE id = $2",
+                params![chrono::Utc::now(), msg.conversation_id],
+            )
             .await
             .ok();
         let members = message_service::get_member_ids(&st.db, msg.conversation_id)
@@ -141,14 +188,25 @@ async fn deliver_scheduled(st: &AppState) -> anyhow::Result<()> {
 
 /// Tombstone ephemeral messages past their TTL and notify members.
 async fn purge_expired(st: &AppState) -> anyhow::Result<()> {
-    let expired: Vec<(Uuid, Uuid)> = sqlx::query_as(
-        "UPDATE chat.messages
-         SET message_type = 'deleted', encrypted_data = '', deleted_at = NOW()
-         WHERE expires_at IS NOT NULL AND expires_at <= NOW() AND deleted_at IS NULL
-         RETURNING id, conversation_id",
-    )
-    .fetch_all(&st.db)
-    .await?;
+    let now = chrono::Utc::now();
+    let expired: Vec<(Uuid, Uuid)> = st
+        .db
+        .fetch_all_as(
+            "SELECT id, conversation_id FROM chat.messages
+             WHERE expires_at IS NOT NULL AND expires_at <= $1 AND deleted_at IS NULL",
+            params![now],
+        )
+        .await?;
+
+    if !expired.is_empty() {
+        let ids: Vec<Uuid> = expired.iter().map(|(id, _)| *id).collect();
+        let mut qb = DbQueryBuilder::new(
+            st.db.backend(),
+            "UPDATE chat.messages SET message_type = 'deleted', encrypted_data = '', deleted_at = ",
+        );
+        qb.push_bind(now).push(" WHERE id").push_in(ids);
+        qb.execute(&st.db).await?;
+    }
 
     for (id, conv_id) in expired {
         let members = message_service::get_member_ids(&st.db, conv_id).await.unwrap_or_default();

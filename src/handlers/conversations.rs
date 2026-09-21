@@ -12,8 +12,16 @@ use axum::{
     extract::{Path, State},
     Json,
 };
+use kubuno_db::dialect::{Assign, SqlType};
+use kubuno_db::{new_id, params, DbPool, DbQueryBuilder};
 use serde_json::{json, Value};
 use uuid::Uuid;
+
+/// The floor used where PostgreSQL wrote `'-infinity'::timestamptz`: a fixed
+/// early instant that predates every message, bound rather than spelled in SQL.
+fn epoch_floor() -> chrono::DateTime<chrono::Utc> {
+    chrono::DateTime::from_timestamp(0, 0).unwrap_or_else(chrono::Utc::now)
+}
 
 /// GET /conversations — liste des conversations de l'utilisateur
 ///
@@ -50,47 +58,55 @@ pub async fn list_conversations(
         lm_created_at:  Option<chrono::DateTime<chrono::Utc>>,
     }
 
-    let rows = sqlx::query_as::<_, SummaryRow>(
-        "SELECT c.*,
-                m.marked_unread, m.is_pinned, m.is_archived, m.is_favorite, m.muted_until,
-                (SELECT COUNT(*) FROM chat.messages msg
-                 WHERE msg.conversation_id = c.id
-                   AND msg.sender_id != $1
-                   AND msg.created_at > m.last_read_at
-                   AND msg.deleted_at IS NULL)                           AS unread_count,
-                (SELECT COUNT(*) FROM chat.conversation_members cm
-                 WHERE cm.conversation_id = c.id AND cm.left_at IS NULL) AS member_count,
-                u.id AS other_id, u.display_name AS other_name,
-                u.username AS other_username, u.avatar_url AS other_avatar,
-                lm.id AS lm_id, lm.sender_id AS lm_sender_id, lm.message_type AS lm_type,
-                lm.encrypted_data AS lm_data, lm.created_at AS lm_created_at
-         FROM chat.conversations c
-         JOIN chat.conversation_members m
-           ON m.conversation_id = c.id AND m.user_id = $1 AND m.left_at IS NULL
-         LEFT JOIN core.users u
-           ON c.conv_type = 'direct'
-          AND u.id = CASE WHEN c.user_a_id = $1 THEN c.user_b_id ELSE c.user_a_id END
-         LEFT JOIN LATERAL (
-             SELECT lm.id, lm.sender_id, lm.message_type, lm.encrypted_data, lm.created_at
-             FROM chat.messages lm
-             WHERE lm.conversation_id = c.id
-               AND lm.deleted_at IS NULL
-               AND (lm.scheduled_at IS NULL OR lm.scheduled_at <= NOW() OR lm.sender_id = $1)
-               AND (lm.expires_at IS NULL OR lm.expires_at > NOW())
-               AND lm.created_at > COALESCE(m.hidden_before, '-infinity'::timestamptz)
-             ORDER BY lm.created_at DESC, lm.id DESC
-             LIMIT 1
-         ) lm ON TRUE
-         WHERE c.provisional_until IS NULL
-         ORDER BY c.updated_at DESC",
-    )
-    .bind(user.id)
-    .fetch_all(&st.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "list_conversations");
-        e
-    })?;
+    // NOTE: cross-schema join to core.users (PostgreSQL/MySQL only). The old
+    // `LEFT JOIN LATERAL (...)` — unsupported by MariaDB/SQLite — is replaced by a
+    // correlated scalar subquery that picks the last visible message id, joined
+    // back to its row; `'-infinity'::timestamptz` becomes a bound floor. Every
+    // reference of the caller id / now is a distinct, strictly increasing
+    // placeholder (sql::prepare forbids reuse).
+    let now = chrono::Utc::now();
+    let floor = epoch_floor();
+    let rows = st
+        .db
+        .fetch_all_as::<SummaryRow>(
+            "SELECT c.*,
+                    m.marked_unread, m.is_pinned, m.is_archived, m.is_favorite, m.muted_until,
+                    (SELECT COUNT(*) FROM chat.messages msg
+                     WHERE msg.conversation_id = c.id
+                       AND msg.sender_id != $1
+                       AND msg.created_at > m.last_read_at
+                       AND msg.deleted_at IS NULL)                           AS unread_count,
+                    (SELECT COUNT(*) FROM chat.conversation_members cm
+                     WHERE cm.conversation_id = c.id AND cm.left_at IS NULL) AS member_count,
+                    u.id AS other_id, u.display_name AS other_name,
+                    u.username AS other_username, u.avatar_url AS other_avatar,
+                    lm.id AS lm_id, lm.sender_id AS lm_sender_id, lm.message_type AS lm_type,
+                    lm.encrypted_data AS lm_data, lm.created_at AS lm_created_at
+             FROM chat.conversations c
+             JOIN chat.conversation_members m
+               ON m.conversation_id = c.id AND m.user_id = $2 AND m.left_at IS NULL
+             LEFT JOIN core.users u
+               ON c.conv_type = 'direct'
+              AND u.id = CASE WHEN c.user_a_id = $3 THEN c.user_b_id ELSE c.user_a_id END
+             LEFT JOIN chat.messages lm ON lm.id = (
+                 SELECT lm2.id FROM chat.messages lm2
+                 WHERE lm2.conversation_id = c.id
+                   AND lm2.deleted_at IS NULL
+                   AND (lm2.scheduled_at IS NULL OR lm2.scheduled_at <= $4 OR lm2.sender_id = $5)
+                   AND (lm2.expires_at IS NULL OR lm2.expires_at > $6)
+                   AND lm2.created_at > COALESCE(m.hidden_before, $7)
+                 ORDER BY lm2.created_at DESC, lm2.id DESC
+                 LIMIT 1
+             )
+             WHERE c.provisional_until IS NULL
+             ORDER BY c.updated_at DESC",
+            params![user.id, user.id, user.id, now, user.id, now, floor],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "list_conversations");
+            e
+        })?;
 
     let summaries: Vec<ConversationSummary> = rows
         .into_iter()
@@ -137,20 +153,30 @@ pub async fn list_conversations(
 /// of new conversations. Reading `core.users` is the only way to know: the
 /// module is told the *caller's* role by the proxy, never anyone else's.
 async fn involves_a_guest(
-    db: &sqlx::PgPool,
+    db: &DbPool,
     ids: &[Uuid],
 ) -> ChatResult<bool> {
-    let found: Option<bool> = sqlx::query_scalar(
-        "SELECT EXISTS(SELECT 1 FROM core.users WHERE id = ANY($1) AND role = 'guest')",
-    )
-    .bind(ids)
-    .fetch_optional(db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "Vérification des comptes invités");
-        e
-    })?;
-    Ok(found.unwrap_or(false))
+    if ids.is_empty() {
+        return Ok(false);
+    }
+    // NOTE: cross-schema read of core.users (PostgreSQL/MySQL only). `= ANY($1)`
+    // has no portable form, so the id list becomes an `IN (...)`; the existence
+    // is a cast `SELECT 1 ... LIMIT 1` whose presence is the answer.
+    let one = db.backend().cast("1", SqlType::BigInt);
+    let mut qb = DbQueryBuilder::new(
+        db.backend(),
+        format!("SELECT {one} FROM core.users WHERE role = 'guest' AND id"),
+    );
+    qb.push_in(ids.iter().copied()).push(" LIMIT 1");
+    let found = qb
+        .fetch_optional_scalar::<i64>(db)
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "Vérification des comptes invités");
+            e
+        })?
+        .is_some();
+    Ok(found)
 }
 
 /// POST /conversations — créer une conversation
@@ -178,51 +204,65 @@ pub async fn create_conversation(
                 return Err(ChatError::Forbidden);
             }
 
-            // Vérifier si une conversation directe existe déjà
-            let existing: Option<Conversation> = sqlx::query_as(
-                "SELECT * FROM chat.conversations
-                 WHERE conv_type = 'direct'
-                   AND ((user_a_id = $1 AND user_b_id = $2)
-                     OR (user_a_id = $2 AND user_b_id = $1))",
-            )
-            .bind(user.id)
-            .bind(target)
-            .fetch_optional(&st.db)
-            .await?;
+            // Vérifier si une conversation directe existe déjà (placeholders never
+            // reused: each side of the OR binds the pair again).
+            let existing: Option<Conversation> = st
+                .db
+                .fetch_optional_as(
+                    "SELECT * FROM chat.conversations
+                     WHERE conv_type = 'direct'
+                       AND ((user_a_id = $1 AND user_b_id = $2)
+                         OR (user_a_id = $3 AND user_b_id = $4))",
+                    params![user.id, target, target, user.id],
+                )
+                .await?;
 
             if let Some(c) = existing {
-                // Re-add the requesting user in case they previously left
-                sqlx::query(
-                    "INSERT INTO chat.conversation_members (conversation_id, user_id, role)
-                     VALUES ($1, $2, 'member')
-                     ON CONFLICT (conversation_id, user_id) DO UPDATE SET left_at = NULL",
-                )
-                .bind(c.id)
-                .bind(user.id)
-                .execute(&st.db)
-                .await?;
+                // Re-add the requesting user in case they previously left.
+                let upsert = st.db.backend().upsert(
+                    "chat.conversation_members",
+                    &["conversation_id", "user_id"],
+                    &[Assign::Expr { col: "left_at", expr: "NULL" }],
+                );
+                st.db
+                    .execute(
+                        &format!(
+                            "INSERT INTO chat.conversation_members (conversation_id, user_id, role)
+                             VALUES ($1, $2, 'member'){upsert}"
+                        ),
+                        params![c.id, user.id],
+                    )
+                    .await?;
                 return Ok(Json(json!({ "conversation": c })));
             }
 
-            let conv: Conversation = sqlx::query_as(
-                "INSERT INTO chat.conversations (conv_type, user_a_id, user_b_id, created_by)
-                 VALUES ('direct', $1, $2, $1)
-                 RETURNING *",
-            )
-            .bind(user.id)
-            .bind(target)
-            .fetch_one(&st.db)
-            .await?;
-
-            for uid in [user.id, target] {
-                sqlx::query(
-                    "INSERT INTO chat.conversation_members (conversation_id, user_id, role)
-                     VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING",
+            let conv_id = new_id();
+            let now = chrono::Utc::now();
+            st.db
+                .execute(
+                    "INSERT INTO chat.conversations
+                     (id, conv_type, user_a_id, user_b_id, created_by, created_at, updated_at, meeting_settings)
+                     VALUES ($1, 'direct', $2, $3, $4, $5, $6, $7)",
+                    params![conv_id, user.id, target, user.id, now, now, json!({})],
                 )
-                .bind(conv.id)
-                .bind(uid)
-                .execute(&st.db)
                 .await?;
+            let conv: Conversation = st
+                .db
+                .fetch_one_as("SELECT * FROM chat.conversations WHERE id = $1", params![conv_id])
+                .await?;
+
+            let ignore = st.db.backend().on_conflict_do_nothing(&["conversation_id", "user_id"]);
+            for uid in [user.id, target] {
+                st.db
+                    .execute(
+                        &format!(
+                            "INSERT {}INTO chat.conversation_members (conversation_id, user_id, role)
+                             VALUES ($1, $2, 'member'){ignore}",
+                            st.db.backend().insert_ignore_prefix()
+                        ),
+                        params![conv.id, uid],
+                    )
+                    .await?;
             }
 
             // Notifier l'interlocuteur via WebSocket pour qu'il rafraîchisse sa liste
@@ -263,46 +303,51 @@ pub async fn create_conversation(
             // act of creating it, there is no draft behind it to abandon.
             let provisional = is_meeting && dto.provisional.unwrap_or(false);
 
-            let conv: Conversation = sqlx::query_as(
-                "INSERT INTO chat.conversations (conv_type, name, description, created_by, is_meeting, provisional_until)
-                 VALUES ($1, $2, $3, $4, $5,
-                         CASE WHEN $6 THEN NOW() + make_interval(mins => $7) ELSE NULL END)
-                 RETURNING *",
-            )
-            .bind(conv_type)
-            .bind(&name)
-            .bind(&dto.description)
-            .bind(user.id)
-            .bind(is_meeting)
-            .bind(provisional)
-            .bind(PROVISIONAL_GRACE_MIN)
-            .fetch_one(&st.db)
-            .await?;
+            // The provisional deadline (`NOW() + make_interval`) is computed in
+            // Rust, and the id/timestamps are bound (no RETURNING on MySQL).
+            let conv_id = new_id();
+            let now = chrono::Utc::now();
+            let provisional_until = provisional
+                .then(|| now + chrono::Duration::minutes(PROVISIONAL_GRACE_MIN as i64));
+            st.db
+                .execute(
+                    "INSERT INTO chat.conversations
+                     (id, conv_type, name, description, created_by, is_meeting, provisional_until, created_at, updated_at, meeting_settings)
+                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+                    params![conv_id, conv_type, &name, dto.description.as_deref(), user.id, is_meeting, provisional_until, now, now, json!({})],
+                )
+                .await?;
+            let conv: Conversation = st
+                .db
+                .fetch_one_as("SELECT * FROM chat.conversations WHERE id = $1", params![conv_id])
+                .await?;
 
             // Créateur = owner
-            sqlx::query(
-                "INSERT INTO chat.conversation_members (conversation_id, user_id, role)
-                 VALUES ($1, $2, 'owner')",
-            )
-            .bind(conv.id)
-            .bind(user.id)
-            .execute(&st.db)
-            .await?;
+            st.db
+                .execute(
+                    "INSERT INTO chat.conversation_members (conversation_id, user_id, role)
+                     VALUES ($1, $2, 'owner')",
+                    params![conv.id, user.id],
+                )
+                .await?;
 
             // Membres supplémentaires
             if let Some(ids) = &dto.member_ids {
+                let ignore = st.db.backend().on_conflict_do_nothing(&["conversation_id", "user_id"]);
                 for uid in ids {
                     if *uid == user.id {
                         continue;
                     }
-                    sqlx::query(
-                        "INSERT INTO chat.conversation_members (conversation_id, user_id, role)
-                         VALUES ($1, $2, 'member') ON CONFLICT DO NOTHING",
-                    )
-                    .bind(conv.id)
-                    .bind(uid)
-                    .execute(&st.db)
-                    .await?;
+                    st.db
+                        .execute(
+                            &format!(
+                                "INSERT {}INTO chat.conversation_members (conversation_id, user_id, role)
+                                 VALUES ($1, $2, 'member'){ignore}",
+                                st.db.backend().insert_ignore_prefix()
+                            ),
+                            params![conv.id, uid],
+                        )
+                        .await?;
                 }
             }
 
@@ -324,23 +369,25 @@ pub async fn join_meeting(
     user: ChatUser,
     Path(conv_id): Path<Uuid>,
 ) -> ChatResult<Json<Value>> {
-    let joinable: Option<JoinableRow> =
-        sqlx::query_as(
+    let joinable: Option<JoinableRow> = st
+        .db
+        .fetch_optional_as(
             "SELECT is_meeting, conv_type, meeting_ended_at, created_by
                FROM chat.conversations WHERE id = $1",
+            params![conv_id],
         )
-            .bind(conv_id)
-            .fetch_optional(&st.db)
-            .await?;
+        .await?;
 
     // A meeting that was ended is closed: nobody walks back in through the
     // link. Its host reopens it, which is what starting it again does.
     if let Some((true, _, Some(_), created_by)) = &joinable {
         let reopens = *created_by == Some(user.id);
         if reopens {
-            sqlx::query("UPDATE chat.conversations SET meeting_ended_at = NULL WHERE id = $1")
-                .bind(conv_id)
-                .execute(&st.db)
+            st.db
+                .execute(
+                    "UPDATE chat.conversations SET meeting_ended_at = NULL WHERE id = $1",
+                    params![conv_id],
+                )
                 .await?;
         } else {
             return Err(ChatError::MeetingEnded);
@@ -353,22 +400,26 @@ pub async fn join_meeting(
     // until a host is a member and present. Checked on the SERVER — a rule that
     // only the meeting page enforced would be a suggestion, not a rule.
     if let Some((true, _, _, created_by)) = &joinable {
-        let settings: (serde_json::Value,) =
-            sqlx::query_as("SELECT meeting_settings FROM chat.conversations WHERE id = $1")
-                .bind(conv_id)
-                .fetch_one(&st.db)
-                .await?;
+        let settings: (serde_json::Value,) = st
+            .db
+            .fetch_one_as("SELECT meeting_settings FROM chat.conversations WHERE id = $1", params![conv_id])
+            .await?;
         let s = crate::models::conversation::MeetingSettings::read(&settings.0);
         if s.restricts() && s.host_joins_first && *created_by != Some(user.id) {
-            let host_in: Option<(bool,)> = sqlx::query_as(
-                "SELECT EXISTS(SELECT 1 FROM chat.conversation_members m
-                                WHERE m.conversation_id = $1 AND m.left_at IS NULL
-                                  AND m.role IN ('owner', 'admin'))",
-            )
-            .bind(conv_id)
-            .fetch_optional(&st.db)
-            .await?;
-            if !host_in.map(|r| r.0).unwrap_or(false) {
+            let one = st.db.backend().cast("1", SqlType::BigInt);
+            let host_in = st
+                .db
+                .fetch_optional_scalar::<i64>(
+                    &format!(
+                        "SELECT {one} FROM chat.conversation_members m
+                          WHERE m.conversation_id = $1 AND m.left_at IS NULL
+                            AND m.role IN ('owner', 'admin') LIMIT 1"
+                    ),
+                    params![conv_id],
+                )
+                .await?
+                .is_some();
+            if !host_in {
                 return Err(ChatError::Forbidden);
             }
         }
@@ -379,25 +430,37 @@ pub async fn join_meeting(
     // asked. Checked on the SERVER — an access rule the page enforced would be
     // a suggestion.
     if let Some((true, _, _, created_by)) = &joinable {
-        let row: (serde_json::Value,) =
-            sqlx::query_as("SELECT meeting_settings FROM chat.conversations WHERE id = $1")
-                .bind(conv_id)
-                .fetch_one(&st.db)
-                .await?;
+        let row: (serde_json::Value,) = st
+            .db
+            .fetch_one_as("SELECT meeting_settings FROM chat.conversations WHERE id = $1", params![conv_id])
+            .await?;
         let s = crate::models::conversation::MeetingSettings::read(&row.0);
         if s.trusted_only() && *created_by != Some(user.id) {
-            let known: Option<(bool, bool)> = sqlx::query_as(
-                "SELECT
-                   EXISTS(SELECT 1 FROM chat.conversation_members m
-                           WHERE m.conversation_id = $1 AND m.user_id = $2 AND m.left_at IS NULL),
-                   EXISTS(SELECT 1 FROM chat.meeting_knocks k
-                           WHERE k.conversation_id = $1 AND k.user_id = $2 AND k.status = 'admitted')",
-            )
-            .bind(conv_id)
-            .bind(user.id)
-            .fetch_optional(&st.db)
-            .await?;
-            let (is_member, admitted) = known.unwrap_or((false, false));
+            // Two existence probes rather than one `SELECT EXISTS(..), EXISTS(..)`
+            // row (EXISTS decodes as bool only on PostgreSQL).
+            let one = st.db.backend().cast("1", SqlType::BigInt);
+            let is_member = st
+                .db
+                .fetch_optional_scalar::<i64>(
+                    &format!(
+                        "SELECT {one} FROM chat.conversation_members m
+                          WHERE m.conversation_id = $1 AND m.user_id = $2 AND m.left_at IS NULL LIMIT 1"
+                    ),
+                    params![conv_id, user.id],
+                )
+                .await?
+                .is_some();
+            let admitted = st
+                .db
+                .fetch_optional_scalar::<i64>(
+                    &format!(
+                        "SELECT {one} FROM chat.meeting_knocks k
+                          WHERE k.conversation_id = $1 AND k.user_id = $2 AND k.status = 'admitted' LIMIT 1"
+                    ),
+                    params![conv_id, user.id],
+                )
+                .await?
+                .is_some();
             if !is_member && !admitted {
                 return Err(if s.allow_knocking { ChatError::KnockRequired } else { ChatError::Forbidden });
             }
@@ -408,15 +471,20 @@ pub async fn join_meeting(
 
     match joinable.map(|(meeting, ty, _, _)| meeting || (ty == "channel" && public_spaces)) {
         Some(true) => {
-            sqlx::query(
-                "INSERT INTO chat.conversation_members (conversation_id, user_id, role)
-                 VALUES ($1, $2, 'member')
-                 ON CONFLICT (conversation_id, user_id) DO UPDATE SET left_at = NULL",
-            )
-            .bind(conv_id)
-            .bind(user.id)
-            .execute(&st.db)
-            .await?;
+            let upsert = st.db.backend().upsert(
+                "chat.conversation_members",
+                &["conversation_id", "user_id"],
+                &[Assign::Expr { col: "left_at", expr: "NULL" }],
+            );
+            st.db
+                .execute(
+                    &format!(
+                        "INSERT INTO chat.conversation_members (conversation_id, user_id, role)
+                         VALUES ($1, $2, 'member'){upsert}"
+                    ),
+                    params![conv_id, user.id],
+                )
+                .await?;
             Ok(Json(json!({ "ok": true, "conversation_id": conv_id })))
         }
         Some(false) => Err(ChatError::Forbidden),
@@ -440,30 +508,41 @@ pub async fn browse_channels(
         return Ok(Json(json!({ "channels": [] })));
     }
 
-    type ChannelRow = (Uuid, Option<String>, Option<String>, chrono::DateTime<chrono::Utc>, i64, bool);
-    let rows: Vec<ChannelRow> = sqlx::query_as(
-        "SELECT c.id, c.name, c.description, c.created_at,
-                (SELECT COUNT(*) FROM chat.conversation_members m2
-                  WHERE m2.conversation_id = c.id AND m2.left_at IS NULL) AS member_count,
-                EXISTS(SELECT 1 FROM chat.conversation_members me
-                        WHERE me.conversation_id = c.id AND me.user_id = $1 AND me.left_at IS NULL) AS is_member
-         FROM chat.conversations c
-         WHERE c.conv_type = 'channel' AND c.is_meeting = FALSE
-           AND ($2 = '' OR LOWER(COALESCE(c.name, '')) LIKE '%' || $2 || '%')
-         ORDER BY member_count DESC, c.created_at DESC
-         LIMIT 50",
-    )
-    .bind(user.id)
-    .bind(&q)
-    .fetch_all(&st.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "browse_channels");
-        e
-    })?;
+    // is_member is a cast `SELECT 1 ... LIMIT 1` scalar subquery (NULL when the
+    // caller is not a member) rather than `EXISTS(..)`, which decodes as bool only
+    // on PostgreSQL. The name filter binds a `%q%` pattern built in Rust (q is
+    // already lowercased) instead of the PostgreSQL-only `||` concatenation.
+    type ChannelRow = (Uuid, Option<String>, Option<String>, chrono::DateTime<chrono::Utc>, i64, Option<i64>);
+    let one = st.db.backend().cast("1", SqlType::BigInt);
+    let pattern = format!("%{q}%");
+    let rows: Vec<ChannelRow> = st
+        .db
+        .fetch_all_as(
+            &format!(
+                "SELECT c.id, c.name, c.description, c.created_at,
+                        (SELECT COUNT(*) FROM chat.conversation_members m2
+                          WHERE m2.conversation_id = c.id AND m2.left_at IS NULL) AS member_count,
+                        (SELECT {one} FROM chat.conversation_members me
+                          WHERE me.conversation_id = c.id AND me.user_id = $1 AND me.left_at IS NULL LIMIT 1) AS is_member
+                 FROM chat.conversations c
+                 WHERE c.conv_type = 'channel' AND c.is_meeting = FALSE
+                   AND LOWER(COALESCE(c.name, '')) LIKE $2
+                 ORDER BY member_count DESC, c.created_at DESC
+                 LIMIT 50"
+            ),
+            params![user.id, pattern],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "browse_channels");
+            e
+        })?;
 
     let channels: Vec<Value> = rows
         .into_iter()
+        .map(|(id, name, description, created_at, member_count, membership)| {
+            (id, name, description, created_at, member_count, membership.is_some())
+        })
         .filter(|(_, _, _, _, _, is_member)| *is_member == joined)
         .map(|(id, name, description, created_at, member_count, is_member)| {
             json!({
@@ -488,9 +567,9 @@ pub async fn get_conversation(
 ) -> ChatResult<Json<Value>> {
     message_service::assert_member(&st.db, conv_id, user.id).await?;
 
-    let conv: Conversation = sqlx::query_as("SELECT * FROM chat.conversations WHERE id = $1")
-        .bind(conv_id)
-        .fetch_optional(&st.db)
+    let conv: Conversation = st
+        .db
+        .fetch_optional_as("SELECT * FROM chat.conversations WHERE id = $1", params![conv_id])
         .await?
         .ok_or_else(|| ChatError::NotFound(conv_id.to_string()))?;
 
@@ -504,16 +583,18 @@ pub async fn get_conversation(
         avatar_url:   Option<String>,
     }
 
-    let members: Vec<MemberRow> = sqlx::query_as(
-        "SELECT m.user_id, m.role, m.joined_at,
-                u.display_name, u.username, u.avatar_url
-         FROM chat.conversation_members m
-         JOIN core.users u ON u.id = m.user_id
-         WHERE m.conversation_id = $1 AND m.left_at IS NULL",
-    )
-    .bind(conv_id)
-    .fetch_all(&st.db)
-    .await?;
+    // NOTE: cross-schema join to core.users (PostgreSQL/MySQL only).
+    let members: Vec<MemberRow> = st
+        .db
+        .fetch_all_as(
+            "SELECT m.user_id, m.role, m.joined_at,
+                    u.display_name, u.username, u.avatar_url
+             FROM chat.conversation_members m
+             JOIN core.users u ON u.id = m.user_id
+             WHERE m.conversation_id = $1 AND m.left_at IS NULL",
+            params![conv_id],
+        )
+        .await?;
 
     Ok(Json(json!({ "conversation": conv, "members": members })))
 }
@@ -526,14 +607,14 @@ pub async fn update_conversation(
     Json(dto): Json<UpdateConversationDto>,
 ) -> ChatResult<Json<Value>> {
     // Vérifier admin/owner
-    let role: Option<String> = sqlx::query_scalar(
-        "SELECT role FROM chat.conversation_members
-         WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL",
-    )
-    .bind(conv_id)
-    .bind(user.id)
-    .fetch_optional(&st.db)
-    .await?;
+    let role: Option<String> = st
+        .db
+        .fetch_optional_scalar(
+            "SELECT role FROM chat.conversation_members
+             WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL",
+            params![conv_id, user.id],
+        )
+        .await?;
 
     match role.as_deref() {
         Some("admin") | Some("owner") => {}
@@ -544,25 +625,29 @@ pub async fn update_conversation(
     // actually moved. Renaming a room to what it is already called must produce
     // no event: the module on the other side would rename its own object back,
     // and the two would keep answering each other.
-    let before: Option<String> = sqlx::query_scalar("SELECT name FROM chat.conversations WHERE id = $1")
-        .bind(conv_id)
-        .fetch_optional(&st.db)
+    let before: Option<String> = st
+        .db
+        .fetch_optional_scalar::<Option<String>>(
+            "SELECT name FROM chat.conversations WHERE id = $1",
+            params![conv_id],
+        )
         .await?
         .flatten();
 
-    let conv: Conversation = sqlx::query_as(
-        "UPDATE chat.conversations
-         SET name        = COALESCE($2, name),
-             description = COALESCE($3, description),
-             updated_at  = NOW()
-         WHERE id = $1
-         RETURNING *",
-    )
-    .bind(conv_id)
-    .bind(&dto.name)
-    .bind(&dto.description)
-    .fetch_one(&st.db)
-    .await?;
+    st.db
+        .execute(
+            "UPDATE chat.conversations
+             SET name        = COALESCE($1, name),
+                 description = COALESCE($2, description),
+                 updated_at  = $3
+             WHERE id = $4",
+            params![dto.name.as_deref(), dto.description.as_deref(), chrono::Utc::now(), conv_id],
+        )
+        .await?;
+    let conv: Conversation = st
+        .db
+        .fetch_one_as("SELECT * FROM chat.conversations WHERE id = $1", params![conv_id])
+        .await?;
 
     // A meeting that belongs to something else carries ITS title. Renamed here,
     // the thing it belongs to has to follow — otherwise the event says one name
@@ -586,15 +671,15 @@ pub async fn leave_conversation(
 
     // hidden_before marque le point à partir duquel l'utilisateur verra les messages
     // s'il est rajouté à la conversation plus tard (ex: nouveau message dans un DM)
-    sqlx::query(
-        "UPDATE chat.conversation_members
-         SET left_at = NOW(), hidden_before = NOW()
-         WHERE conversation_id = $1 AND user_id = $2",
-    )
-    .bind(conv_id)
-    .bind(user.id)
-    .execute(&st.db)
-    .await?;
+    let now = chrono::Utc::now();
+    st.db
+        .execute(
+            "UPDATE chat.conversation_members
+             SET left_at = $1, hidden_before = $2
+             WHERE conversation_id = $3 AND user_id = $4",
+            params![now, now, conv_id, user.id],
+        )
+        .await?;
 
     Ok(Json(json!({ "ok": true })))
 }
@@ -618,31 +703,34 @@ pub async fn add_members(
     // Instance policy: adding members may be reserved to the space's owner and
     // admins. Direct conversations have no such notion and keep their behaviour.
     if cfg.space_invite_policy == SpaceInvitePolicy::Managers {
-        let is_direct: bool = sqlx::query_scalar(
-            "SELECT conv_type = 'direct' FROM chat.conversations WHERE id = $1",
-        )
-        .bind(conv_id)
-        .fetch_optional(&st.db)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "add_members: lecture du type de conversation");
-            e
-        })?
-        .unwrap_or(false);
-
-        if !is_direct {
-            let role: Option<String> = sqlx::query_scalar(
-                "SELECT role FROM chat.conversation_members
-                 WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL",
+        // Read the raw conv_type and compare in Rust: `SELECT conv_type = 'direct'`
+        // is a boolean expression that decodes as bool only on PostgreSQL.
+        let conv_type: Option<String> = st
+            .db
+            .fetch_optional_scalar(
+                "SELECT conv_type FROM chat.conversations WHERE id = $1",
+                params![conv_id],
             )
-            .bind(conv_id)
-            .bind(user.id)
-            .fetch_optional(&st.db)
             .await
             .map_err(|e| {
-                tracing::error!(error = %e, "add_members: lecture du rôle");
+                tracing::error!(error = %e, "add_members: lecture du type de conversation");
                 e
             })?;
+        let is_direct = conv_type.as_deref() == Some("direct");
+
+        if !is_direct {
+            let role: Option<String> = st
+                .db
+                .fetch_optional_scalar(
+                    "SELECT role FROM chat.conversation_members
+                     WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL",
+                    params![conv_id, user.id],
+                )
+                .await
+                .map_err(|e| {
+                    tracing::error!(error = %e, "add_members: lecture du rôle");
+                    e
+                })?;
 
             if !matches!(role.as_deref(), Some("admin") | Some("owner")) {
                 return Err(ChatError::Forbidden);
@@ -650,16 +738,21 @@ pub async fn add_members(
         }
     }
 
+    let upsert = st.db.backend().upsert(
+        "chat.conversation_members",
+        &["conversation_id", "user_id"],
+        &[Assign::Expr { col: "left_at", expr: "NULL" }],
+    );
     for uid in &dto.user_ids {
-        sqlx::query(
-            "INSERT INTO chat.conversation_members (conversation_id, user_id, role)
-             VALUES ($1, $2, 'member')
-             ON CONFLICT (conversation_id, user_id) DO UPDATE SET left_at = NULL",
-        )
-        .bind(conv_id)
-        .bind(uid)
-        .execute(&st.db)
-        .await?;
+        st.db
+            .execute(
+                &format!(
+                    "INSERT INTO chat.conversation_members (conversation_id, user_id, role)
+                     VALUES ($1, $2, 'member'){upsert}"
+                ),
+                params![conv_id, uid],
+            )
+            .await?;
     }
 
     Ok(Json(json!({ "ok": true, "added": dto.user_ids.len() })))
@@ -672,14 +765,14 @@ pub async fn remove_member(
     Path((conv_id, target_uid)): Path<(Uuid, Uuid)>,
 ) -> ChatResult<Json<Value>> {
     // Owner/admin ou l'utilisateur lui-même
-    let role: Option<String> = sqlx::query_scalar(
-        "SELECT role FROM chat.conversation_members
-         WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL",
-    )
-    .bind(conv_id)
-    .bind(user.id)
-    .fetch_optional(&st.db)
-    .await?;
+    let role: Option<String> = st
+        .db
+        .fetch_optional_scalar(
+            "SELECT role FROM chat.conversation_members
+             WHERE conversation_id = $1 AND user_id = $2 AND left_at IS NULL",
+            params![conv_id, user.id],
+        )
+        .await?;
 
     let can_remove = matches!(role.as_deref(), Some("admin") | Some("owner"))
         || target_uid == user.id;
@@ -688,14 +781,13 @@ pub async fn remove_member(
         return Err(ChatError::Forbidden);
     }
 
-    sqlx::query(
-        "UPDATE chat.conversation_members SET left_at = NOW()
-         WHERE conversation_id = $1 AND user_id = $2",
-    )
-    .bind(conv_id)
-    .bind(target_uid)
-    .execute(&st.db)
-    .await?;
+    st.db
+        .execute(
+            "UPDATE chat.conversation_members SET left_at = $1
+             WHERE conversation_id = $2 AND user_id = $3",
+            params![chrono::Utc::now(), conv_id, target_uid],
+        )
+        .await?;
 
     Ok(Json(json!({ "ok": true })))
 }
@@ -710,35 +802,28 @@ pub async fn update_member_settings(
     message_service::assert_member(&st.db, conv_id, user.id).await?;
 
     if let Some(pin) = dto.pin {
-        sqlx::query("UPDATE chat.conversation_members SET is_pinned = $3 WHERE conversation_id = $1 AND user_id = $2")
-            .bind(conv_id).bind(user.id).bind(pin).execute(&st.db).await?;
+        st.db.execute("UPDATE chat.conversation_members SET is_pinned = $1 WHERE conversation_id = $2 AND user_id = $3", params![pin, conv_id, user.id]).await?;
     }
     if let Some(archive) = dto.archive {
-        sqlx::query("UPDATE chat.conversation_members SET is_archived = $3 WHERE conversation_id = $1 AND user_id = $2")
-            .bind(conv_id).bind(user.id).bind(archive).execute(&st.db).await?;
+        st.db.execute("UPDATE chat.conversation_members SET is_archived = $1 WHERE conversation_id = $2 AND user_id = $3", params![archive, conv_id, user.id]).await?;
     }
     if let Some(fav) = dto.favorite {
-        sqlx::query("UPDATE chat.conversation_members SET is_favorite = $3 WHERE conversation_id = $1 AND user_id = $2")
-            .bind(conv_id).bind(user.id).bind(fav).execute(&st.db).await?;
+        st.db.execute("UPDATE chat.conversation_members SET is_favorite = $1 WHERE conversation_id = $2 AND user_id = $3", params![fav, conv_id, user.id]).await?;
     }
     if let Some(until) = dto.mute_until {
-        sqlx::query("UPDATE chat.conversation_members SET muted_until = $3 WHERE conversation_id = $1 AND user_id = $2")
-            .bind(conv_id).bind(user.id).bind(until).execute(&st.db).await?;
+        st.db.execute("UPDATE chat.conversation_members SET muted_until = $1 WHERE conversation_id = $2 AND user_id = $3", params![until, conv_id, user.id]).await?;
     }
     if dto.unmute == Some(true) {
-        sqlx::query("UPDATE chat.conversation_members SET muted_until = NULL WHERE conversation_id = $1 AND user_id = $2")
-            .bind(conv_id).bind(user.id).execute(&st.db).await?;
+        st.db.execute("UPDATE chat.conversation_members SET muted_until = NULL WHERE conversation_id = $1 AND user_id = $2", params![conv_id, user.id]).await?;
     }
     match dto.mark_unread {
         Some(true) => {
-            sqlx::query("UPDATE chat.conversation_members SET last_read_at = '1970-01-01', last_read_message_id = NULL, marked_unread = TRUE WHERE conversation_id = $1 AND user_id = $2")
-                .bind(conv_id).bind(user.id).execute(&st.db).await?;
+            st.db.execute("UPDATE chat.conversation_members SET last_read_at = $1, last_read_message_id = NULL, marked_unread = TRUE WHERE conversation_id = $2 AND user_id = $3", params![epoch_floor(), conv_id, user.id]).await?;
         }
         // Clearing the flag: opening a conversation with no message at all can't go
         // through mark_read (it needs a message id), so it lands here.
         Some(false) => {
-            sqlx::query("UPDATE chat.conversation_members SET last_read_at = NOW(), marked_unread = FALSE WHERE conversation_id = $1 AND user_id = $2")
-                .bind(conv_id).bind(user.id).execute(&st.db).await?;
+            st.db.execute("UPDATE chat.conversation_members SET last_read_at = $1, marked_unread = FALSE WHERE conversation_id = $2 AND user_id = $3", params![chrono::Utc::now(), conv_id, user.id]).await?;
         }
         None => {}
     }
@@ -754,12 +839,12 @@ pub async fn clear_messages(
 ) -> ChatResult<Json<Value>> {
     message_service::assert_member(&st.db, conv_id, user.id).await?;
 
-    sqlx::query(
-        "UPDATE chat.messages SET deleted_at = NOW() WHERE conversation_id = $1 AND deleted_at IS NULL",
-    )
-    .bind(conv_id)
-    .execute(&st.db)
-    .await?;
+    st.db
+        .execute(
+            "UPDATE chat.messages SET deleted_at = $1 WHERE conversation_id = $2 AND deleted_at IS NULL",
+            params![chrono::Utc::now(), conv_id],
+        )
+        .await?;
 
     Ok(Json(json!({ "ok": true })))
 }
@@ -776,17 +861,17 @@ pub async fn update_meeting_settings(
     Path(conv_id): Path<Uuid>,
     Json(dto): Json<crate::models::conversation::MeetingSettings>,
 ) -> ChatResult<Json<Value>> {
-    let row: Option<(bool, Option<String>)> = sqlx::query_as(
-        "SELECT c.is_meeting, m.role
-           FROM chat.conversations c
-           LEFT JOIN chat.conversation_members m
-             ON m.conversation_id = c.id AND m.user_id = $2 AND m.left_at IS NULL
-          WHERE c.id = $1",
-    )
-    .bind(conv_id)
-    .bind(user.id)
-    .fetch_optional(&st.db)
-    .await?;
+    let row: Option<(bool, Option<String>)> = st
+        .db
+        .fetch_optional_as(
+            "SELECT c.is_meeting, m.role
+               FROM chat.conversations c
+               LEFT JOIN chat.conversation_members m
+                 ON m.conversation_id = c.id AND m.user_id = $2 AND m.left_at IS NULL
+              WHERE c.id = $1",
+            params![conv_id, user.id],
+        )
+        .await?;
 
     let (is_meeting, role) = row.ok_or(ChatError::NotFound(conv_id.to_string()))?;
     if !is_meeting {
@@ -797,10 +882,11 @@ pub async fn update_meeting_settings(
     }
 
     let value = serde_json::to_value(&dto).unwrap_or_else(|_| json!({}));
-    sqlx::query("UPDATE chat.conversations SET meeting_settings = $2 WHERE id = $1")
-        .bind(conv_id)
-        .bind(&value)
-        .execute(&st.db)
+    st.db
+        .execute(
+            "UPDATE chat.conversations SET meeting_settings = $1 WHERE id = $2",
+            params![value.clone(), conv_id],
+        )
         .await?;
 
     Ok(Json(json!({ "meeting_settings": value })))
@@ -815,9 +901,9 @@ pub const PROVISIONAL_GRACE_MIN: i32 = 120;
 /// already joined or written in is no longer a draft: the link was shared and
 /// answered, whatever became of the form. Nothing deletes one of those — not
 /// the ✕, not the sweep.
-pub const UNUSED_ROOM: &str = "NOT EXISTS (SELECT 1 FROM chat.messages msg WHERE msg.conversation_id = c.id)
+pub const UNUSED_ROOM: &str = "NOT EXISTS (SELECT 1 FROM chat.messages msg WHERE msg.conversation_id = conversations.id)
      AND (SELECT COUNT(*) FROM chat.conversation_members cm
-           WHERE cm.conversation_id = c.id AND cm.left_at IS NULL) <= 1";
+           WHERE cm.conversation_id = conversations.id AND cm.left_at IS NULL) <= 1";
 
 /// `POST /conversations/:id/provisional/keep` — the form is still open.
 ///
@@ -830,23 +916,26 @@ pub async fn keep_provisional(
     Path(conv_id): Path<Uuid>,
 ) -> ChatResult<Json<Value>> {
     assert_meeting_host(&st.db, conv_id, user.id).await?;
-    let kept: Option<(Option<chrono::DateTime<chrono::Utc>>,)> = sqlx::query_as(
-        "UPDATE chat.conversations
-            SET provisional_until = NOW() + make_interval(mins => $2)
-          WHERE id = $1 AND provisional_until IS NOT NULL
-          RETURNING provisional_until",
-    )
-    .bind(conv_id)
-    .bind(PROVISIONAL_GRACE_MIN)
-    .fetch_optional(&st.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "keep_provisional");
-        e
-    })?;
+    // The new deadline is computed in Rust (no make_interval); the guarded update
+    // succeeds only while the room is still provisional, and its row count stands
+    // in for the old RETURNING.
+    let new_deadline = chrono::Utc::now() + chrono::Duration::minutes(PROVISIONAL_GRACE_MIN as i64);
+    let updated = st
+        .db
+        .execute(
+            "UPDATE chat.conversations SET provisional_until = $1
+              WHERE id = $2 AND provisional_until IS NOT NULL",
+            params![new_deadline, conv_id],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "keep_provisional");
+            e
+        })?;
     // A room that is no longer provisional is not an error: it was confirmed
     // while this call was in flight, which is the outcome we wanted anyway.
-    Ok(Json(json!({ "provisional_until": kept.and_then(|r| r.0) })))
+    let kept = (updated > 0).then_some(new_deadline);
+    Ok(Json(json!({ "provisional_until": kept })))
 }
 
 /// `POST /conversations/:id/provisional/confirm` — the form was saved.
@@ -859,9 +948,11 @@ pub async fn confirm_provisional(
     Path(conv_id): Path<Uuid>,
 ) -> ChatResult<Json<Value>> {
     assert_meeting_host(&st.db, conv_id, user.id).await?;
-    sqlx::query("UPDATE chat.conversations SET provisional_until = NULL WHERE id = $1")
-        .bind(conv_id)
-        .execute(&st.db)
+    st.db
+        .execute(
+            "UPDATE chat.conversations SET provisional_until = NULL WHERE id = $1",
+            params![conv_id],
+        )
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "confirm_provisional");
@@ -886,37 +977,40 @@ pub async fn drop_provisional(
     Path(conv_id): Path<Uuid>,
 ) -> ChatResult<Json<Value>> {
     assert_meeting_host(&st.db, conv_id, user.id).await?;
-    // Audited: the only interpolation is UNUSED_ROOM, a const of this module.
-    let deleted = sqlx::query(sqlx::AssertSqlSafe(format!(
-        "DELETE FROM chat.conversations c
-          WHERE c.id = $1 AND c.provisional_until IS NOT NULL AND {UNUSED_ROOM}"
-    )))
-    .bind(conv_id)
-    .execute(&st.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "drop_provisional");
-        e
-    })?
-    .rows_affected();
+    // Audited: the only interpolation is UNUSED_ROOM, a const of this module (no
+    // alias — MySQL/SQLite reject an aliased DELETE target; the correlated
+    // subqueries reference the table by name).
+    let deleted = st
+        .db
+        .execute(
+            &format!(
+                "DELETE FROM chat.conversations
+                  WHERE id = $1 AND provisional_until IS NOT NULL AND {UNUSED_ROOM}"
+            ),
+            params![conv_id],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "drop_provisional");
+            e
+        })?;
 
     Ok(Json(json!({ "deleted": deleted > 0 })))
 }
 
 /// Is this person a host of that meeting? The single place that answers it,
 /// so no handler invents its own idea of who may decide.
-async fn assert_meeting_host(db: &sqlx::PgPool, conv_id: Uuid, user_id: Uuid) -> ChatResult<()> {
-    let row: Option<(bool, Option<String>, Option<Uuid>)> = sqlx::query_as(
-        "SELECT c.is_meeting, m.role, c.created_by
-           FROM chat.conversations c
-           LEFT JOIN chat.conversation_members m
-             ON m.conversation_id = c.id AND m.user_id = $2 AND m.left_at IS NULL
-          WHERE c.id = $1",
-    )
-    .bind(conv_id)
-    .bind(user_id)
-    .fetch_optional(db)
-    .await?;
+async fn assert_meeting_host(db: &DbPool, conv_id: Uuid, user_id: Uuid) -> ChatResult<()> {
+    let row: Option<(bool, Option<String>, Option<Uuid>)> = db
+        .fetch_optional_as(
+            "SELECT c.is_meeting, m.role, c.created_by
+               FROM chat.conversations c
+               LEFT JOIN chat.conversation_members m
+                 ON m.conversation_id = c.id AND m.user_id = $2 AND m.left_at IS NULL
+              WHERE c.id = $1",
+            params![conv_id, user_id],
+        )
+        .await?;
     let (is_meeting, role, created_by) = row.ok_or(ChatError::NotFound(conv_id.to_string()))?;
     if !is_meeting {
         return Err(ChatError::Validation("Cette conversation n'est pas une réunion".into()));
@@ -941,11 +1035,13 @@ pub async fn knock(
     user: ChatUser,
     Path(conv_id): Path<Uuid>,
 ) -> ChatResult<Json<Value>> {
-    let row: Option<(bool, serde_json::Value)> =
-        sqlx::query_as("SELECT is_meeting, meeting_settings FROM chat.conversations WHERE id = $1")
-            .bind(conv_id)
-            .fetch_optional(&st.db)
-            .await?;
+    let row: Option<(bool, serde_json::Value)> = st
+        .db
+        .fetch_optional_as(
+            "SELECT is_meeting, meeting_settings FROM chat.conversations WHERE id = $1",
+            params![conv_id],
+        )
+        .await?;
     let (is_meeting, settings) = row.ok_or(ChatError::NotFound(conv_id.to_string()))?;
     let s = crate::models::conversation::MeetingSettings::read(&settings);
     if !is_meeting || !s.trusted_only() || !s.allow_knocking {
@@ -955,33 +1051,50 @@ pub async fn knock(
     // Refused twice is refused. A door that can be knocked on forever is a way
     // of knocking until someone gives in; past that, only a deliberate act by
     // the host — adding the person to the room — opens it.
-    let refused: Option<(i32,)> = sqlx::query_as(
-        "SELECT denied_count FROM chat.meeting_knocks WHERE conversation_id = $1 AND user_id = $2",
-    )
-    .bind(conv_id)
-    .bind(user.id)
-    .fetch_optional(&st.db)
-    .await?;
+    let refused: Option<(i32,)> = st
+        .db
+        .fetch_optional_as(
+            "SELECT denied_count FROM chat.meeting_knocks WHERE conversation_id = $1 AND user_id = $2",
+            params![conv_id, user.id],
+        )
+        .await?;
     if refused.map(|r| r.0).unwrap_or(0) >= MAX_KNOCK_REFUSALS {
         return Err(ChatError::Forbidden);
     }
 
-    let status: (String,) = sqlx::query_as(
-        "INSERT INTO chat.meeting_knocks (conversation_id, user_id, status, requested_at)
-         VALUES ($1, $2, 'pending', NOW())
-         ON CONFLICT (conversation_id, user_id) DO UPDATE
-           SET status = CASE WHEN chat.meeting_knocks.status = 'admitted'
-                             THEN 'admitted' ELSE 'pending' END,
-               requested_at = NOW(),
-               decided_at = NULL
-         RETURNING status",
-    )
-    .bind(conv_id)
-    .bind(user.id)
-    .fetch_one(&st.db)
-    .await?;
+    // Upsert with an expression that reads the row's current status (the dialect
+    // helper spells `{cur}` per engine), then re-select the result (no RETURNING
+    // on MySQL).
+    let upsert = st.db.backend().upsert(
+        "chat.meeting_knocks",
+        &["conversation_id", "user_id"],
+        &[
+            Assign::Expr {
+                col: "status",
+                expr: "CASE WHEN {cur} = 'admitted' THEN 'admitted' ELSE 'pending' END",
+            },
+            Assign::Incoming("requested_at"),
+            Assign::Expr { col: "decided_at", expr: "NULL" },
+        ],
+    );
+    st.db
+        .execute(
+            &format!(
+                "INSERT INTO chat.meeting_knocks (conversation_id, user_id, status, requested_at)
+                 VALUES ($1, $2, 'pending', $3){upsert}"
+            ),
+            params![conv_id, user.id, chrono::Utc::now()],
+        )
+        .await?;
+    let status: String = st
+        .db
+        .fetch_scalar(
+            "SELECT status FROM chat.meeting_knocks WHERE conversation_id = $1 AND user_id = $2",
+            params![conv_id, user.id],
+        )
+        .await?;
 
-    Ok(Json(json!({ "status": status.0 })))
+    Ok(Json(json!({ "status": status })))
 }
 
 /// `GET /conversations/:id/knocks` — who is waiting. Host only.
@@ -995,14 +1108,14 @@ pub async fn list_knocks(
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> ChatResult<Json<Value>> {
     if params.get("me").map(|v| v == "true").unwrap_or(false) {
-        let mine: Option<(String, i32)> = sqlx::query_as(
-            "SELECT status, denied_count FROM chat.meeting_knocks
-              WHERE conversation_id = $1 AND user_id = $2",
-        )
-        .bind(conv_id)
-        .bind(user.id)
-        .fetch_optional(&st.db)
-        .await?;
+        let mine: Option<(String, i32)> = st
+            .db
+            .fetch_optional_as(
+                "SELECT status, denied_count FROM chat.meeting_knocks
+                  WHERE conversation_id = $1 AND user_id = $2",
+                params![conv_id, user.id],
+            )
+            .await?;
         let exhausted = mine.as_ref().map(|r| r.1 >= MAX_KNOCK_REFUSALS).unwrap_or(false);
         return Ok(Json(json!({
             "status": mine.map(|r| r.0),
@@ -1011,14 +1124,15 @@ pub async fn list_knocks(
     }
 
     assert_meeting_host(&st.db, conv_id, user.id).await?;
-    let rows: Vec<(Uuid, chrono::DateTime<chrono::Utc>)> = sqlx::query_as(
-        "SELECT user_id, requested_at FROM chat.meeting_knocks
-          WHERE conversation_id = $1 AND status = 'pending'
-          ORDER BY requested_at",
-    )
-    .bind(conv_id)
-    .fetch_all(&st.db)
-    .await?;
+    let rows: Vec<(Uuid, chrono::DateTime<chrono::Utc>)> = st
+        .db
+        .fetch_all_as(
+            "SELECT user_id, requested_at FROM chat.meeting_knocks
+              WHERE conversation_id = $1 AND status = 'pending'
+              ORDER BY requested_at",
+            params![conv_id],
+        )
+        .await?;
 
     let knocks: Vec<Value> = rows
         .into_iter()
@@ -1044,42 +1158,42 @@ pub async fn decide_knock(
 ) -> ChatResult<Json<Value>> {
     assert_meeting_host(&st.db, conv_id, user.id).await?;
 
+    let member_upsert = st.db.backend().upsert(
+        "chat.conversation_members",
+        &["conversation_id", "user_id"],
+        &[Assign::Expr { col: "left_at", expr: "NULL" }],
+    );
     let mut tx = st.db.begin().await?;
-    let updated = sqlx::query(
-        "UPDATE chat.meeting_knocks SET status = $3, decided_at = NOW()
-          WHERE conversation_id = $1 AND user_id = $2 AND status = 'pending'",
-    )
-    .bind(conv_id)
-    .bind(target)
-    .bind(if dto.admit { "admitted" } else { "denied" })
-    .execute(&mut *tx)
-    .await?;
+    let updated = tx
+        .execute(
+            "UPDATE chat.meeting_knocks SET status = $3, decided_at = $4
+              WHERE conversation_id = $1 AND user_id = $2 AND status = 'pending'",
+            params![conv_id, target, if dto.admit { "admitted" } else { "denied" }, chrono::Utc::now()],
+        )
+        .await?;
 
     if !dto.admit {
-        sqlx::query(
+        tx.execute(
             "UPDATE chat.meeting_knocks SET denied_count = denied_count + 1
               WHERE conversation_id = $1 AND user_id = $2",
+            params![conv_id, target],
         )
-        .bind(conv_id)
-        .bind(target)
-        .execute(&mut *tx)
         .await?;
     }
 
-    if updated.rows_affected() == 0 {
+    if updated == 0 {
         tx.rollback().await?;
         return Err(ChatError::NotFound(target.to_string()));
     }
 
     if dto.admit {
-        sqlx::query(
-            "INSERT INTO chat.conversation_members (conversation_id, user_id, role)
-             VALUES ($1, $2, 'member')
-             ON CONFLICT (conversation_id, user_id) DO UPDATE SET left_at = NULL",
+        tx.execute(
+            &format!(
+                "INSERT INTO chat.conversation_members (conversation_id, user_id, role)
+                 VALUES ($1, $2, 'member'){member_upsert}"
+            ),
+            params![conv_id, target],
         )
-        .bind(conv_id)
-        .bind(target)
-        .execute(&mut *tx)
         .await?;
     }
 

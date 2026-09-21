@@ -14,6 +14,7 @@
 //! mistake.
 
 use axum::{extract::State, Json};
+use kubuno_db::params;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
@@ -84,28 +85,36 @@ pub async fn handle_event(
 
     // Written in one statement, and ONLY when something actually differs. That
     // is what stops the two modules from renaming each other for ever: an
-    // update that changes nothing produces no row, so nothing is announced back.
-    let changed: Option<(Uuid,)> = sqlx::query_as(
-        "UPDATE chat.conversations
-            SET name       = COALESCE(NULLIF($2, ''), name),
-                linked_ref = $3,
-                updated_at = NOW()
-          WHERE id = $1
-            AND is_meeting
-            AND (name IS DISTINCT FROM NULLIF($2, '') OR linked_ref IS DISTINCT FROM $3)
-          RETURNING id",
-    )
-    .bind(room)
-    .bind(link.title.trim())
-    .bind(&link.owner)
-    .fetch_optional(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!(error = %e, "meeting_link: mise à jour de la salle");
-        e
-    })?;
+    // update that changes nothing touches no row, so nothing is announced back.
+    //
+    // Portable form of the old PostgreSQL version: no `RETURNING` (whether a row
+    // changed is `rows_affected > 0`), and `IS DISTINCT FROM` — absent on MySQL —
+    // is expanded into an explicit null-safe difference. Placeholders are strictly
+    // increasing and never reused, so each reference of `title`/`owner` is bound
+    // again (updated_at is bound too, NOW() has no portable literal).
+    let title = link.title.trim();
+    let now = chrono::Utc::now();
+    let changed = state
+        .db
+        .execute(
+            "UPDATE chat.conversations
+                SET name       = COALESCE(NULLIF($1, ''), name),
+                    linked_ref = $2,
+                    updated_at = $3
+              WHERE id = $4
+                AND is_meeting
+                AND ( ( (name IS NULL) <> (NULLIF($5, '') IS NULL) OR name <> NULLIF($6, '') )
+                   OR ( (linked_ref IS NULL) <> ($7 IS NULL) OR linked_ref <> $8 ) )",
+            params![title, link.owner.as_deref(), now, room, title, title, link.owner.as_deref(), link.owner.as_deref()],
+        )
+        .await
+        .map_err(|e| {
+            tracing::error!(error = %e, "meeting_link: mise à jour de la salle");
+            e
+        })?
+        > 0;
 
-    if changed.is_some() {
+    if changed {
         tracing::info!(%room, owner = ?link.owner, "Salle de réunion liée à un formulaire");
     }
     Ok(Json(json!({ "ok": true })))
