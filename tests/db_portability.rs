@@ -333,6 +333,7 @@ fn sqlite_settings(dir: &std::path::Path) -> DbSettings {
         min_connections: 0,
         connect_timeout: Duration::from_secs(10),
         run_migrations: false,
+        schema_prefix: None,
     }
 }
 
