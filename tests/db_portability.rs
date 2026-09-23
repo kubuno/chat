@@ -351,6 +351,7 @@ fn url_settings(engine: &str, url: String) -> DbSettings {
         min_connections: 0,
         connect_timeout: Duration::from_secs(10),
         run_migrations: false,
+        schema_prefix: None,
     }
 }
 
