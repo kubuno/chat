@@ -30,6 +30,12 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ### Fixed
 
+- **Database migrations keep the same checksum on every OS.** The repository now
+  pins line endings to LF (`.gitattributes`), so a checkout on Windows no longer
+  turns SQL migrations, scripts, manifests or sources into CRLF. A database
+  migrated by a Linux build is therefore no longer refused by a Windows or macOS
+  build of the same version because its migration checksums differ.
+
 - **Media downloads no longer fail for recipients.** The access check read a
   `SELECT 1` probe at a width PostgreSQL rejected, so every non-uploader saw a
   database error and a permanent "media unavailable"; the check is now decoded
