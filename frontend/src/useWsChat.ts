@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { useAuthStore } from '@kubuno/sdk'
+import { useAuthStore, signedSocketUrl } from '@kubuno/sdk'
 import { useChatStore, getConvName, decodeEnvelope, type PresenceStatus } from './chatStore'
 import { useNotificationStore } from '@kubuno/sdk'
 import { DecodedMessage } from './api'
@@ -18,7 +18,9 @@ function previewOf(text: string | null, media: { kind: string; voice?: boolean }
 
 // isOnChatPage: callback fourni par Shell — doit retourner l'état courant de la route
 export function useWsChat(isOnChatPage: () => boolean) {
-  const accessToken = useAuthStore(s => s.accessToken)
+  // Only sign-in/out matters: a socket ticket is minted per connect, so a
+  // renewed access token no longer needs a reconnect.
+  const signedIn = !!useAuthStore(s => s.accessToken)
   const currentUser = useAuthStore(s => s.user)
   const {
     setWsStatus, appendMessage, updateMessage, setTyping,
@@ -66,7 +68,7 @@ export function useWsChat(isOnChatPage: () => boolean) {
   }, [sendCallSignal, setSendCallSignalFn])
 
   useEffect(() => {
-    if (!accessToken) return
+    if (!signedIn) return
 
     // One flag per effect run, not a shared ref: when the access token is
     // renewed the previous socket is closed by the cleanup below, but its
@@ -76,11 +78,23 @@ export function useWsChat(isOnChatPage: () => boolean) {
     let alive = true
     activeRef.current = true
 
-    function connect() {
+    async function connect() {
       if (!alive) return
       setWsStatus('connecting')
-      const token = useAuthStore.getState().accessToken ?? ''
-      const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/api/v1/chat/ws?token=${encodeURIComponent(token)}`)
+      // The handshake cannot carry the Authorization header: present a fresh
+      // one-minute socket ticket on every (re)connect.
+      let url: string
+      try {
+        url = await signedSocketUrl('/api/v1/chat/ws')
+      } catch {
+        if (!alive) return
+        setWsStatus('disconnected')
+        reconnectDelayRef.current = Math.min(60_000, reconnectDelayRef.current * 2)
+        reconnectTimerRef.current = window.setTimeout(connect, reconnectDelayRef.current)
+        return
+      }
+      if (!alive) return
+      const ws = new WebSocket(url)
       wsRef.current = ws
 
       const connectTime = Date.now()
@@ -255,7 +269,7 @@ export function useWsChat(isOnChatPage: () => boolean) {
       }
     }
 
-    connect()
+    void connect()
 
     return () => {
       alive = false
@@ -264,7 +278,7 @@ export function useWsChat(isOnChatPage: () => boolean) {
       if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current)
       wsRef.current?.close()
     }
-  }, [accessToken]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [signedIn]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Exposé pour usage direct (ex: depuis ConversationView via le store)
   return { sendTyping }

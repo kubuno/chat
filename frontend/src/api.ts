@@ -1,4 +1,4 @@
-import { api } from '@kubuno/sdk'
+import { api, useAuthStore } from '@kubuno/sdk'
 import type { KubunoDataEnvelope } from './kubunoData'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -457,8 +457,9 @@ export const chatApi = {
  *
  * Not the usual client: on `pagehide` the browser cancels requests still in
  * flight, and this one has to outlive the page — which is what `keepalive` is
- * for. It carries no header because there is no code left to add one; the proxy
- * falls back to the session cookie, which is still being sent.
+ * for. A same-origin keepalive fetch can carry headers, so the bearer is read
+ * synchronously from the auth store (no cookie is involved any more); with no
+ * token there is nothing to authenticate with and the call is skipped.
  *
  * Best effort, and deliberately so: a page can also be killed, lose the network
  * or crash, and none of those send anything. The room's own deadline is what
@@ -466,9 +467,12 @@ export const chatApi = {
  * case of a reload or a closed tab.
  */
 export function dropProvisionalOnUnload(convId: string): void {
+  const token = useAuthStore.getState().accessToken
+  if (!token) return
   try {
     void fetch(`/api/v1/chat/conversations/${convId}/provisional`, {
       method:      'DELETE',
+      headers:     { Authorization: `Bearer ${token}` },
       credentials: 'same-origin',
       keepalive:   true,
     }).catch(() => { /* the sweep is the backstop */ })

@@ -43,6 +43,9 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ### Security
 
+- **The real-time connection no longer puts your access token in its URL**: it presents a one-minute
+  signed ticket, fresh at each reconnection. Leaving a meeting page while a provisional conversation is
+  open now authenticates its clean-up with your session instead of a cookie. Requires a Kubuno core that issues signed tickets (`POST /api/v1/auth/tickets`) and `@kubuno/sdk` with the signed-URL helpers.
 - **Security fixes from the shared database layer (kubuno-db 0.9.0).** The
   database password can no longer appear in a log through the debug output of
   the database settings.
