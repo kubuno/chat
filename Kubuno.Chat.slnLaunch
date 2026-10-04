@@ -1,0 +1,15 @@
+[
+  {
+    "Name": "Chat (Kubuno Core + browser)",
+    "Projects": [
+      {
+        "Path": "Kubuno.Chat.Server.rsproj",
+        "Action": "Start"
+      },
+      {
+        "Path": "frontend\\Kubuno.Chat.Web.esproj",
+        "Action": "Start"
+      }
+    ]
+  }
+]

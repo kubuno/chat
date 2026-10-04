@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "chrome",
+      "request": "launch",
+      "name": "Kubuno chat (Chrome)",
+      "url": "http://localhost:8080/chat",
+      "webRoot": "${workspaceFolder}",
+      "sourceMapPathOverrides": { "http://localhost:8080/modules/chat/*": "${workspaceFolder}/dist/*" }
+    }
+    {
+      "type": "edge",
+      "request": "launch",
+      "name": "Kubuno chat (Edge)",
+      "url": "http://localhost:8080/chat",
+      "webRoot": "${workspaceFolder}",
+      "sourceMapPathOverrides": { "http://localhost:8080/modules/chat/*": "${workspaceFolder}/dist/*" }
+    },
+  ]
+}
