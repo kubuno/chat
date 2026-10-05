@@ -35,6 +35,8 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ### Fixed
 
+- **Files kept on the server's local storage are found again on Windows and under symlinked storage
+  roots** (shared storage layer updated to kubuno-storage 0.1.2).
 - **Database migrations keep the same checksum on every OS.** The repository now
   pins line endings to LF (`.gitattributes`), so a checkout on Windows no longer
   turns SQL migrations, scripts, manifests or sources into CRLF. A database
