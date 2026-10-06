@@ -51,3 +51,6 @@ nohup.out
 
 node_modules
 
+
+# Visual Studio intermediates of the desktop apps
+/desktop/**/obj/

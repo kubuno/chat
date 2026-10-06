@@ -1,0 +1,40 @@
+name: Desktop
+
+# The module's desktop apps (desktop/<os>/), apart from the server's workflows. Windows
+# today: Kubuno Chat for Windows (kubuno-chat.exe), a native Win32 app built against the
+# Kubuno desktop framework, taken from kubuno/desktop by git tag and linked statically.
+# Linux and macOS jobs join when desktop/linux and desktop/macos get their apps.
+on:
+  push:
+    branches: [main]
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: desktop/windows
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { components: clippy }
+      - uses: Swatinem/rust-cache@v2
+        with: { workspaces: desktop/windows }
+      - name: clippy (deny warnings)
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: test
+        run: cargo test --locked
+      - name: build
+        run: cargo build --locked --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kubuno-chat-windows-x64
+          path: desktop/windows/target/release/kubuno-chat.exe

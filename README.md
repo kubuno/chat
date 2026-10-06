@@ -94,6 +94,17 @@ bash build_kbpkg.sh                         # → dist/chat-<version>-<os>-<arch
 > - **Rust** — shared crates via tagged git dependencies on `kubuno/core`.
 > - **Frontend** — `@kubuno/sdk`, `@kubuno/ui`, `@kubuno/drive` from the `@kubuno` npm scope. They are `external` at runtime (the host provides the singletons via its import map); the npm packages supply the build-time type surface.
 
+### Desktop app
+
+The native Windows client, **Kubuno Chat for Windows** (`kubuno-chat.exe`), lives in
+[`desktop/windows/`](desktop/windows/README.md) — a Cargo workspace of its own, built on the Kubuno desktop framework
+(`kubuno/desktop`, by git tag, linked statically). `desktop/linux` and `desktop/macos` are reserved for the other
+desktop platforms. In Visual Studio, `Kubuno.Chat.slnx` lists it under **Desktop**.
+
+```powershell
+cd desktop\windows; cargo build --release   # → target\release\kubuno-chat.exe (run with --sample for offline data)
+```
+
 ## Tech stack
 
 Rust 2021 · Axum 0.7 · Tokio · `kubuno-db` over SQLx (PostgreSQL, MySQL/MariaDB or SQLite, schema `chat`) · WebSocket · WebRTC — React 19 · TypeScript · Vite · Tailwind CSS v4 · Zustand · React Query.

@@ -9,6 +9,15 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ## [Unreleased]
 
+### Added
+
+- **The Windows desktop app joins this repository**: Kubuno Chat for Windows (`kubuno-chat.exe`) moved here from
+  `kubuno/desktop` with its history, under `desktop/windows/` (with `desktop/linux` and `desktop/macos` reserved for
+  the other platforms). It builds on its own from this repository — the Kubuno desktop framework comes from
+  `kubuno/desktop` by the git tag `desktop-v0.1.0-alpha` and is linked statically — has its own CI workflow
+  (`desktop.yml`, Windows) and appears in `Kubuno.Chat.slnx` under **Desktop** (`Kubuno.Chat.Desktop`). The app
+  itself is unchanged: same program, options, settings and `kubuno://` links.
+
 ## [0.1.9] - 2026-10-05
 
 ### Changed

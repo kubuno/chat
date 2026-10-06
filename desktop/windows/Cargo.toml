@@ -1,9 +1,36 @@
+# Kubuno Chat for Windows (kubuno-chat.exe): the desktop client of the chat module.
+#
+# Its own Cargo workspace, independent of the server's (../../Cargo.toml). The Kubuno desktop
+# framework (kubuno-desktop, its views, controls and UI) and the common crates (account, sync)
+# come from the kubuno/desktop repository by git tag, never by path: the app builds from this
+# repository alone, and links the framework statically. At run time it depends on Kubuno Desktop
+# only as a service (the account/token broker on the named pipe).
+[workspace]
+resolver = "2"
+members  = ["."]
+
+[workspace.package]
+version    = "0.1.0-alpha"
+edition    = "2021"
+license    = "AGPL-3.0-or-later"
+repository = "https://github.com/kubuno/chat"
+
+# One tag of kubuno/desktop pins every framework and common crate (kubuno/desktop README,
+# "Versions and tags"). Bump them together.
+[workspace.dependencies]
+kubuno-desktop                = { git = "https://github.com/kubuno/desktop", tag = "desktop-v0.1.0-alpha" }
+kubuno-desktop-shell-controls = { git = "https://github.com/kubuno/desktop", tag = "desktop-v0.1.0-alpha" }
+kubuno-desktop-header-data    = { git = "https://github.com/kubuno/desktop", tag = "desktop-v0.1.0-alpha" }
+kubuno-desktop-sync           = { git = "https://github.com/kubuno/desktop", tag = "desktop-v0.1.0-alpha" }
+kubuno-desktop-account        = { git = "https://github.com/kubuno/desktop", tag = "desktop-v0.1.0-alpha" }
+
 [package]
 name        = "kubuno-chat-desktop"
 description = "Kubuno desktop chat — Windows Forms-like views (.kbview forms, .kbcontrol user controls), two-pane messaging"
-version.workspace = true
-edition.workspace = true
-license.workspace = true
+version.workspace    = true
+edition.workspace    = true
+license.workspace    = true
+repository.workspace = true
 
 # The library holds everything the Visual Studio designer must link to render the views: the
 # `MessageThread` custom control, the user controls (`ConversationListPane`, `ConversationRow`,
@@ -19,16 +46,16 @@ path = "src/main.rs"
 [dependencies]
 # The Kubuno desktop programming model (Application::run, #[kubuno_desktop::view], custom and user
 # controls, resources) — it re-exports kubuno-desktop-views, kubuno-desktop-controls and kubuno-desktop-ui.
-kubuno-desktop = { path = "../crates/kubuno-desktop" }
+kubuno-desktop.workspace = true
 # The title bar's waffle and avatar (`ShowWaffle` / `ShowAccount` place the shared `HeaderActions`), and their
 # data: the account's apps and favourites through the shell's token broker.
-kubuno-desktop-shell-controls = { path = "../crates/kubuno-desktop-shell-controls" }
-kubuno-desktop-header-data    = { path = "../crates/kubuno-desktop-header-data" }
+kubuno-desktop-shell-controls.workspace = true
+kubuno-desktop-header-data.workspace    = true
 # The HTTP client to the Kubuno core (`account_get_json`/`account_post_json`, the
 # `/api/v1/chat/*` calls) with access tokens borrowed from the shell's broker.
-kubuno-desktop-sync = { path = "../../../common/kubuno-desktop-sync" }
+kubuno-desktop-sync.workspace = true
 # Where the profile lives and whether this run may register `kubuno://` (not in a sandboxed profile).
-kubuno-desktop-account = { path = "../../../common/kubuno-desktop-account" }
+kubuno-desktop-account.workspace = true
 serde       = { version = "1", features = ["derive"] }
 serde_json  = "1"
 # Decodes the message envelope (base64url JSON `{text,…}`), the web's format.
