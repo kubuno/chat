@@ -2,7 +2,7 @@
 #
 # Its own Cargo workspace, independent of the server's (../../Cargo.toml). The Kubuno desktop
 # framework (kubuno-desktop, its views, controls and UI) and the common crates (account, sync)
-# come from the kubuno/desktop repository by git tag, never by path: the app builds from this
+# come from the core repository (desktop/) by git tag, never by path: the app builds from this
 # repository alone, and links the framework statically. At run time it depends on Kubuno Desktop
 # only as a service (the account/token broker on the named pipe).
 [workspace]
@@ -15,14 +15,14 @@ edition    = "2021"
 license    = "AGPL-3.0-or-later"
 repository = "https://github.com/kubuno/chat"
 
-# One tag of kubuno/desktop pins every framework and common crate (kubuno/desktop README,
+# One tag of the core repository pins every framework and common crate (core desktop/README.md,
 # "Versions and tags"). Bump them together.
 [workspace.dependencies]
-kubuno-desktop                = { git = "https://github.com/kubuno/desktop", tag = "desktop-v0.1.0-alpha" }
-kubuno-desktop-shell-controls = { git = "https://github.com/kubuno/desktop", tag = "desktop-v0.1.0-alpha" }
-kubuno-desktop-header-data    = { git = "https://github.com/kubuno/desktop", tag = "desktop-v0.1.0-alpha" }
-kubuno-desktop-sync           = { git = "https://github.com/kubuno/desktop", tag = "desktop-v0.1.0-alpha" }
-kubuno-desktop-account        = { git = "https://github.com/kubuno/desktop", tag = "desktop-v0.1.0-alpha" }
+kubuno-desktop                = { git = "https://github.com/kubuno/core",    tag = "desktop-v0.1.1-alpha" }
+kubuno-desktop-shell-controls = { git = "https://github.com/kubuno/core",    tag = "desktop-v0.1.1-alpha" }
+kubuno-desktop-header-data    = { git = "https://github.com/kubuno/core",    tag = "desktop-v0.1.1-alpha" }
+kubuno-desktop-sync           = { git = "https://github.com/kubuno/core",    tag = "desktop-v0.1.1-alpha" }
+kubuno-desktop-account        = { git = "https://github.com/kubuno/core",    tag = "desktop-v0.1.1-alpha" }
 
 [package]
 name        = "kubuno-chat-desktop"

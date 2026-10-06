@@ -9,6 +9,10 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ## [Unreleased]
 
+### Changed
+
+- **Kubuno Chat for Windows takes the Kubuno Desktop framework from the core repository**: the framework and common crates now come from `git = "https://github.com/kubuno/core"`, tag `desktop-v0.1.1-alpha` (Kubuno Desktop moved into the core repository, under `desktop/`; the former `kubuno/desktop` repository is retired). Nothing changes in the app.
+
 ### Added
 
 - **The Windows desktop app joins this repository**: Kubuno Chat for Windows (`kubuno-chat.exe`) moved here from
