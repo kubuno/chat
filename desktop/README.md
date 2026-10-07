@@ -8,7 +8,7 @@ The native desktop clients of the chat module, one folder per operating system:
 | [`linux/`](linux/README.md) | Kubuno Chat for Linux | not written yet |
 | [`macos/`](macos/README.md) | Kubuno Chat for macOS | not written yet |
 
-Each folder is a Cargo workspace of its own, independent of the server's (the repository root). The apps are built
+Each folder is a Cargo workspace of its own, independent of the server's (`server/`). The apps are built
 on the Kubuno desktop framework of [`kubuno/desktop`](https://github.com/kubuno/desktop), taken by git tag
 (`desktop-v<version>`) and linked statically: an app builds from this repository alone. At run time it needs
 **Kubuno Desktop** (the shell, from `kubuno/desktop`) installed beside it, as a service: the shell's token broker

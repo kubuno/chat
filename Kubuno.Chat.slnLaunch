@@ -3,11 +3,20 @@
     "Name": "Chat (Kubuno Core + browser)",
     "Projects": [
       {
-        "Path": "Kubuno.Chat.Server.rsproj",
+        "Path": "server\\Kubuno.Chat.Server.rsproj",
         "Action": "Start"
       },
       {
-        "Path": "frontend\\Kubuno.Chat.Web.esproj",
+        "Path": "web\\Kubuno.Chat.Web.esproj",
+        "Action": "Start"
+      }
+    ]
+  },
+  {
+    "Name": "Chat desktop (Windows)",
+    "Projects": [
+      {
+        "Path": "desktop\\windows\\Kubuno.Chat.Desktop.rsproj",
         "Action": "Start"
       }
     ]

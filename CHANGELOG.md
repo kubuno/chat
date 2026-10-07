@@ -14,6 +14,10 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ### Changed
 
+- **The repository is organised by platform.** The server (its sources, migrations, tests and configuration
+  example) moves to `server/` and the web frontend to `web/`, with their history. The desktop app stays in
+  `desktop/`. The `.kbpkg` is unchanged (same files, same contents); the build script, the CI workflows, the
+  Makefile and the Visual Studio solution follow.
 - **Kubuno Chat for Windows takes the Kubuno Desktop framework from the core repository**: the framework and common crates now come from `git = "https://github.com/kubuno/core"`, tag `desktop-v0.1.1-alpha` (Kubuno Desktop moved into the core repository, under `desktop/`; the former `kubuno/desktop` repository is retired). Nothing changes in the app.
 
 ### Added

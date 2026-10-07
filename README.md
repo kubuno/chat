@@ -56,8 +56,9 @@ core (kubuno/core)  ──proxy──►  kubuno-chat (this repo, :3109)
        └─ serves /modules/chat/entry.js (React frontend, loaded at runtime)
 ```
 
-- **Backend** — `src/`: Axum on the shared `kubuno-db` layer, running on **PostgreSQL, MySQL/MariaDB or SQLite** (the engine is an administrator choice read at run time — one binary, no rebuild), in a dedicated `chat` schema; migrations in `migrations/`. Calls exchange media directly between browsers (WebRTC).
-- **Frontend** — `frontend/`: a React bundle built to `entry.js`, consuming `@kubuno/sdk`, `@kubuno/ui` and `@kubuno/drive` from npm (provided by the host at runtime via the import map).
+- **Server** — `server/`: Axum on the shared `kubuno-db` layer, running on **PostgreSQL, MySQL/MariaDB or SQLite** (the engine is an administrator choice read at run time — one binary, no rebuild), in a dedicated `chat` schema; migrations in `server/migrations/`. Calls exchange media directly between browsers (WebRTC).
+- **Web** — `web/`: a React bundle built to `entry.js`, consuming `@kubuno/sdk`, `@kubuno/ui` and `@kubuno/drive` from npm (provided by the host at runtime via the import map).
+- **Mobile** — `mobile/`: the mobile apps (see `mobile/README.md`).
 
 ## Install
 
@@ -85,8 +86,8 @@ A `.kbpkg` is attached to every tagged [GitHub Release](https://github.com/kubun
 **Requirements:** Rust ≥ 1.82, Node.js ≥ 24, and a database: PostgreSQL 16, MySQL/MariaDB or SQLite.
 
 ```bash
-cargo build --release                      # → target/release/kubuno-chat
-cd frontend && npm ci && npm run build      # → dist/{entry.js, entry.css}
+cd server && cargo build --release         # → server/target/release/kubuno-chat
+cd web && npm ci && npm run build           # → web/dist/{entry.js, entry.css}
 bash build_kbpkg.sh                         # → dist/chat-<version>-<os>-<arch>.kbpkg
 ```
 

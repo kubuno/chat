@@ -1,6 +1,6 @@
 # Kubuno Chat for Windows (kubuno-chat.exe): the desktop client of the chat module.
 #
-# Its own Cargo workspace, independent of the server's (../../Cargo.toml). The Kubuno desktop
+# Its own Cargo workspace, independent of the server's (../../server/Cargo.toml). The Kubuno desktop
 # framework (kubuno-desktop, its views, controls and UI) and the common crates (account, sync)
 # come from the core repository (desktop/) by git tag, never by path: the app builds from this
 # repository alone, and links the framework statically. At run time it depends on Kubuno Desktop
