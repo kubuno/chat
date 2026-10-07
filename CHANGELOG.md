@@ -9,6 +9,9 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ## [Unreleased]
 
+### Added
+- **Mobile app**: the Kubuno Messages Android app now lives in this repository under `mobile/` (moved from the `kubuno/mobile` repository with its history). It builds on its own against the shared Kubuno mobile libraries published from the core (`com.kubuno.mobile:*`), and a `mobile-v<version>` tag releases its APK (workflow `mobile.yml`).
+
 ### Changed
 
 - **Kubuno Chat for Windows takes the Kubuno Desktop framework from the core repository**: the framework and common crates now come from `git = "https://github.com/kubuno/core"`, tag `desktop-v0.1.1-alpha` (Kubuno Desktop moved into the core repository, under `desktop/`; the former `kubuno/desktop` repository is retired). Nothing changes in the app.
