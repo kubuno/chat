@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Voice messages. Requested at the moment the user presses the mic, never
+         at launch: a chat app that asks for the microphone on first run reads
+         as a chat app that is listening. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Video calls capture from the camera in-process (WebRTC), so unlike the
+         photo attachment this one does need the permission. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- Finding a UnifiedPush distributor requires being able to see the apps
+         that declare themselves as one (Android 11+ package visibility). -->
+    <queries>
+        <intent>
+            <action android:name="org.unifiedpush.android.distributor.REGISTER" />
+        </intent>
+    </queries>
+
+    <!-- The camera attachment goes through the system camera app, so no
+         CAMERA permission is needed; declare the feature as optional so the
+         app still installs on a device without one. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <application
+        android:name=".KubunoChatApp"
+        android:label="@string/app_name"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:allowBackup="false"
+        android:supportsRtl="true"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:theme="@style/Theme.Kubuno"
+        tools:targetApi="31">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Deep link from a push notification: kubuno-chat://conversation/<id> -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="kubuno-chat" android:host="conversation" />
+            </intent-filter>
+            <!-- Native deep link into a meeting room: kubuno-chat://meet/<id> -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="kubuno-chat" android:host="meet" />
+            </intent-filter>
+        </activity>
+
+        <!-- UnifiedPush receiver. Declaring these intent-filters here takes
+             precedence over the library's embedded receiver, so our own
+             MessagingReceiver handles endpoints and messages directly. -->
+        <receiver
+            android:name=".push.KubunoChatPushReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="org.unifiedpush.android.connector.MESSAGE" />
+                <action android:name="org.unifiedpush.android.connector.NEW_ENDPOINT" />
+                <action android:name="org.unifiedpush.android.connector.REGISTRATION_FAILED" />
+                <action android:name="org.unifiedpush.android.connector.UNREGISTERED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Replying and marking as read from the notification itself: no UI,
+             so the app never comes to the foreground for either. -->
+        <receiver
+            android:name=".push.ChatReplyReceiver"
+            android:exported="false" />
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
+        <!-- The com.kubuno account authenticator (service + type) is contributed
+             by :core-account, so this app reuses the same shared accounts as the
+             drive, mail and maps apps. Nothing to declare here. -->
+    </application>
+</manifest>

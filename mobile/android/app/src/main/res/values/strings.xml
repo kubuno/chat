@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Kubuno Messages</string>
+
+    <string name="tab_chats">Discussions</string>
+    <string name="tab_calls">Appels</string>
+    <string name="filter_all">Toutes</string>
+    <string name="filter_unread">Non lues</string>
+    <string name="filter_favorites">Favoris</string>
+    <string name="filter_groups">Groupes</string>
+    <string name="archived">Archivées</string>
+    <string name="search_hint">Rechercher</string>
+    <string name="message_hint">Message</string>
+    <string name="empty_conversations">Aucune conversation</string>
+    <string name="empty_conversations_hint">Démarrez une discussion depuis Kubuno sur le web.</string>
+    <string name="loading">Chargement…</string>
+    <string name="retry">Réessayer</string>
+    <string name="no_account">Aucun compte Kubuno sur cet appareil</string>
+    <string name="no_account_hint">Ouvrez Kubuno Drive ou Mail pour ajouter un compte, puis revenez.</string>
+    <string name="typing">est en train d\'écrire…</string>
+    <string name="online">en ligne</string>
+    <string name="deleted_message">Ce message a été supprimé</string>
+    <string name="edited">modifié</string>
+    <string name="you">Vous</string>
+    <string name="today">Aujourd\'hui</string>
+    <string name="yesterday">Hier</string>
+    <string name="attachment_photo">Photo</string>
+    <string name="attachment_video">Vidéo</string>
+    <string name="attachment_audio">Message vocal</string>
+    <string name="attachment_file">Document</string>
+    <string name="attachment_poll">Sondage</string>
+    <string name="attachment_sticker">Sticker</string>
+    <string name="offline_banner">Hors ligne — les messages partiront à la reconnexion</string>
+</resources>
