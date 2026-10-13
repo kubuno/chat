@@ -14,6 +14,9 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ### Changed
 
+- **Desktop framework updated to `desktop-v0.1.5-alpha`: the Chat desktop app uses less memory.** The framework
+  now bounds the Direct2D image and icon caches and shares one HTTP client across all accounts instead of building a
+  new TLS stack per sign-in, so the app keeps less in RAM.
 - **The repository is organised by platform.** The server (its sources, migrations, tests and configuration
   example) moves to `server/` and the web frontend to `web/`, with their history. The desktop app stays in
   `desktop/`. The `.kbpkg` is unchanged (same files, same contents); the build script, the CI workflows, the
