@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Chat · Onboarding — the login flow's server step (onboarding/OnboardingScreen.kt → ServerScreen): a centred
+  column with the title, subtitle, the server address field and the continue button. Light theme, logical px.
+-->
+<Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"
+       Layout="Dock" BackColor="#FFFFFF">
+
+  <Stack Dock="Fill" CrossAlign="Stretch" Justify="Center" Padding="24, 32, 24, 32" Gap="0">
+
+    <Label Text="Connectez-vous à Kubuno Chat" Role="Title" FontWeight="Bold" ForeColor="#111827" Overflow="Wrap"/>
+    <Label Text="Entrez l'adresse de votre serveur Kubuno pour commencer." Role="Body" ForeColor="#6B7280" Overflow="Wrap" Padding="0, 8, 0, 24"/>
+
+    <TextField Label="Adresse du serveur" Placeholder="chat.exemple.com" LeftIcon="Globe"/>
+
+    <Stack Padding="0, 16, 0, 0">
+      <Button Text="Continuer" Variant="Primary" Size="Lg"/>
+    </Stack>
+
+  </Stack>
+
+</Panel>

@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Chat · Conversation — a 1:1 thread (ConversationScreen.kt + MessageBubble.kt): the header (back + avatar +
+  name/subtitle + call actions), the message list over the thread backdrop with a date pill and incoming /
+  outgoing bubbles (white with a light border vs. blue #2563EB), and the composer. Incoming bubbles are pushed
+  left and outgoing right with a Stack.Fill spacer. Light theme, logical px (~390 wide).
+-->
+<Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"
+       Layout="Dock" BackColor="#EFF4F8">
+
+  <!-- Header -->
+  <Stack Dock="Top" Gap="0">
+    <Stack Direction="LeftToRight" CrossAlign="Center" Gap="4" Height="56" Padding="4, 0, 4, 0" BackColor="#FFFFFF">
+      <IconButton Icon="ArrowLeft" Diameter="40" IconSize="22" IconColor="#5F6368"/>
+      <Avatar DisplayName="Alice Nguyen" AvatarSize="40"/>
+      <Stack Stack.Fill="true" Gap="0" Padding="8, 0, 0, 0">
+        <Label Text="Alice Nguyen" Role="Body" FontWeight="SemiBold" ForeColor="#111827" Overflow="Ellipsis"/>
+        <Label Text="en ligne" Role="Caption" ForeColor="#1E8E3E" Overflow="Ellipsis"/>
+      </Stack>
+      <IconButton Icon="Video" Diameter="40" IconSize="22" IconColor="#5F6368"/>
+      <IconButton Icon="Phone" Diameter="40" IconSize="20" IconColor="#5F6368"/>
+      <IconButton Icon="MoreVertical" Diameter="40" IconSize="20" IconColor="#5F6368"/>
+    </Stack>
+    <Separator/>
+  </Stack>
+
+  <!-- Composer -->
+  <Stack Dock="Bottom" Direction="LeftToRight" CrossAlign="End" Gap="6" Padding="8, 6, 8, 10" BackColor="#EFF4F8">
+    <Stack Stack.Fill="true" Direction="LeftToRight" CrossAlign="Center" Gap="4" BackColor="#FFFFFF" CornerRadius="24" BorderBrush="#E5E7EB" BorderThickness="1" Padding="6, 4, 6, 4">
+      <Icon Name="Smile" Size="22" ForeColor="#6B7280"/>
+      <Label Stack.Fill="true" Text="Message" Role="Body" ForeColor="#9AA0A6" Padding="4, 8, 4, 8"/>
+      <Icon Name="Paperclip" Size="22" ForeColor="#6B7280"/>
+      <Icon Name="Camera" Size="22" ForeColor="#6B7280"/>
+    </Stack>
+    <Stack CrossAlign="Center" Justify="Center" BackColor="#2563EB" CornerRadius="9999" Width="48" Height="48">
+      <Icon Name="Mic" Size="22" ForeColor="#FFFFFF"/>
+    </Stack>
+  </Stack>
+
+  <!-- Messages -->
+  <ScrollArea Dock="Fill">
+    <Stack Gap="8" Padding="10, 10, 10, 10">
+
+      <Stack CrossAlign="Center">
+        <Label Text="AUJOURD'HUI" Role="Caption" FontWeight="SemiBold" ForeColor="#6B7280" BackColor="#FFFFFF" CornerRadius="8" Padding="10, 4, 10, 4"/>
+      </Stack>
+
+      <!-- Incoming -->
+      <Stack Direction="LeftToRight">
+        <Stack BackColor="#FFFFFF" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="16" Padding="12, 7, 12, 7" Gap="2">
+          <Label Text="Salut ! Tu es dispo pour un point demain matin ?" Role="Body" ForeColor="#111827" Overflow="Wrap" Width="240"/>
+          <Label Text="09:30" Role="Caption" ForeColor="#9AA0A6" TextAlign="TopRight"/>
+        </Stack>
+        <Stack Stack.Fill="true"/>
+      </Stack>
+
+      <!-- Outgoing -->
+      <Stack Direction="LeftToRight">
+        <Stack Stack.Fill="true"/>
+        <Stack BackColor="#2563EB" CornerRadius="16" Padding="12, 7, 12, 7" Gap="2">
+          <Label Text="Oui bien sûr, 9h ça te va ?" Role="Body" ForeColor="#FFFFFF" Overflow="Wrap" Width="200"/>
+          <Stack Direction="LeftToRight" CrossAlign="Center" Justify="End" Gap="4">
+            <Label Text="09:31" Role="Caption" ForeColor="#CDE0FF"/>
+            <Icon Name="CheckCheck" Size="14" ForeColor="#CDE0FF"/>
+          </Stack>
+        </Stack>
+      </Stack>
+
+      <!-- Incoming -->
+      <Stack Direction="LeftToRight">
+        <Stack BackColor="#FFFFFF" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="16" Padding="12, 7, 12, 7" Gap="2">
+          <Label Text="Parfait 👍" Role="Body" ForeColor="#111827"/>
+          <Label Text="09:32" Role="Caption" ForeColor="#9AA0A6" TextAlign="TopRight"/>
+        </Stack>
+        <Stack Stack.Fill="true"/>
+      </Stack>
+
+      <!-- Outgoing -->
+      <Stack Direction="LeftToRight">
+        <Stack Stack.Fill="true"/>
+        <Stack BackColor="#2563EB" CornerRadius="16" Padding="12, 7, 12, 7" Gap="2">
+          <Label Text="Super, à demain alors !" Role="Body" ForeColor="#FFFFFF"/>
+          <Stack Direction="LeftToRight" CrossAlign="Center" Justify="End" Gap="4">
+            <Label Text="09:32" Role="Caption" ForeColor="#CDE0FF"/>
+            <Icon Name="CheckCheck" Size="14" ForeColor="#8FB8FF"/>
+          </Stack>
+        </Stack>
+      </Stack>
+
+      <!-- Incoming -->
+      <Stack Direction="LeftToRight">
+        <Stack BackColor="#FFFFFF" BorderBrush="#E5E7EB" BorderThickness="1" CornerRadius="16" Padding="12, 7, 12, 7" Gap="2">
+          <Label Text="D'accord, on se voit demain à 9h devant le café" Role="Body" ForeColor="#111827" Overflow="Wrap" Width="240"/>
+          <Label Text="09:42" Role="Caption" ForeColor="#9AA0A6" TextAlign="TopRight"/>
+        </Stack>
+        <Stack Stack.Fill="true"/>
+      </Stack>
+
+    </Stack>
+  </ScrollArea>
+
+</Panel>

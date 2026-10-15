@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Chat · Actus — the Updates tab (ActusScreen.kt): the "Actus" title, the Statut section, the Chaînes header
+  with Explorer, the channel rows and the bottom tab bar (Actus active). Light theme, logical px (~390 wide).
+-->
+<Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"
+       Layout="Dock" BackColor="#FFFFFF">
+
+  <!-- Bottom tab bar (Actus active) -->
+  <Stack Dock="Bottom" Gap="0">
+    <Separator/>
+    <Stack Direction="LeftToRight" CrossAlign="Center" Height="60" BackColor="#FFFFFF">
+      <Stack Stack.Fill="true" CrossAlign="Center" Gap="2" Padding="4, 6, 4, 6">
+        <Icon Name="CircleDot" Size="22" ForeColor="#2563EB"/>
+        <Label Text="Actus" Role="Caption" FontWeight="SemiBold" ForeColor="#2563EB"/>
+      </Stack>
+      <Stack Stack.Fill="true" CrossAlign="Center" Gap="2" Padding="4, 6, 4, 6">
+        <Icon Name="Phone" Size="22" ForeColor="#5F6368"/>
+        <Label Text="Appels" Role="Caption" ForeColor="#5F6368"/>
+      </Stack>
+      <Stack Stack.Fill="true" CrossAlign="Center" Gap="2" Padding="4, 6, 4, 6">
+        <Icon Name="Users" Size="22" ForeColor="#5F6368"/>
+        <Label Text="Communautés" Role="Caption" ForeColor="#5F6368"/>
+      </Stack>
+      <Stack Stack.Fill="true" CrossAlign="Center" Gap="2" Padding="4, 6, 4, 6">
+        <Icon Name="MessageCircle" Size="22" ForeColor="#5F6368"/>
+        <Label Text="Discussions" Role="Caption" ForeColor="#5F6368"/>
+      </Stack>
+      <Stack Stack.Fill="true" CrossAlign="Center" Gap="2" Padding="4, 6, 4, 6">
+        <Icon Name="User" Size="22" ForeColor="#5F6368"/>
+        <Label Text="Vous" Role="Caption" ForeColor="#5F6368"/>
+      </Stack>
+    </Stack>
+  </Stack>
+
+  <ScrollArea Dock="Fill">
+    <Stack Gap="0" Padding="0, 0, 0, 12">
+
+      <Label Text="Actus" Role="Display" FontWeight="Bold" ForeColor="#111827" Padding="16, 16, 16, 8"/>
+
+      <Label Text="Statut" Role="Body" FontWeight="SemiBold" ForeColor="#111827" Padding="16, 8, 16, 4"/>
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="14" Padding="16, 4, 16, 12">
+        <Avatar DisplayName="Camille Martin" AvatarSize="56" Tint="Accent"/>
+        <Stack Stack.Fill="true" Gap="2">
+          <Label Text="Mon statut" Role="Body" FontWeight="SemiBold" ForeColor="#111827"/>
+          <Label Text="Appuyez pour ajouter un statut" Role="Meta" ForeColor="#6B7280" Overflow="Wrap"/>
+        </Stack>
+      </Stack>
+      <Separator/>
+
+      <Stack Direction="LeftToRight" CrossAlign="Center" Padding="16, 12, 16, 4">
+        <Label Stack.Fill="true" Text="Chaînes" Role="Body" FontWeight="SemiBold" ForeColor="#111827"/>
+        <Label Text="Explorer" Role="Caption" FontWeight="SemiBold" ForeColor="#2563EB" BackColor="#F1F3F4" CornerRadius="9999" Padding="14, 6, 14, 6"/>
+      </Stack>
+
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="12" Padding="16, 10, 16, 10">
+        <Stack CrossAlign="Center" Justify="Center" BackColor="#DBEAFE" CornerRadius="9999" Width="50" Height="50">
+          <Icon Name="Megaphone" Size="24" ForeColor="#2563EB"/>
+        </Stack>
+        <Stack Stack.Fill="true" Gap="1">
+          <Label Text="Kubuno Officiel" Role="Body" FontWeight="SemiBold" ForeColor="#111827" Overflow="Ellipsis"/>
+          <Label Text="Nouvelle version 1.4 disponible !" Role="Meta" ForeColor="#6B7280" Overflow="Ellipsis"/>
+        </Stack>
+        <Stack CrossAlign="End" Gap="6">
+          <Label Text="10:20" Role="Caption" FontWeight="SemiBold" ForeColor="#2563EB"/>
+          <Stack CrossAlign="Center" Justify="Center" BackColor="#2563EB" CornerRadius="9999" Width="20" Height="20">
+            <Label Text="2" Role="Caption" FontWeight="SemiBold" ForeColor="#FFFFFF"/>
+          </Stack>
+        </Stack>
+      </Stack>
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="12" Padding="16, 10, 16, 10">
+        <Stack CrossAlign="Center" Justify="Center" BackColor="#DBEAFE" CornerRadius="9999" Width="50" Height="50">
+          <Icon Name="Megaphone" Size="24" ForeColor="#2563EB"/>
+        </Stack>
+        <Stack Stack.Fill="true" Gap="1">
+          <Label Text="Infos RH" Role="Body" ForeColor="#111827" Overflow="Ellipsis"/>
+          <Label Text="Rappel : congés d'été à poser avant juin" Role="Meta" ForeColor="#6B7280" Overflow="Ellipsis"/>
+        </Stack>
+        <Label Text="hier" Role="Caption" ForeColor="#6B7280"/>
+      </Stack>
+
+    </Stack>
+  </ScrollArea>
+
+</Panel>

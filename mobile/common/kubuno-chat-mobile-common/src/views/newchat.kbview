@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Chat · New chat — (NewChatScreen.kt): header, the "Nouveau groupe" / "Nouvelle réunion" shortcuts, a people
+  search field and the contacts list (avatar + display name + username). Light theme, logical px (~390 wide).
+-->
+<Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"
+       Layout="Dock" BackColor="#FFFFFF">
+
+  <Stack Dock="Top" Gap="0">
+    <Stack Direction="LeftToRight" CrossAlign="Center" Gap="4" Height="56" Padding="4, 0, 8, 0" BackColor="#FFFFFF">
+      <IconButton Icon="ArrowLeft" Diameter="40" IconSize="22" IconColor="#5F6368"/>
+      <Label Stack.Fill="true" Text="Nouvelle discussion" Role="Subtitle" FontWeight="SemiBold" ForeColor="#111827" Overflow="Ellipsis"/>
+    </Stack>
+    <Separator/>
+  </Stack>
+
+  <ScrollArea Dock="Fill">
+    <Stack Gap="0" Padding="0, 4, 0, 16">
+
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="16" Padding="16, 10, 16, 10">
+        <Stack CrossAlign="Center" Justify="Center" BackColor="#DBEAFE" CornerRadius="9999" Width="50" Height="50">
+          <Icon Name="Users" Size="24" ForeColor="#2563EB"/>
+        </Stack>
+        <Label Stack.Fill="true" Text="Nouveau groupe" Role="Body" FontWeight="SemiBold" ForeColor="#111827"/>
+      </Stack>
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="16" Padding="16, 10, 16, 10">
+        <Stack CrossAlign="Center" Justify="Center" BackColor="#DBEAFE" CornerRadius="9999" Width="50" Height="50">
+          <Icon Name="Video" Size="24" ForeColor="#2563EB"/>
+        </Stack>
+        <Label Stack.Fill="true" Text="Nouvelle réunion" Role="Body" FontWeight="SemiBold" ForeColor="#111827"/>
+      </Stack>
+
+      <Stack Padding="16, 6, 16, 8">
+        <SearchField Placeholder="Rechercher une personne"/>
+      </Stack>
+
+      <Label Text="Contacts de votre unité" Role="Meta" FontWeight="SemiBold" ForeColor="#6B7280" Padding="16, 4, 16, 6"/>
+
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="12" Padding="16, 10, 16, 10">
+        <Avatar DisplayName="Alice Nguyen" AvatarSize="50"/>
+        <Stack Stack.Fill="true" Gap="1">
+          <Label Text="Alice Nguyen" Role="Body" ForeColor="#111827" Overflow="Ellipsis"/>
+          <Label Text="@alice.nguyen" Role="Caption" ForeColor="#6B7280" Overflow="Ellipsis"/>
+        </Stack>
+      </Stack>
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="12" Padding="16, 10, 16, 10">
+        <Avatar DisplayName="Marc Dupont" AvatarSize="50"/>
+        <Stack Stack.Fill="true" Gap="1">
+          <Label Text="Marc Dupont" Role="Body" ForeColor="#111827" Overflow="Ellipsis"/>
+          <Label Text="@marc.dupont" Role="Caption" ForeColor="#6B7280" Overflow="Ellipsis"/>
+        </Stack>
+      </Stack>
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="12" Padding="16, 10, 16, 10">
+        <Avatar DisplayName="Léa Rousseau" AvatarSize="50"/>
+        <Stack Stack.Fill="true" Gap="1">
+          <Label Text="Léa Rousseau" Role="Body" ForeColor="#111827" Overflow="Ellipsis"/>
+          <Label Text="@lea.rousseau" Role="Caption" ForeColor="#6B7280" Overflow="Ellipsis"/>
+        </Stack>
+      </Stack>
+
+    </Stack>
+  </ScrollArea>
+
+</Panel>

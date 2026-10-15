@@ -14,6 +14,15 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 ### Changed
 
+- **The mobile app moves to Kubuno views (Rust), laid out like the desktop app.** `mobile/` is now a Cargo
+  workspace: `common/kubuno-chat-mobile-common` (the app's `.kbview` screens, edited in Visual Studio),
+  `android/kubuno-chat-mobile-android` (the APK — package `com.kubuno.chat`, launcher icon = the module's web logo)
+  and `ios/kubuno-chat-mobile-ios`, shown in the Visual Studio solution under `Mobile/Common`, `Mobile/Android` and
+  `Mobile/iOS`. The screens used to live inside the core's mobile renderer; they are now the module's own, rendered
+  and run by the shared Kubuno mobile renderer and Android / iOS shells of the core. The previous Chat
+  Kotlin/Jetpack Compose app is retired from `mobile/` — it stays in the git history as the functional reference for
+  migrating the app's behaviour (data, server calls), which is still to come. The `mobile` workflow builds the new
+  APK with cargo-apk.
 - **Desktop framework updated to `desktop-v0.1.5-alpha`: the Chat desktop app uses less memory.** The framework
   now bounds the Direct2D image and icon caches and shares one HTTP client across all accounts instead of building a
   new TLS stack per sign-in, so the app keeps less in RAM.

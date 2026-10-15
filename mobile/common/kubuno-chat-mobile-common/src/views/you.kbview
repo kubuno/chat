@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Chat · You — the profile tab (YouScreen.kt): the "Vous" title, a profile header (accent cover band + avatar +
+  name + handle) and the settings cards, with the bottom tab bar (Vous active). The cover gradient is shown as
+  a solid accent band and the avatar sits below it. Light theme, logical px (~390 wide).
+-->
+<Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"
+       Layout="Dock" BackColor="#F0F2F5">
+
+  <!-- Bottom tab bar (Vous active) -->
+  <Stack Dock="Bottom" Gap="0">
+    <Separator/>
+    <Stack Direction="LeftToRight" CrossAlign="Center" Height="60" BackColor="#FFFFFF">
+      <Stack Stack.Fill="true" CrossAlign="Center" Gap="2" Padding="4, 6, 4, 6">
+        <Icon Name="CircleDot" Size="22" ForeColor="#5F6368"/>
+        <Label Text="Actus" Role="Caption" ForeColor="#5F6368"/>
+      </Stack>
+      <Stack Stack.Fill="true" CrossAlign="Center" Gap="2" Padding="4, 6, 4, 6">
+        <Icon Name="Phone" Size="22" ForeColor="#5F6368"/>
+        <Label Text="Appels" Role="Caption" ForeColor="#5F6368"/>
+      </Stack>
+      <Stack Stack.Fill="true" CrossAlign="Center" Gap="2" Padding="4, 6, 4, 6">
+        <Icon Name="Users" Size="22" ForeColor="#5F6368"/>
+        <Label Text="Communautés" Role="Caption" ForeColor="#5F6368"/>
+      </Stack>
+      <Stack Stack.Fill="true" CrossAlign="Center" Gap="2" Padding="4, 6, 4, 6">
+        <Icon Name="MessageCircle" Size="22" ForeColor="#5F6368"/>
+        <Label Text="Discussions" Role="Caption" ForeColor="#5F6368"/>
+      </Stack>
+      <Stack Stack.Fill="true" CrossAlign="Center" Gap="2" Padding="4, 6, 4, 6">
+        <Icon Name="User" Size="22" ForeColor="#2563EB"/>
+        <Label Text="Vous" Role="Caption" FontWeight="SemiBold" ForeColor="#2563EB"/>
+      </Stack>
+    </Stack>
+  </Stack>
+
+  <ScrollArea Dock="Fill">
+    <Stack Gap="0" Padding="0, 0, 0, 16">
+
+      <Label Text="Vous" Role="Display" FontWeight="Bold" ForeColor="#111827" Padding="16, 14, 16, 4"/>
+
+      <!-- Profile header -->
+      <Stack Height="72" BackColor="#2563EB"/>
+      <Stack CrossAlign="Center" Gap="2" Padding="0, 0, 0, 10" BackColor="#F0F2F5">
+        <Stack Padding="0, 0, 0, 8">
+          <Avatar DisplayName="Camille Martin" AvatarSize="88" Tint="Accent"/>
+        </Stack>
+        <Label Text="Camille Martin" Role="Title" FontWeight="Bold" ForeColor="#111827"/>
+        <Label Text="@camille · chat.kubuno.com" Role="Meta" ForeColor="#6B7280"/>
+      </Stack>
+
+      <!-- Card 1 -->
+      <Stack BackColor="#FFFFFF" CornerRadius="14" Margin="16, 8, 16, 0" CrossAlign="Stretch">
+        <Stack Direction="LeftToRight" CrossAlign="Center" Gap="20" Padding="16, 14, 16, 14">
+          <Icon Name="User" Size="24" ForeColor="#6B7280"/>
+          <Label Stack.Fill="true" Text="Compte" Role="Body" ForeColor="#111827"/>
+          <Label Text="camille@kubuno.com" Role="Meta" ForeColor="#6B7280" Overflow="Ellipsis"/>
+          <Icon Name="ChevronRight" Size="20" ForeColor="#9AA0A6"/>
+        </Stack>
+        <Separator/>
+        <Stack Direction="LeftToRight" CrossAlign="Center" Gap="20" Padding="16, 14, 16, 14">
+          <Icon Name="MonitorSmartphone" Size="24" ForeColor="#6B7280"/>
+          <Label Stack.Fill="true" Text="Appareils connectés" Role="Body" ForeColor="#111827"/>
+          <Icon Name="ChevronRight" Size="20" ForeColor="#9AA0A6"/>
+        </Stack>
+      </Stack>
+
+      <!-- Card 2 -->
+      <Stack BackColor="#FFFFFF" CornerRadius="14" Margin="16, 12, 16, 0" CrossAlign="Stretch">
+        <Stack Direction="LeftToRight" CrossAlign="Center" Gap="20" Padding="16, 14, 16, 14">
+          <Icon Name="Bell" Size="24" ForeColor="#6B7280"/>
+          <Label Stack.Fill="true" Text="Notifications" Role="Body" ForeColor="#111827"/>
+          <Label Text="Activées" Role="Meta" ForeColor="#6B7280"/>
+          <Icon Name="ChevronRight" Size="20" ForeColor="#9AA0A6"/>
+        </Stack>
+        <Separator/>
+        <Stack Direction="LeftToRight" CrossAlign="Center" Gap="20" Padding="16, 14, 16, 14">
+          <Icon Name="Contrast" Size="24" ForeColor="#6B7280"/>
+          <Label Stack.Fill="true" Text="Apparence" Role="Body" ForeColor="#111827"/>
+          <Label Text="Système" Role="Meta" ForeColor="#6B7280"/>
+          <Icon Name="ChevronRight" Size="20" ForeColor="#9AA0A6"/>
+        </Stack>
+      </Stack>
+
+      <!-- Card 3 -->
+      <Stack BackColor="#FFFFFF" CornerRadius="14" Margin="16, 12, 16, 0" CrossAlign="Stretch">
+        <Stack Direction="LeftToRight" CrossAlign="Center" Gap="20" Padding="16, 14, 16, 14">
+          <Icon Name="Lock" Size="24" ForeColor="#6B7280"/>
+          <Label Stack.Fill="true" Text="Confidentialité et chiffrement" Role="Body" ForeColor="#111827"/>
+          <Icon Name="ChevronRight" Size="20" ForeColor="#9AA0A6"/>
+        </Stack>
+        <Separator/>
+        <Stack Direction="LeftToRight" CrossAlign="Center" Gap="20" Padding="16, 14, 16, 14">
+          <Icon Name="CircleHelp" Size="24" ForeColor="#6B7280"/>
+          <Label Stack.Fill="true" Text="Aide et à propos" Role="Body" ForeColor="#111827"/>
+          <Icon Name="ChevronRight" Size="20" ForeColor="#9AA0A6"/>
+        </Stack>
+      </Stack>
+
+    </Stack>
+  </ScrollArea>
+
+</Panel>

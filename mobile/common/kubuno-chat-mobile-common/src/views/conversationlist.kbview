@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Chat · Conversation list — the Discussions tab (ConversationListScreen.kt + ChatTabs.kt): the action row, the
+  big "Discussions" title, a search field, filter chips, the conversation rows (avatar + name + preview + time +
+  unread badge) and the 5-destination bottom tab bar. Shared vocabulary, light theme, logical px (~390 wide).
+-->
+<Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"
+       Layout="Dock" BackColor="#FFFFFF">
+
+  <Stack Dock="Top" Gap="0">
+    <!-- Action row -->
+    <Stack Direction="LeftToRight" CrossAlign="Center" Gap="4" Padding="12, 6, 12, 6">
+      <Stack CrossAlign="Center" Justify="Center" BackColor="#F1F3F4" CornerRadius="9999" Width="36" Height="36">
+        <Icon Name="Ellipsis" Size="20" ForeColor="#202124"/>
+      </Stack>
+      <Stack Stack.Fill="true"/>
+      <IconButton Icon="Camera" Diameter="40" IconSize="22" IconColor="#5F6368"/>
+      <Stack CrossAlign="Center" Justify="Center" BackColor="#2563EB" CornerRadius="9999" Width="38" Height="38">
+        <Icon Name="Plus" Size="22" ForeColor="#FFFFFF"/>
+      </Stack>
+    </Stack>
+    <Label Text="Discussions" Role="Display" FontWeight="Bold" ForeColor="#111827" Padding="16, 2, 16, 10"/>
+    <!-- Search -->
+    <Stack Padding="16, 0, 16, 8">
+      <SearchField Placeholder="Rechercher"/>
+    </Stack>
+    <!-- Filter chips -->
+    <Stack Direction="LeftToRight" Gap="8" Padding="16, 0, 16, 8">
+      <Label Text="Toutes" Role="Caption" FontWeight="SemiBold" ForeColor="#FFFFFF" BackColor="#2563EB" CornerRadius="9999" Padding="14, 7, 14, 7"/>
+      <Label Text="Non lues" Role="Caption" ForeColor="#5F6368" BackColor="#F1F3F4" CornerRadius="9999" Padding="14, 7, 14, 7"/>
+      <Label Text="Favoris" Role="Caption" ForeColor="#5F6368" BackColor="#F1F3F4" CornerRadius="9999" Padding="14, 7, 14, 7"/>
+      <Label Text="Groupes" Role="Caption" ForeColor="#5F6368" BackColor="#F1F3F4" CornerRadius="9999" Padding="14, 7, 14, 7"/>
+    </Stack>
+    <Separator/>
+  </Stack>
+
+  <!-- Bottom tab bar -->
+  <Stack Dock="Bottom" Gap="0">
+    <Separator/>
+    <Stack Direction="LeftToRight" CrossAlign="Center" Height="60" BackColor="#FFFFFF">
+      <Stack Stack.Fill="true" CrossAlign="Center" Gap="2" Padding="4, 6, 4, 6">
+        <Icon Name="CircleDot" Size="22" ForeColor="#5F6368"/>
+        <Label Text="Actus" Role="Caption" ForeColor="#5F6368"/>
+      </Stack>
+      <Stack Stack.Fill="true" CrossAlign="Center" Gap="2" Padding="4, 6, 4, 6">
+        <Icon Name="Phone" Size="22" ForeColor="#5F6368"/>
+        <Label Text="Appels" Role="Caption" ForeColor="#5F6368"/>
+      </Stack>
+      <Stack Stack.Fill="true" CrossAlign="Center" Gap="2" Padding="4, 6, 4, 6">
+        <Icon Name="Users" Size="22" ForeColor="#5F6368"/>
+        <Label Text="Communautés" Role="Caption" ForeColor="#5F6368"/>
+      </Stack>
+      <Stack Stack.Fill="true" CrossAlign="Center" Gap="2" Padding="4, 6, 4, 6">
+        <Icon Name="MessageCircle" Size="22" ForeColor="#2563EB"/>
+        <Label Text="Discussions" Role="Caption" FontWeight="SemiBold" ForeColor="#2563EB"/>
+      </Stack>
+      <Stack Stack.Fill="true" CrossAlign="Center" Gap="2" Padding="4, 6, 4, 6">
+        <Icon Name="User" Size="22" ForeColor="#5F6368"/>
+        <Label Text="Vous" Role="Caption" ForeColor="#5F6368"/>
+      </Stack>
+    </Stack>
+  </Stack>
+
+  <ScrollArea Dock="Fill">
+    <Stack Gap="0" Padding="0, 0, 0, 8">
+
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="12" Padding="16, 10, 16, 10">
+        <Avatar DisplayName="Alice Nguyen" AvatarSize="50"/>
+        <Stack Stack.Fill="true" Gap="2">
+          <Label Text="Alice Nguyen" Role="Body" FontWeight="SemiBold" ForeColor="#111827" Overflow="Ellipsis"/>
+          <Label Text="D'accord, on se voit demain à 9h devant…" Role="Meta" ForeColor="#6B7280" Overflow="Ellipsis"/>
+        </Stack>
+        <Stack CrossAlign="End" Gap="6">
+          <Label Text="09:42" Role="Caption" FontWeight="SemiBold" ForeColor="#2563EB"/>
+          <Stack CrossAlign="Center" Justify="Center" BackColor="#2563EB" CornerRadius="9999" Width="20" Height="20">
+            <Label Text="3" Role="Caption" FontWeight="SemiBold" ForeColor="#FFFFFF"/>
+          </Stack>
+        </Stack>
+      </Stack>
+
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="12" Padding="16, 10, 16, 10">
+        <Avatar DisplayName="Équipe Design" AvatarSize="50"/>
+        <Stack Stack.Fill="true" Gap="2">
+          <Label Text="Équipe Design" Role="Body" ForeColor="#111827" Overflow="Ellipsis"/>
+          <Label Text="Marc : j'ai poussé la nouvelle maquette" Role="Meta" ForeColor="#6B7280" Overflow="Ellipsis"/>
+        </Stack>
+        <Label Text="08:15" Role="Caption" ForeColor="#6B7280"/>
+      </Stack>
+
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="12" Padding="16, 10, 16, 10">
+        <Avatar DisplayName="Léa Rousseau" AvatarSize="50"/>
+        <Stack Stack.Fill="true" Gap="2">
+          <Label Text="Léa Rousseau" Role="Body" ForeColor="#111827" Overflow="Ellipsis"/>
+          <Label Text="Merci beaucoup ! 🙏" Role="Meta" ForeColor="#6B7280" Overflow="Ellipsis"/>
+        </Stack>
+        <Label Text="hier" Role="Caption" ForeColor="#6B7280"/>
+      </Stack>
+
+      <Stack Direction="LeftToRight" CrossAlign="Center" Gap="12" Padding="16, 10, 16, 10">
+        <Avatar DisplayName="Thomas Petit" AvatarSize="50"/>
+        <Stack Stack.Fill="true" Gap="2">
+          <Label Text="Thomas Petit" Role="Body" ForeColor="#111827" Overflow="Ellipsis"/>
+          <Label Text="Vous : parfait, je m'en occupe" Role="Meta" ForeColor="#6B7280" Overflow="Ellipsis"/>
+        </Stack>
+        <Label Text="lun." Role="Caption" ForeColor="#6B7280"/>
+      </Stack>
+
+    </Stack>
+  </ScrollArea>
+
+</Panel>

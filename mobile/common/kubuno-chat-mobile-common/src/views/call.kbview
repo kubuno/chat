@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Chat · Call — the full-screen call UI (CallScreen.kt), dark by construction: the callee avatar and status,
+  and the round call controls (mic / video / speaker / hand / chat + the red hang-up). Logical px (~390 wide).
+-->
+<Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"
+       Layout="Dock" BackColor="#0E1013">
+
+  <Stack Dock="Top" CrossAlign="Center" Gap="12" Padding="0, 80, 0, 0">
+    <Avatar DisplayName="Alice Nguyen" AvatarSize="96"/>
+    <Label Text="Alice Nguyen" Role="Title" FontWeight="SemiBold" ForeColor="#FFFFFF"/>
+    <Label Text="Sonnerie…" Role="Body" ForeColor="#B0B6BE"/>
+  </Stack>
+
+  <Stack Dock="Bottom" CrossAlign="Center" Gap="16" Padding="0, 0, 0, 40">
+    <Stack Direction="LeftToRight" CrossAlign="Center" Gap="16">
+      <Stack CrossAlign="Center" Justify="Center" BackColor="#2E3338" CornerRadius="9999" Width="52" Height="52">
+        <Icon Name="Mic" Size="24" ForeColor="#FFFFFF"/>
+      </Stack>
+      <Stack CrossAlign="Center" Justify="Center" BackColor="#2E3338" CornerRadius="9999" Width="52" Height="52">
+        <Icon Name="Video" Size="24" ForeColor="#FFFFFF"/>
+      </Stack>
+      <Stack CrossAlign="Center" Justify="Center" BackColor="#FFFFFF" CornerRadius="9999" Width="52" Height="52">
+        <Icon Name="Volume2" Size="24" ForeColor="#17181B"/>
+      </Stack>
+      <Stack CrossAlign="Center" Justify="Center" BackColor="#2E3338" CornerRadius="9999" Width="52" Height="52">
+        <Icon Name="Hand" Size="24" ForeColor="#FFFFFF"/>
+      </Stack>
+      <Stack CrossAlign="Center" Justify="Center" BackColor="#2E3338" CornerRadius="9999" Width="52" Height="52">
+        <Icon Name="MessageCircle" Size="24" ForeColor="#FFFFFF"/>
+      </Stack>
+    </Stack>
+    <Stack CrossAlign="Center" Justify="Center" BackColor="#D93025" CornerRadius="9999" Width="60" Height="60">
+      <Icon Name="PhoneOff" Size="28" ForeColor="#FFFFFF"/>
+    </Stack>
+  </Stack>
+
+  <Stack Dock="Fill" BackColor="#0E1013"/>
+
+</Panel>
