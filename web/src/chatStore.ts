@@ -112,7 +112,7 @@ interface ChatState {
   setMeetingLobby:      (lobby: MeetingLobby | null) => void
 }
 
-// Replies grouped under their root message — a workspace-wide preference.
+// Replies grouped under their root message - a workspace-wide preference.
 const THREAD_KEY = 'kubuno.chat.threadMode'
 
 function readThreadMode(): boolean {
@@ -136,7 +136,7 @@ function readPopups(): string[] {
 function writePopups(ids: string[]): void {
   try {
     localStorage.setItem(POPUPS_KEY, JSON.stringify(ids))
-  } catch { /* storage full or disabled — pop-ups just won't persist */ }
+  } catch { /* storage full or disabled - pop-ups just won't persist */ }
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -216,7 +216,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { conversations, activeConvId } = get()
     const idx = conversations.findIndex(c => c.conversation.id === convId)
     if (idx < 0) {
-      // Unknown conversation (just created elsewhere) — this one needs the server.
+      // Unknown conversation (just created elsewhere) - this one needs the server.
       get().fetchConversations()
       return
     }
@@ -225,7 +225,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const bumped = {
       ...conversations[idx],
       conversation: { ...conversations[idx].conversation, updated_at: now },
-      // The open conversation is being read right now — don't flash a badge on it.
+      // The open conversation is being read right now - don't flash a badge on it.
       ...(fromMe || isActive ? {} : {
         unread_count: conversations[idx].unread_count + 1,
         is_unread: true,
@@ -343,7 +343,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setPreCallState:      (state) => set({ preCallState: state }),
   setMeetingLobby:      (lobby) => set({ meetingLobby: lobby }),
 
-  // A user counts as reachable ("online dot") for online AND dnd/away — they are
+  // A user counts as reachable ("online dot") for online AND dnd/away - they are
   // connected, just not to be disturbed; only 'offline' clears the dot.
   setUserPresence: (userId, status, customStatus) => {
     set(s => {
@@ -372,7 +372,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     if (msgs?.length) {
       chatApi.markRead(convId, msgs[msgs.length - 1].id).catch(() => {})
     } else {
-      // No message to acknowledge — clear an explicit "mark as unread" instead.
+      // No message to acknowledge - clear an explicit "mark as unread" instead.
       chatApi.updateMemberSettings(convId, { mark_unread: false }).catch(() => {})
     }
   },
@@ -425,13 +425,13 @@ export function encodeTextMessage(text: string): { encrypted_data: string; nonce
 }
 
 // Helper: encoder un message média (image/vidéo/audio/fichier/vocal) avant envoi.
-// La clé/iv du blob voyagent ici, dans l'enveloppe — invisibles au serveur.
+// La clé/iv du blob voyagent ici, dans l'enveloppe - invisibles au serveur.
 export function encodeMediaMessage(media: MediaPayload, caption?: string): { encrypted_data: string; nonce: string } {
   return { encrypted_data: b64urlEncode(JSON.stringify({ text: caption ?? '', media })), nonce: randomNonce() }
 }
 
 // Helper: encode a cross-module data card (pasted JSON envelope) with an
-// optional caption. The card travels inside the opaque envelope like polls —
+// optional caption. The card travels inside the opaque envelope like polls -
 // the server never reads it, and message_type stays 'text' (no migration).
 export function encodeCardMessage(card: KubunoDataEnvelope, caption?: string): { encrypted_data: string; nonce: string } {
   return { encrypted_data: b64urlEncode(JSON.stringify({ text: caption ?? '', card })), nonce: randomNonce() }

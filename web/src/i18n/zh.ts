@@ -1,4 +1,4 @@
-// Chat module translations — zh.
+// Chat module translations - zh.
 export default {
   common_create: "创建",
   chat_messages: "消息",
@@ -68,7 +68,7 @@ export default {
   chat_call_fullscreen: "全屏",
   chat_call_mic_error: "无法访问麦克风。请检查权限。",
   chat_call_title_group: "{{kind}}（{{count}} 名参与者）",
-  chat_call_title_peer: "{{kind}} — {{name}}",
+  chat_call_title_peer: "{{kind}} - {{name}}",
   chat_precall_title: "发起通话",
   chat_call_type_audio: "语音",
   chat_call_type_video: "视频",

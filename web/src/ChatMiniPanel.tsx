@@ -5,7 +5,7 @@ import { Spinner } from '@ui'
 import { chatApi, type ConversationSummary } from './api'
 
 /**
- * Chat side panel — see who is waiting, jump into the thread.
+ * Chat side panel - see who is waiting, jump into the thread.
  *
  * Reading and answering stay in the module. Chat is end-to-end encrypted and its
  * session, key state and decryption live in the global chat service; opening a

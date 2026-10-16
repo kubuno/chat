@@ -9,13 +9,13 @@
 //! Chat is end-to-end encrypted: the server holds only ciphertext. These settings
 //! act on the bytes and their age (a size cap, a retention window), on whether a
 //! feature is available at all (attachments, link previews) and on who may talk
-//! to whom (spaces, guests) — never on the content. The administrator can neither
+//! to whom (spaces, guests) - never on the content. The administrator can neither
 //! read nor filter what is inside.
 
 use serde_json::Value;
 
 /// Who may create a space (group or channel). Direct conversations are never
-/// gated — they are the baseline use of a messenger.
+/// gated - they are the baseline use of a messenger.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpaceCreation {
     Everyone,
@@ -53,7 +53,7 @@ pub struct InstanceConfig {
     /// Whether discoverable ("channel") spaces may be created, browsed and
     /// joined without an invitation.
     pub allow_public_spaces: bool,
-    /// Whether guest accounts (the core's `guest` role — the local equivalent of
+    /// Whether guest accounts (the core's `guest` role - the local equivalent of
     /// an outside participant) may start a conversation or be added to a space.
     pub allow_guest_conversations: bool,
     /// STUN server URLs handed to every call (`stun:host:port`). Empty = none:
@@ -149,7 +149,7 @@ impl InstanceConfig {
     /// `[{urls, username?, credential?}]`. STUN entries are plain; the TURN
     /// entry carries either a credential minted for `user_id` (TURN REST API,
     /// valid `ttl_secs`) or the static one. Nothing is returned when the
-    /// administrator configured nothing — the client then decides what to do.
+    /// administrator configured nothing - the client then decides what to do.
     pub fn ice_servers(&self, user_id: uuid::Uuid, now_unix: i64, ttl_secs: i64) -> Vec<Value> {
         let mut out = Vec::new();
         if !self.ice_stun_urls.is_empty() {
@@ -196,7 +196,7 @@ impl InstanceConfig {
 }
 
 /// Splits an administrator's comma/whitespace-separated list, keeping only the
-/// entries that start with one of `schemes` — a typo never reaches a client.
+/// entries that start with one of `schemes` - a typo never reaches a client.
 fn url_list(raw: Option<&str>, schemes: &[&str]) -> Vec<String> {
     raw.unwrap_or("")
         .split([',', ' ', '\n', ';'])

@@ -3,8 +3,8 @@
  *
  * The chat main area has a single route (`/chat`) but several addressable
  * views: the shortcut views (home / mentions / starred / browse) and the open
- * conversation. Unlike the other modules — where such a client-side selection
- * is encoded in the location HASH — chat already had a query-string scheme
+ * conversation. Unlike the other modules - where such a client-side selection
+ * is encoded in the location HASH - chat already had a query-string scheme
  * (`/chat?conv=<id>&view=<view>`): ChatPage restores it on mount and mirrors
  * the store back into it with `navigate(..., { replace: true })`. That mirror
  * would strip any hash a fraction of a second after the click, so the sidebar

@@ -90,7 +90,7 @@ export default function MediaContent({ media, isOwn }: Props) {
 
   // ── Sticker ──────────────────────────────────────────────────────────────────
   // Rendered bare (MessageBubble drops the bubble around it): no frame, no
-  // lightbox — transparency is the whole point.
+  // lightbox - transparency is the whole point.
   if (media.kind === 'sticker') {
     return (
       <div className="w-[140px] h-[140px]">

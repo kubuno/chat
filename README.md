@@ -7,7 +7,7 @@
 
 <img src=".github/logo.png" alt="Kubuno Chat logo" width="120">
 
-# Kubuno — Chat
+# Kubuno - Chat
 
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](LICENSE)
 ![Rust](https://img.shields.io/badge/Rust-edition_2021-orange.svg)
@@ -15,10 +15,10 @@
 ![Module](https://img.shields.io/badge/Kubuno-module-4D38DB.svg)
 ![Status](https://img.shields.io/badge/status-alpha-yellow.svg)
 
-**Real-time messaging, meetings and calls for [Kubuno](https://github.com/kubuno/core) — the self-hosted, libre (AGPLv3) cloud platform, a sovereign alternative to Google Workspace and Microsoft 365.**
+**Real-time messaging, meetings and calls for [Kubuno](https://github.com/kubuno/core) - the self-hosted, libre (AGPLv3) cloud platform, a sovereign alternative to Google Workspace and Microsoft 365.**
 
 Direct messages and group spaces, a rich composer, audio/video calls and
-full-featured meeting rooms — kept running as a floating overlay while you browse
+full-featured meeting rooms - kept running as a floating overlay while you browse
 the rest of the platform.
 
 </div>
@@ -33,18 +33,18 @@ the rest of the platform.
 
 ## Features
 
-- **Direct messages & spaces** — a sidebar organized into Shortcuts, Direct messages and Spaces, a central Home view, dedicated Mentions and Starred views, and a browse page to discover and join public spaces. Every view and conversation has a real, shareable URL.
-- **Rich composer** — an expression panel with the full Unicode emoji catalogue (localized keyword search, recently-used row), GIF search through a server-side proxy (the API key is an admin-only instance setting, never exposed to the browser), and a personal sticker pack. Messages support replies, reactions, polls, attachments and link previews.
-- **Sticker Studio** — turn any picture into a transparent square sticker; the pack lives on the device (IndexedDB).
-- **Camera capture** — take a photo or record a clip straight from the composer.
-- **Presence & status** — Active / Away / Do not disturb plus a free-text status, picked from the platform top bar and broadcast live over WebSocket; a manually chosen status survives reconnects.
-- **Conversation management** — pin, archive, mute, favorite, mark as unread, clear or delete from a single action menu, plus a per-conversation shared-files panel and multi-device live sync (a message you send appears at once on your other tabs and devices).
-- **Pop-up conversations** — small floating chat windows docked to a corner of the screen that keep running while you browse other Kubuno modules.
-- **Audio & video calls** — a global call overlay that follows you across modules, with a lobby to preview and pick devices, screen sharing alongside your camera, and an upgrade from audio to video without hanging up. STUN/TURN servers are an instance setting, so a self-hosted deployment chooses its own; with nothing configured, calls connect between hosts that can reach each other directly.
-- **Meeting rooms** — a full-width **Meetings** page with a navigable week strip, upcoming/past grouping, multi-select to act on several meetings at once (including deletion), and a details panel (members, plain transcript) you can read without joining. Meetings offer a lobby, a dark meeting stage with animated tile layout, an active-speaker highlight, presentation controls, host moderation (mute/remove, and ending the meeting for everyone as distinct from leaving it), a meeting chat that is the conversation itself, an admit-based access mode (open, or open to trusted people with a join queue), configurable host rules (who may share, react or write in chat), in-meeting activities other modules can register, and optional recording filed to the recorder's Drive.
-- **Calendar meetings** — a calendar event can carry a Kubuno video call created in place; the event and its meeting keep one shared title, and a room attached to an event you never save is cleaned up automatically.
-- **Push notifications** — new messages and incoming calls ring registered devices via the core (UnifiedPush); notifications carry *who*, never *what*, and respect mute / Do-not-disturb and per-module preferences.
-- **Cross-module data cards** — content copied from another Kubuno module (a map location, a drawing…) pastes as a rich card rendered by the producer module, with a graceful generic fallback. Chat also contributes "Chat" and "Start a meeting" actions to a person's card wherever the platform shows one.
+- **Direct messages & spaces** - a sidebar organized into Shortcuts, Direct messages and Spaces, a central Home view, dedicated Mentions and Starred views, and a browse page to discover and join public spaces. Every view and conversation has a real, shareable URL.
+- **Rich composer** - an expression panel with the full Unicode emoji catalogue (localized keyword search, recently-used row), GIF search through a server-side proxy (the API key is an admin-only instance setting, never exposed to the browser), and a personal sticker pack. Messages support replies, reactions, polls, attachments and link previews.
+- **Sticker Studio** - turn any picture into a transparent square sticker; the pack lives on the device (IndexedDB).
+- **Camera capture** - take a photo or record a clip straight from the composer.
+- **Presence & status** - Active / Away / Do not disturb plus a free-text status, picked from the platform top bar and broadcast live over WebSocket; a manually chosen status survives reconnects.
+- **Conversation management** - pin, archive, mute, favorite, mark as unread, clear or delete from a single action menu, plus a per-conversation shared-files panel and multi-device live sync (a message you send appears at once on your other tabs and devices).
+- **Pop-up conversations** - small floating chat windows docked to a corner of the screen that keep running while you browse other Kubuno modules.
+- **Audio & video calls** - a global call overlay that follows you across modules, with a lobby to preview and pick devices, screen sharing alongside your camera, and an upgrade from audio to video without hanging up. STUN/TURN servers are an instance setting, so a self-hosted deployment chooses its own; with nothing configured, calls connect between hosts that can reach each other directly.
+- **Meeting rooms** - a full-width **Meetings** page with a navigable week strip, upcoming/past grouping, multi-select to act on several meetings at once (including deletion), and a details panel (members, plain transcript) you can read without joining. Meetings offer a lobby, a dark meeting stage with animated tile layout, an active-speaker highlight, presentation controls, host moderation (mute/remove, and ending the meeting for everyone as distinct from leaving it), a meeting chat that is the conversation itself, an admit-based access mode (open, or open to trusted people with a join queue), configurable host rules (who may share, react or write in chat), in-meeting activities other modules can register, and optional recording filed to the recorder's Drive.
+- **Calendar meetings** - a calendar event can carry a Kubuno video call created in place; the event and its meeting keep one shared title, and a room attached to an event you never save is cleaned up automatically.
+- **Push notifications** - new messages and incoming calls ring registered devices via the core (UnifiedPush); notifications carry *who*, never *what*, and respect mute / Do-not-disturb and per-module preferences.
+- **Cross-module data cards** - content copied from another Kubuno module (a map location, a drawing…) pastes as a rich card rendered by the producer module, with a graceful generic fallback. Chat also contributes "Chat" and "Start a meeting" actions to a person's card wherever the platform shows one.
 
 ## Architecture
 
@@ -56,13 +56,13 @@ core (kubuno/core)  ──proxy──►  kubuno-chat (this repo, :3109)
        └─ serves /modules/chat/entry.js (React frontend, loaded at runtime)
 ```
 
-- **Server** — `server/`: Axum on the shared `kubuno-db` layer, running on **PostgreSQL, MySQL/MariaDB or SQLite** (the engine is an administrator choice read at run time — one binary, no rebuild), in a dedicated `chat` schema; migrations in `server/migrations/`. Calls exchange media directly between browsers (WebRTC).
-- **Web** — `web/`: a React bundle built to `entry.js`, consuming `@kubuno/sdk`, `@kubuno/ui` and `@kubuno/drive` from npm (provided by the host at runtime via the import map).
-- **Mobile** — `mobile/`: the mobile apps (see `mobile/README.md`).
+- **Server** - `server/`: Axum on the shared `kubuno-db` layer, running on **PostgreSQL, MySQL/MariaDB or SQLite** (the engine is an administrator choice read at run time - one binary, no rebuild), in a dedicated `chat` schema; migrations in `server/migrations/`. Calls exchange media directly between browsers (WebRTC).
+- **Web** - `web/`: a React bundle built to `entry.js`, consuming `@kubuno/sdk`, `@kubuno/ui` and `@kubuno/drive` from npm (provided by the host at runtime via the import map).
+- **Mobile** - `mobile/`: the mobile apps (see `mobile/README.md`).
 
 ## Install
 
-Modules install as a **Kubuno package (`.kbpkg`)** — a single, self-contained archive the Kubuno server unpacks itself (in pure Rust, identically on Linux, Windows and macOS). There are no native system packages for a module; only the core ships those.
+Modules install as a **Kubuno package (`.kbpkg`)** - a single, self-contained archive the Kubuno server unpacks itself (in pure Rust, identically on Linux, Windows and macOS). There are no native system packages for a module; only the core ships those.
 
 The easiest way to self-host a full Kubuno instance (core + every module) is the **all-in-one [Docker image](https://github.com/kubuno/docker)** (`ghcr.io/kubuno/kubuno`), which already bundles Chat.
 
@@ -91,14 +91,14 @@ cd web && npm ci && npm run build           # → web/dist/{entry.js, entry.css}
 bash build_kbpkg.sh                         # → dist/chat-<version>-<os>-<arch>.kbpkg
 ```
 
-> Shared dependencies come from Kubuno — no `kubuno/core` checkout required:
-> - **Rust** — shared crates via tagged git dependencies on `kubuno/core`.
-> - **Frontend** — `@kubuno/sdk`, `@kubuno/ui`, `@kubuno/drive` from the `@kubuno` npm scope. They are `external` at runtime (the host provides the singletons via its import map); the npm packages supply the build-time type surface.
+> Shared dependencies come from Kubuno - no `kubuno/core` checkout required:
+> - **Rust** - shared crates via tagged git dependencies on `kubuno/core`.
+> - **Frontend** - `@kubuno/sdk`, `@kubuno/ui`, `@kubuno/drive` from the `@kubuno` npm scope. They are `external` at runtime (the host provides the singletons via its import map); the npm packages supply the build-time type surface.
 
 ### Desktop app
 
 The native Windows client, **Kubuno Chat for Windows** (`kubuno-chat.exe`), lives in
-[`desktop/windows/`](desktop/windows/README.md) — a Cargo workspace of its own, built on the Kubuno desktop framework
+[`desktop/windows/`](desktop/windows/README.md) - a Cargo workspace of its own, built on the Kubuno desktop framework
 (`kubuno/desktop`, by git tag, linked statically). `desktop/linux` and `desktop/macos` are reserved for the other
 desktop platforms. In Visual Studio, `Kubuno.Chat.slnx` lists it under **Desktop**.
 
@@ -108,7 +108,7 @@ cd desktop\windows; cargo build --release   # → target\release\kubuno-chat.exe
 
 ## Tech stack
 
-Rust 2021 · Axum 0.7 · Tokio · `kubuno-db` over SQLx (PostgreSQL, MySQL/MariaDB or SQLite, schema `chat`) · WebSocket · WebRTC — React 19 · TypeScript · Vite · Tailwind CSS v4 · Zustand · React Query.
+Rust 2021 · Axum 0.7 · Tokio · `kubuno-db` over SQLx (PostgreSQL, MySQL/MariaDB or SQLite, schema `chat`) · WebSocket · WebRTC - React 19 · TypeScript · Vite · Tailwind CSS v4 · Zustand · React Query.
 
 ## Contributing
 

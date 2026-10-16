@@ -40,7 +40,7 @@
   <String Name="theme_light">Light</String>
   <String Name="theme_dark">Dark</String>
   <String Name="language_header">Language</String>
-  <String Name="account_offline" Comment="Profile menu when no account is connected">Offline — sample conversations</String>
+  <String Name="account_offline" Comment="Profile menu when no account is connected">Offline - sample conversations</String>
   <String Name="account_connected" Comment="Profile menu header, followed by the server">Connected</String>
   <String Name="quit">Quit</String>
 </Resources>

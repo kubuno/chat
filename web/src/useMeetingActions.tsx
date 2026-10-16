@@ -8,7 +8,7 @@ import { chatApi, isMeetingEnded } from './api'
  * Shared meeting actions, used by the "New" button and the Meetings page.
  *
  * A meeting is a group conversation flagged `is_meeting` (open join by link).
- * Starting one enters its room and opens the video call directly — never via
+ * Starting one enters its room and opens the video call directly - never via
  * the `/chat/meet` deep link, so the call is not cancelled by that page
  * unmounting mid-start.
  */
@@ -60,7 +60,7 @@ export function useMeetingActions() {
 
   /**
    * Remove a meeting from the user's list. Like every other conversation the
-   * platform treats "delete" as leaving it — the room drops out of the caller's
+   * platform treats "delete" as leaving it - the room drops out of the caller's
    * meetings, and its selection is cleared if it was open in the detail pane.
    */
   const deleteMeeting = useCallback(async (id: string) => {
@@ -117,7 +117,7 @@ export function useMeetingActions() {
       await chatApi.joinMeeting(id)
     } catch (e) {
       // A meeting that has been ended is closed: say so instead of walking
-      // into an empty room. Any other refusal is harmless — being a member
+      // into an empty room. Any other refusal is harmless - being a member
       // already is a success, so it never lands here.
       if (isMeetingEnded(e)) {
         await confirm({ title: t('chat_meeting_over_title'), message: t('chat_meeting_over'), hideCancel: true })

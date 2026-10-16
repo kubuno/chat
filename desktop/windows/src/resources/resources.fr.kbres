@@ -39,7 +39,7 @@
   <String Name="theme_light">Clair</String>
   <String Name="theme_dark">Sombre</String>
   <String Name="language_header">Langue</String>
-  <String Name="account_offline">Hors ligne — discussions d'exemple</String>
+  <String Name="account_offline">Hors ligne - discussions d'exemple</String>
   <String Name="account_connected">Connecté</String>
   <String Name="quit">Quitter</String>
 </Resources>

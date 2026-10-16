@@ -16,7 +16,7 @@ pub mod view_model;
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
-/// Delivery state of one of our own messages — the tick marks the web draws.
+/// Delivery state of one of our own messages - the tick marks the web draws.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Status {
     /// Someone else's message: no ticks.
@@ -31,7 +31,7 @@ pub enum Status {
 /// One message in a conversation.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Message {
-    /// The server's message id — used to drop the WebSocket echo of a message we
+    /// The server's message id - used to drop the WebSocket echo of a message we
     /// already appended (optimistic sends carry an empty id until confirmed).
     pub id: String,
     pub text: String,
@@ -57,7 +57,7 @@ impl Message {
 /// One conversation: a row in the list and, when selected, the thread.
 #[derive(Debug, Clone, Default)]
 pub struct Conversation {
-    /// The server's conversation id — the key `/chat/conversations/:id/messages`
+    /// The server's conversation id - the key `/chat/conversations/:id/messages`
     /// uses. Empty for the offline sample.
     pub id: String,
     pub name: String,
@@ -69,10 +69,10 @@ pub struct Conversation {
     /// A group (squared avatar) rather than a direct contact (round avatar), the
     /// web's `conv_type` distinction.
     pub group: bool,
-    /// The other participant's user id for a direct conversation — used to read
+    /// The other participant's user id for a direct conversation - used to read
     /// their presence (online dot / header status). `None` for groups.
     pub other_id: Option<String>,
-    /// A meeting conversation (`is_meeting`) — the kind a `kubuno://meet/` link
+    /// A meeting conversation (`is_meeting`) - the kind a `kubuno://meet/` link
     /// hands off; shown with a "Réunion" marker.
     pub meeting: bool,
     /// Messages are fetched the first time the conversation is opened; this says
@@ -233,7 +233,7 @@ impl ChatState {
     }
 
     /// A message that arrived live: it refreshes the list preview and, if the
-    /// conversation is loaded, appends the bubble — dropping our own echo (the
+    /// conversation is loaded, appends the bubble - dropping our own echo (the
     /// WebSocket also delivers what we just sent) by id or by optimistic match.
     /// A message for a conversation that is not open counts as unread.
     pub fn apply_incoming(&mut self, conv_id: &str, message: Message, you_prefix: &str) {

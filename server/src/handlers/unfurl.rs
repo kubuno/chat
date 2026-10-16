@@ -1,5 +1,5 @@
 //! Link preview (URL unfurling). The client detects a URL in a (decrypted)
-//! message and asks the server to fetch its Open Graph / <title> metadata —
+//! message and asks the server to fetch its Open Graph / <title> metadata -
 //! the server does the fetch so the browser avoids CORS and the page never
 //! sees the user's IP.
 
@@ -22,7 +22,7 @@ pub struct UnfurlQuery {
     pub url: String,
 }
 
-/// GET /unfurl?url=… — fetch Open Graph metadata for a link preview.
+/// GET /unfurl?url=… - fetch Open Graph metadata for a link preview.
 pub async fn unfurl(
     State(st): State<AppState>,
     _user: ChatUser,

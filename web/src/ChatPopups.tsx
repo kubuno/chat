@@ -3,7 +3,7 @@
  *
  * Rendered from the global `app-dialogs` slot, so a pop-up keeps running (and
  * receiving messages) while the user browses another module. Not a
- * @ui/FloatingWindow: those are centered, backdropped modals — a chat dock needs
+ * @ui/FloatingWindow: those are centered, backdropped modals - a chat dock needs
  * several small, non-modal, stackable windows anchored to a corner.
  */
 import { useEffect } from 'react'
@@ -29,7 +29,7 @@ export default function ChatPopups() {
   const myId = user?.id ?? ''
 
   // A pop-up restored on another module has no conversation list behind it
-  // (only ChatPage fetches one) — without this its title would stay "…".
+  // (only ChatPage fetches one) - without this its title would stay "…".
   useEffect(() => {
     if (popupConvIds.length > 0 && conversations.length === 0) fetchConversations()
   }, [popupConvIds.length, conversations.length, fetchConversations])

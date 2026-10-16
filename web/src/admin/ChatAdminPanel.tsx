@@ -1,6 +1,6 @@
 // Instance administration of chat, rendered in the core admin console under
 // Modules ▸ Chat. Chat is end-to-end encrypted, so the honest first thing an
-// administrator must see is what that rules OUT — the server holds only
+// administrator must see is what that rules OUT - the server holds only
 // ciphertext. This banner states it plainly on the "overview" page; the actual
 // levers (retention, media size) are ordinary settings on the other pages.
 
@@ -29,7 +29,7 @@ function E2EBanner() {
             Certaines fonctions d'autres plateformes sont <strong>volontairement absentes</strong> :
             archivage légal / eDiscovery, mise sous séquestre, conservation « avec consultation »,
             lecture ou modération des messages par un administrateur, filtrage par contenu ou par
-            type de fichier — le type est déclaré par le client et n'est pas vérifiable. Aucune
+            type de fichier - le type est déclaré par le client et n'est pas vérifiable. Aucune
             n'est réalisable sans casser le chiffrement de bout en bout ; ce sont des choix, pas
             des oublis.
           </p>

@@ -1,4 +1,4 @@
-/** Bundle MODULE chat — chargé à l'exécution (cf. vite.module.config). */
+/** Bundle MODULE chat - chargé à l'exécution (cf. vite.module.config). */
 import { lazy } from 'react'
 import { RouteRegistry, WaffleAppRegistry, SlotRegistry, ExtensionRegistry, FaviconRegistry, useToolbarStore, useSidebarStore, useSearchStore, ModuleServiceRegistry, ModuleSettingsRegistry, NotificationRegistry, useRightPanelStore, SDK_VERSION } from '@kubuno/sdk'
 import './index.css'
@@ -93,7 +93,7 @@ export function register() {
   // A form that creates a room before it is itself saved (an event, a task)
   // asks for a `provisional` one and then says which way it went: `confirm`
   // once it is saved, `drop` if it is abandoned or the call is taken back off
-  // it. Saying nothing at all is allowed too — a provisional room carries its
+  // it. Saying nothing at all is allowed too - a provisional room carries its
   // own deadline and the server sweeps it away, which is what covers a reloaded
   // page, a closed tab or a machine that simply went to sleep.
   ModuleServiceRegistry.publish('chat', {
@@ -110,7 +110,7 @@ export function register() {
   // override where its own field stood, with no Suspense around it.
   SlotRegistry.registerOverride('video-meeting-field', 'chat', ChatMeetingField)
 
-  // What THIS module can do with a person, offered to whoever shows one — a
+  // What THIS module can do with a person, offered to whoever shows one - a
   // guest's card in the calendar today. Two acts it owns and nobody else can
   // perform: opening a conversation with someone, and starting a call with
   // them. An instance without this module simply shows two buttons fewer.
@@ -148,8 +148,8 @@ export function register() {
   })
 
   // In-meeting activities: this module owns the room, other modules own the
-  // things shared in it. One is contributed here — putting a file in front of
-  // everyone — and only when a module that can pick a file is installed.
+  // things shared in it. One is contributed here - putting a file in front of
+  // everyone - and only when a module that can pick a file is installed.
   registerBuiltinActivities(
     (k, o) => i18n.t(`chat:${k}`, o as Record<string, unknown>) as string,
     { get: <T,>(m: string, n: string) => ModuleServiceRegistry.get(m, n) as T | undefined },
@@ -165,19 +165,19 @@ export function register() {
    * This is the door the reference calls "third-party apps collecting audio
    * and video", and it is the ONLY one: the media is peer-to-peer inside this
    * tab, so nothing reaches it except through here. The host's setting is
-   * enforced at the door rather than by whoever knocks — a permission checked
+   * enforced at the door rather than by whoever knocks - a permission checked
    * by the caller is not a permission.
    */
   ModuleServiceRegistry.publish('chat-media', {
     getMeetingMedia: (room: string) => meetingMediaFor(room),
   })
 
-  // Overlay appels (entrants + actifs) — rendu partout via le slot global app-dialogs
+  // Overlay appels (entrants + actifs) - rendu partout via le slot global app-dialogs
   SlotRegistry.register('app-dialogs',     'chat', CallManager)
-  // Fenêtres pop-up de conversation — flottantes, survivent au changement de module
+  // Fenêtres pop-up de conversation - flottantes, survivent au changement de module
   SlotRegistry.register('app-dialogs',     'chat', ChatPopups)
   // Sélecteur de statut (Actif / Ne pas déranger / Absent) dans la barre du haut
   SlotRegistry.register('topbar-actions',  'chat', ChatStatusMenu)
-  // Connexion WebSocket globale — active peu importe le module affiché
+  // Connexion WebSocket globale - active peu importe le module affiché
   SlotRegistry.register('global-services', 'chat', ChatGlobalService)
 }

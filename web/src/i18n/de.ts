@@ -1,4 +1,4 @@
-// Chat module translations — de.
+// Chat module translations - de.
 export default {
   common_create: "Erstellen",
   chat_messages: "Nachrichten",
@@ -68,7 +68,7 @@ export default {
   chat_call_fullscreen: "Vollbild",
   chat_call_mic_error: "Auf das Mikrofon kann nicht zugegriffen werden. Überprüfen Sie die Berechtigungen.",
   chat_call_title_group: "{{kind}} ({{count}} Teilnehmer)",
-  chat_call_title_peer: "{{kind}} — {{name}}",
+  chat_call_title_peer: "{{kind}} - {{name}}",
   chat_precall_title: "Anruf starten",
   chat_call_type_audio: "Audio",
   chat_call_type_video: "Video",

@@ -8,7 +8,7 @@
  *
  * - no call yet: one button creates the room and attaches its link;
  * - a call: a card that names it, shows its link, copies it, and takes it
- *   away with a single ✕ — an event holds one call at a time;
+ *   away with a single ✕ - an event holds one call at a time;
  * - a link that is not ours (pasted from somewhere else): the same card,
  *   without the pretence that we host it.
  *
@@ -22,8 +22,8 @@
  * room can easily outlive the intention that made it: the call is taken back
  * off the event, the form is closed without saving, the tab is reloaded.
  *
- * So a room made here is born PROVISIONAL — it belongs to the draft, not to
- * anyone — and exactly one of three things happens to it:
+ * So a room made here is born PROVISIONAL - it belongs to the draft, not to
+ * anyone - and exactly one of three things happens to it:
  *
  * - the event is saved: the form confirms it and it becomes an ordinary room;
  * - the call is removed, or the form is closed without saving: it is deleted;
@@ -83,7 +83,7 @@ export default function ChatMeetingField({ part, url, title, disabled, onChange,
   // The room as the server holds it, for the ⚙: its current settings, and
   // whether this person is its host. Only fetched for a room of OURS.
   const [room, setRoom] = useState<Conversation | null>(null)
-  // The room THIS field created for a form that has not been saved yet — the
+  // The room THIS field created for a form that has not been saved yet - the
   // only room it is ever allowed to destroy.
   const [draftRoom, setDraftRoom] = useState<string | null>(null)
 
@@ -100,7 +100,7 @@ export default function ChatMeetingField({ part, url, title, disabled, onChange,
         if (!alive) return
         setRoom(r.conversation)
         // A room that is STILL a draft belongs to the form showing it, whoever
-        // created it. That is what carries the lifecycle across a handover —
+        // created it. That is what carries the lifecycle across a handover -
         // the quick card makes the room, the full editor inherits the link, and
         // without this the second form would not know it is holding a draft and
         // nobody would take it back.
@@ -148,7 +148,7 @@ export default function ChatMeetingField({ part, url, title, disabled, onChange,
     tell({
       // Confirmed BEFORE the event is written, and retried once: the one thing
       // that must not happen is a saved event pointing at a room that is still
-      // counting down. A failure is not raised — losing the event because its
+      // counting down. A failure is not raised - losing the event because its
       // room could not be confirmed would be the worse of the two outcomes.
       commit: async () => {
         for (let attempt = 0; attempt < 2; attempt++) {
@@ -162,7 +162,7 @@ export default function ChatMeetingField({ part, url, title, disabled, onChange,
   }, [draftRoom])
 
   // The row's mark, and ONLY that one: this module's own logo, not a generic
-  // camera — the field beside it names the host, and the gutter must not
+  // camera - the field beside it names the host, and the gutter must not
   // contradict it. The card carries no glyph of its own: it says who hosts the call
   // in words, and a logo repeated an inch away is decoration, not information.
   // After every hook, so both parts call the same ones in the same order.
@@ -170,7 +170,7 @@ export default function ChatMeetingField({ part, url, title, disabled, onChange,
 
   // What is shown and what is copied: a link into this instance is only a
   // path in the event, and a path is not something a guest can paste in a
-  // browser — the full address is.
+  // browser - the full address is.
   const absolute = ours ? `${window.location.origin}${link}` : link
   const host = (() => { try { return new URL(absolute).host } catch { return absolute } })()
 
@@ -183,7 +183,7 @@ export default function ChatMeetingField({ part, url, title, disabled, onChange,
       setDraftRoom(conv.id)
       onChange(`/chat/meet/${conv.id}`)
     } catch {
-      setError(t('meeting_create_failed', { defaultValue: 'La salle n’a pas pu être créée — réessayez.' }))
+      setError(t('meeting_create_failed', { defaultValue: 'La salle n’a pas pu être créée - réessayez.' }))
     } finally { setCreating(false) }
   }
 
@@ -228,14 +228,14 @@ export default function ChatMeetingField({ part, url, title, disabled, onChange,
   return (
     /* No glyph of its own at the head of the card: the row's gutter already
        carries this module's mark, and the line below says in words who hosts
-       the call. A camera repeated an inch away is decoration, not information —
+       the call. A camera repeated an inch away is decoration, not information -
        the same reason the button has none. */
     <div className="flex items-start gap-3 rounded-md px-3 py-2" style={{ background: 'var(--kb-field-bg, var(--color-surface-1))' }}>
       <div className="min-w-0 flex-1">
         {/* A new tab, for a room of ours as much as for anyone else's: this
             link sits inside a form that is being filled in, and following it in
             place would throw that form away to join a call. The meeting also
-            outlives the visit to the event — leaving it open in its own tab is
+            outlives the visit to the event - leaving it open in its own tab is
             what you want. */}
         <a href={absolute} target="_blank" rel="noopener noreferrer"
           className="block truncate text-sm font-medium text-primary hover:underline">
@@ -250,7 +250,7 @@ export default function ChatMeetingField({ part, url, title, disabled, onChange,
       </div>
       <span className="flex shrink-0 items-center gap-0.5">
         {/* The host's settings for this room. Absent for a link we do not
-            host, and for anyone who is not its host — there is nothing for
+            host, and for anyone who is not its host - there is nothing for
             them to change. */}
         {ours && room && (
           <button type="button" onClick={() => setSettingsOpen(true)} disabled={disabled}
@@ -278,7 +278,7 @@ export default function ChatMeetingField({ part, url, title, disabled, onChange,
           {copied ? <Check size={16} className="text-success" /> : <Copy size={16} />}
         </button>
         {/* Taking the call off the event. A room made for THIS unsaved form
-            goes with it — it was never anybody's. A room the event already
+            goes with it - it was never anybody's. A room the event already
             carried stays: its link has been shared, and breaking it is not
             what "remove from this event" asks for. */}
         <button type="button" onClick={() => { const id = draftRoom; onChange(''); if (id && id === roomId) dropDraft(id) }} disabled={disabled}

@@ -50,7 +50,7 @@ export function pushRecentEmoji(emoji: string): void {
     const next = [emoji, ...readRecentEmojis().filter(e => e !== emoji)].slice(0, RECENT_MAX)
     localStorage.setItem(RECENT_KEY, JSON.stringify(next))
   } catch {
-    // Private mode / quota exceeded — recents are a nicety, never a hard failure.
+    // Private mode / quota exceeded - recents are a nicety, never a hard failure.
   }
 }
 
@@ -99,7 +99,7 @@ export default function ExpressionPanel({ onPickEmoji, onPickGif, onPickSticker,
     }
   }, [onClose])
 
-  // Reset the search box when switching tabs — the query means something else there.
+  // Reset the search box when switching tabs - the query means something else there.
   useEffect(() => { setQuery('') }, [tab])
 
   const [gifEnabled, setGifEnabled] = useState<boolean | null>(null)
@@ -178,7 +178,7 @@ export default function ExpressionPanel({ onPickEmoji, onPickGif, onPickSticker,
   )
 }
 
-/** lucide v1 has no sticker glyph — a peeled-corner square, as in the mockup. */
+/** lucide v1 has no sticker glyph - a peeled-corner square, as in the mockup. */
 function StickerIcon() {
   return (
     <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -418,7 +418,7 @@ function StickerTab({ version, onPick, onCreate }: { version: number; onPick: (s
         <div className="flex flex-col items-center justify-center h-full text-center gap-2 px-6">
           <ImageOff className="w-8 h-8 text-gray-300" />
           <p className="text-sm text-gray-500">{t('chat_sticker_empty', { defaultValue: 'Aucun sticker pour l’instant.' })}</p>
-          <p className="text-xs text-gray-400">{t('chat_sticker_empty_hint', { defaultValue: 'Créez-en un à partir de n’importe quelle image — il reste sur cet appareil.' })}</p>
+          <p className="text-xs text-gray-400">{t('chat_sticker_empty_hint', { defaultValue: 'Créez-en un à partir de n’importe quelle image - il reste sur cet appareil.' })}</p>
         </div>
       )}
 

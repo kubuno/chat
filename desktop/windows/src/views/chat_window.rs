@@ -1,4 +1,4 @@
-//! Code-behind of Kubuno Chat's window (`chat_window.kbview`) — Windows Forms' `Form1.cs`.
+//! Code-behind of Kubuno Chat's window (`chat_window.kbview`) - Windows Forms' `Form1.cs`.
 //!
 //! The window owns the data ([`ChatState`]) and fills its two user controls through typed access
 //! (`self.list_pane.with(…)`, `self.conversation.with(…)`) from what `view_model` computes. The
@@ -144,7 +144,7 @@ impl ChatWindow {
         self.french = french;
         self.english = !french;
         self.account_text = match (&self.state.instance, self.state.live) {
-            (Some(instance), true) => format!("{} — {}", Resources::account_connected(), api::server_of(instance).unwrap_or_else(|| instance.clone())),
+            (Some(instance), true) => format!("{} - {}", Resources::account_connected(), api::server_of(instance).unwrap_or_else(|| instance.clone())),
             _ => Resources::account_offline().to_string(),
         };
     }
@@ -172,7 +172,7 @@ impl ChatWindow {
                 self.pending_link = Some(link);
             }
         }
-        // The live channel opens once we know the account — one socket for the run.
+        // The live channel opens once we know the account - one socket for the run.
         if !self.realtime_started {
             if let (Some(instance), Some(sink)) = (self.state.instance.clone(), self.sink.clone()) {
                 api::start_realtime(sink, instance, self.state.me.clone());

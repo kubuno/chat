@@ -10,7 +10,7 @@ import { useChatStore, getConvName } from './chatStore'
 import { useMeetingActions } from './useMeetingActions'
 import MeetingDetailPanel from './MeetingDetailPanel'
 
-// ── Small date helpers (Intl only — no date library, per the platform's deps) ──
+// ── Small date helpers (Intl only - no date library, per the platform's deps) ──
 function startOfWeek(d: Date): Date {
   const x = new Date(d); x.setHours(0, 0, 0, 0)
   const dow = (x.getDay() + 6) % 7 // Monday = 0
@@ -36,7 +36,7 @@ export default function MeetingsView() {
   const [selected, setSelected] = useState(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d })
   const [joinValue, setJoinValue] = useState('')
   // The meeting whose details are shown in the right pane (a plain click opens
-  // this, never the call — joining is an explicit action).
+  // this, never the call - joining is an explicit action).
   const [openId, setOpenId] = useState<string | null>(null)
 
   // Context / row menu shared across rows: which meeting it targets is tracked
@@ -68,7 +68,7 @@ export default function MeetingsView() {
         id: c.conversation.id,
         title: getConvName(c.conversation, myId, c.other_user),
         at: new Date(c.conversation.created_at),
-        // Attached to something that owns its title — an event, a task. Renaming
+        // Attached to something that owns its title - an event, a task. Renaming
         // it here renames that too, which the reader deserves to be told BEFORE
         // typing rather than after.
         linked: Boolean(c.conversation.linked_ref),
@@ -81,7 +81,7 @@ export default function MeetingsView() {
   const upcoming = dayMeetings.filter(m => m.at.getTime() >= now.getTime())
   const past = dayMeetings.filter(m => m.at.getTime() < now.getTime())
 
-  // Visible order (upcoming then past) — the sequence shift-click ranges follow.
+  // Visible order (upcoming then past) - the sequence shift-click ranges follow.
   const orderedIds = useMemo(() => [...upcoming, ...past].map(m => m.id), [upcoming, past])
   // Drop selections for meetings no longer shown (e.g. after switching day).
   const selectedList = useMemo(() => {
@@ -120,7 +120,7 @@ export default function MeetingsView() {
   const bulkCopyLinks = () => meeting.copyMeetingLinks(selectedList)
 
   // A plain click opens the details pane; Ctrl/Cmd-click toggles a selection and
-  // Shift-click extends a range — so both flows share the row body.
+  // Shift-click extends a range - so both flows share the row body.
   const activateRow = (m: MeetingItem, e: React.MouseEvent | React.KeyboardEvent) => {
     if ('shiftKey' in e && e.shiftKey && (selectionActive || anchorId)) { selectRangeTo(m.id); return }
     if ('metaKey' in e && (e.metaKey || e.ctrlKey)) { toggleSelect(m.id); return }
@@ -242,7 +242,7 @@ export default function MeetingsView() {
           </div>
         </div>
 
-        {/* Bulk-action toolbar — appears once at least one meeting is selected */}
+        {/* Bulk-action toolbar - appears once at least one meeting is selected */}
         {selectionActive && (
           <div className="mx-6 mb-2 flex items-center gap-3 px-4 py-2 rounded-xl bg-primary/10">
             <button

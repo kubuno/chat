@@ -2,9 +2,9 @@
 //!
 //! The SAME body (`exercise`) runs against SQLite (always, on a temp file),
 //! PostgreSQL (when `KUBUNO_PG_TEST_URL` is set) and MySQL/MariaDB (when
-//! `KUBUNO_MYSQL_TEST_URL` is set). It exercises chat's own schema only — never
+//! `KUBUNO_MYSQL_TEST_URL` is set). It exercises chat's own schema only - never
 //! the cross-schema `core.users` joins, which are PostgreSQL/MySQL-only by
-//! design — covering the CRUD paths the port rewrote: conversations and members
+//! design - covering the CRUD paths the port rewrote: conversations and members
 //! (with the dialect upsert), messages (JSON media_meta, pin toggle,
 //! soft-delete), reactions (INSERT-ignore idempotence), presence (upsert),
 //! poll votes (upsert + counted), meeting knocks (upsert with a `{cur}`
@@ -246,7 +246,7 @@ async fn exercise(pool: &DbPool) {
         .await
         .unwrap();
     }
-    // denied_count is an INTEGER (int4 on PostgreSQL) — decoded as i32.
+    // denied_count is an INTEGER (int4 on PostgreSQL) - decoded as i32.
     let denied: i32 = pool
         .fetch_scalar(
             "SELECT denied_count FROM chat.meeting_knocks WHERE conversation_id = $1 AND user_id = $2",
@@ -366,7 +366,7 @@ async fn sqlite_round_trip() {
 #[tokio::test]
 async fn postgres_round_trip() {
     let Ok(url) = std::env::var("KUBUNO_PG_TEST_URL") else {
-        eprintln!("KUBUNO_PG_TEST_URL unset — skipping the PostgreSQL leg");
+        eprintln!("KUBUNO_PG_TEST_URL unset - skipping the PostgreSQL leg");
         return;
     };
     let pool = kubuno_db::connect(&url_settings("postgres", url), SCHEMA).await.unwrap();
@@ -378,7 +378,7 @@ async fn postgres_round_trip() {
 #[tokio::test]
 async fn mysql_round_trip() {
     let Ok(url) = std::env::var("KUBUNO_MYSQL_TEST_URL") else {
-        eprintln!("KUBUNO_MYSQL_TEST_URL unset — skipping the MySQL leg");
+        eprintln!("KUBUNO_MYSQL_TEST_URL unset - skipping the MySQL leg");
         return;
     };
     let pool = kubuno_db::connect(&url_settings("mysql", url), SCHEMA).await.unwrap();

@@ -20,7 +20,7 @@ pub struct WsQuery {
     pub conv_id: Option<Uuid>,
 }
 
-/// GET /ws — upgrade WebSocket (authentification via headers injectés par le core)
+/// GET /ws - upgrade WebSocket (authentification via headers injectés par le core)
 pub async fn ws_handler(
     State(st): State<AppState>,
     user: ChatUser,
@@ -37,7 +37,7 @@ async fn handle_socket(socket: WebSocket, st: AppState, user: ChatUser) {
     // Abonner ce client au hub
     let mut rx = st.ws_hub.connect(user_id).await;
 
-    // Mettre à jour la présence — un statut choisi à la main (absent / ne pas
+    // Mettre à jour la présence - un statut choisi à la main (absent / ne pas
     // déranger) prime sur le « en ligne » impliqué par la connexion.
     // A manually chosen Away/DND wins over the "online" implied by connecting.
     // The upsert's UPDATE branch reads the row's current `manual_status`, which
@@ -110,7 +110,7 @@ async fn handle_socket(socket: WebSocket, st: AppState, user: ChatUser) {
                 }
                 Message::Close(_) => break,
                 Message::Ping(data) => {
-                    // Le sink est consommé par send_task — on ignore le pong ici
+                    // Le sink est consommé par send_task - on ignore le pong ici
                     let _ = data;
                 }
                 _ => {}

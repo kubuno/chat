@@ -1,6 +1,6 @@
 /**
- * Activities a meeting can run — a file put in front of everyone, a board, a
- * poll — contributed by whichever modules the instance happens to have.
+ * Activities a meeting can run - a file put in front of everyone, a board, a
+ * poll - contributed by whichever modules the instance happens to have.
  *
  * ## Why a registry and not a list
  *
@@ -15,8 +15,8 @@
  *
  * ## Discovery goes the other way too
  *
- * Chat registers one activity of its own — putting a file in front of the
- * room — and it only appears when a module that can pick a file is installed.
+ * Chat registers one activity of its own - putting a file in front of the
+ * room - and it only appears when a module that can pick a file is installed.
  * It asks the service registry, never an import: modules do not import each
  * other, and an instance without that module simply has one activity fewer.
  */
@@ -49,7 +49,7 @@ export function listMeetingActivities(): MeetingActivity[] {
 /**
  * The one activity this module contributes: put a file in front of the room.
  *
- * It exists only when a module that can pick a file is installed — asked of
+ * It exists only when a module that can pick a file is installed - asked of
  * the service registry, never imported. On an instance without one there is
  * simply one activity fewer, and if nothing registers anything the room shows
  * no activities menu at all rather than an empty one.
@@ -70,7 +70,7 @@ export function registerBuiltinActivities(
       if (!file) return
       const name = file.name ?? t('activity_a_file', { defaultValue: 'un fichier' })
       // Put it where the room will see it: the meeting's own conversation.
-      await post(room, `${name} — ${window.location.origin}/drive?file=${encodeURIComponent(file.id)}`)
+      await post(room, `${name} - ${window.location.origin}/drive?file=${encodeURIComponent(file.id)}`)
       return name
     },
   })

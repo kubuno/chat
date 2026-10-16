@@ -20,7 +20,7 @@ pub struct Presence {
     pub user_id:      Uuid,
     pub status:       String,
     pub custom_status: Option<String>,
-    /// Away/DND deliberately picked by the user — survives WebSocket reconnects.
+    /// Away/DND deliberately picked by the user - survives WebSocket reconnects.
     pub manual_status: Option<String>,
     pub last_seen_at: DateTime<Utc>,
 }

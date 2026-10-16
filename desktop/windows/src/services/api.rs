@@ -12,7 +12,7 @@
 //!
 //! The background threads never touch the UI: they hand their results to a
 //! [`Sink`], which the window turns into a `UiDispatcher::begin_invoke` (Windows
-//! Forms' `BeginInvoke`) — the closure runs on the UI thread at the next frame.
+//! Forms' `BeginInvoke`) - the closure runs on the UI thread at the next frame.
 
 use base64::Engine;
 use kubuno_desktop::tracing;
@@ -28,7 +28,7 @@ pub type Sink = std::sync::Arc<dyn Fn(ChatEvent) + Send + Sync>;
 /// What a background API thread hands back to the UI thread (through a [`Sink`]).
 #[derive(Debug)]
 pub enum ChatEvent {
-    /// The instance resolved, our id, and the conversation list — the first
+    /// The instance resolved, our id, and the conversation list - the first
     /// load. `me` may be `None` if the identity call failed but the list came.
     Ready { instance: String, me: Option<String>, conversations: Vec<Conversation> },
     /// One conversation's messages, after it was opened.
@@ -89,7 +89,7 @@ pub fn start_mark_read(instance: String, conv_id: String, up_to_message_id: Stri
     });
 }
 
-/// Marks a conversation read up to a message (`POST …/read`). Best-effort — a
+/// Marks a conversation read up to a message (`POST …/read`). Best-effort - a
 /// failed read receipt must never break opening the conversation.
 pub fn mark_read(id: &str, conv_id: &str, up_to_message_id: &str) -> anyhow::Result<()> {
     let path = format!("/api/v1/chat/conversations/{conv_id}/read");
@@ -112,14 +112,14 @@ pub fn start_send(sink: Sink, instance: String, conv_id: String, text: String, m
 }
 
 /// Opens the chat WebSocket and posts each incoming event to the UI thread.
-/// Its own thread, reconnecting with back-off on any socket error — the same
+/// Its own thread, reconnecting with back-off on any socket error - the same
 /// shape as the sync engine's live channel (`kubuno-sync`'s `ws`).
 pub fn start_realtime(sink: Sink, instance: String, me: Option<String>) {
     std::thread::spawn(move || {
         let mut backoff = std::time::Duration::from_secs(2);
         loop {
             match run_ws(&sink, &instance, me.as_deref()) {
-                // A clean close still reconnects — the server may cycle.
+                // A clean close still reconnects - the server may cycle.
                 Ok(()) => backoff = std::time::Duration::from_secs(2),
                 Err(e) => tracing::warn!("[chat/ws] {e}"),
             }
@@ -320,7 +320,7 @@ fn message_from(m: &Value, me: Option<&str>) -> Option<Message> {
 }
 
 /// A one-line preview of a message: its text, or a placeholder for a deleted /
-/// media message — the shape the web's `lastSnippet`/`MessageBubble` render.
+/// media message - the shape the web's `lastSnippet`/`MessageBubble` render.
 fn preview(m: &Value) -> String {
     if m.get("deleted_at").map(|v| !v.is_null()).unwrap_or(false) {
         return "message supprimé".into();
@@ -350,7 +350,7 @@ fn preview(m: &Value) -> String {
 }
 
 /// Decodes the message envelope: base64url (padded or not) of a JSON object.
-/// Returns `Null` if anything is off — a bad envelope must not crash a paint.
+/// Returns `Null` if anything is off - a bad envelope must not crash a paint.
 fn decode_envelope(data: &str) -> Value {
     if data.is_empty() {
         return Value::Null;
@@ -410,7 +410,7 @@ fn weekday(days: i64) -> usize {
 }
 
 /// The relative label a LIST row shows for a timestamp: `HH:MM` today, "Hier"
-/// yesterday, the weekday within the last week, else `DD/MM/YYYY` — the web's
+/// yesterday, the weekday within the last week, else `DD/MM/YYYY` - the web's
 /// `formatAge` shape. Computed from the civil date so it needs no date crate.
 pub fn list_time(ts: &str, today: i64) -> String {
     let Some((msg_days, y, m, d)) = days_of(ts) else { return String::new() };
@@ -444,12 +444,12 @@ pub fn days_from_civil(y: i64, m: i64, d: i64) -> i64 {
     era * 146097 + doe - 719468
 }
 
-/// Today, in days since the epoch (UTC — enough for a list label).
+/// Today, in days since the epoch (UTC - enough for a list label).
 pub fn days_from_civil_now() -> i64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| (d.as_secs() / 86400) as i64).unwrap_or(0)
 }
 
-/// The current wall-clock `HH:MM` (UTC, like the server's timestamps) — an optimistic
+/// The current wall-clock `HH:MM` (UTC, like the server's timestamps) - an optimistic
 /// bubble's time until the server's copy replaces it.
 pub fn now_hhmm() -> String {
     let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);

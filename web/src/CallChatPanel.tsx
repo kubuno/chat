@@ -9,11 +9,11 @@ import EmojiPicker from './EmojiPicker'
 import { pushMediaToConversation } from './sendMedia'
 
 
-// In-call chat side panel — posts to the underlying conversation.
+// In-call chat side panel - posts to the underlying conversation.
 /**
  * The meeting's messaging: the conversation itself, not a stripped-down copy.
  * It loads the history, says who wrote what and when, and renders messages with
- * the same component the rest of the app uses — so media, polls, replies,
+ * the same component the rest of the app uses - so media, polls, replies,
  * reactions and link previews all work here too.
  */
 export function CallChatPanel({ room, onClose }: { room: string; onClose: () => void }) {

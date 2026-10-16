@@ -20,7 +20,7 @@ function SidePanel({ title, onClose, children }: { title: string; onClose: () =>
 }
 
 
-/** Devices, as a side panel rather than a dialog — the meeting stays visible. */
+/** Devices, as a side panel rather than a dialog - the meeting stays visible. */
 export function SettingsPanel({ devices, micId, camId, speakerId, onMic, onCam, onSpeaker, onClose }: {
   devices: { mics: MediaDeviceInfo[]; cams: MediaDeviceInfo[]; speakers: MediaDeviceInfo[] }
   micId: string; camId: string; speakerId: string
@@ -56,7 +56,7 @@ export function SettingsPanel({ devices, micId, camId, speakerId, onMic, onCam, 
 /**
  * Backgrounds and effects. Backgrounds and filters need a person-segmentation
  * model, which this instance does not ship: they are listed with that reason
- * rather than pretended. Lighting works today — it is a plain filter over the
+ * rather than pretended. Lighting works today - it is a plain filter over the
  * frame and needs no model.
  */
 export function EffectsPanel({ camOff, onClose }: { camOff: boolean; onClose: () => void }) {

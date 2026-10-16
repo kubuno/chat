@@ -1,5 +1,5 @@
 //! Code-behind of the user control `ConversationPane` (`conversation_pane.kbcontrol`): the open
-//! conversation — header, `MessageThread`, composer — or the empty state. The window shows a
+//! conversation - header, `MessageThread`, composer - or the empty state. The window shows a
 //! conversation with [`ConversationPane::show`] (typed access: `self.conversation.with(|p| p.show(…))`)
 //! and handles what it raises: `SendRequested` (Enter or the Send button), `Command` (the details
 //! and more menus), `MessageActivated`, `ReachedTop`.

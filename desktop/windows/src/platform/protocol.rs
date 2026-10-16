@@ -1,5 +1,5 @@
-//! The `kubuno://` URL protocol — the web-to-desktop hand-off, the way Zoom's
-//! `zoommtg://` links open its app — and the single-instance forwarding.
+//! The `kubuno://` URL protocol - the web-to-desktop hand-off, the way Zoom's
+//! `zoommtg://` links open its app - and the single-instance forwarding.
 //!
 //! When the web wants a meeting to run in the desktop app it navigates to a
 //! `kubuno://meet/<conversation_id>` link. Windows looks the scheme up under
@@ -20,7 +20,7 @@ pub const COPYDATA_LINK: usize = 1;
 /// A parsed hand-off target.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DeepLink {
-    /// Join/open a meeting — a conversation flagged `is_meeting`.
+    /// Join/open a meeting - a conversation flagged `is_meeting`.
     Meet(String),
     /// Open a conversation.
     Chat(String),
@@ -90,7 +90,7 @@ pub fn link_from_copydata(kind: usize, bytes: &[u8]) -> Option<DeepLink> {
 }
 
 /// Registers `kubuno://` under the current user, pointing at this executable.
-/// Idempotent — run at every startup so a moved binary re-points itself. Never
+/// Idempotent - run at every startup so a moved binary re-points itself. Never
 /// fatal: a machine where the registry write is refused simply cannot receive
 /// hand-offs, which must not stop the app from opening.
 #[cfg(windows)]

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Chat · Conversation — a 1:1 thread (ConversationScreen.kt + MessageBubble.kt): the header (back + avatar +
+  Chat · Conversation - a 1:1 thread (ConversationScreen.kt + MessageBubble.kt): the header (back + avatar +
   name/subtitle + call actions), the message list over the thread backdrop with a date pill and incoming /
   outgoing bubbles (white with a light border vs. blue #2563EB), and the composer. Incoming bubbles are pushed
   left and outgoing right with a Stack.Fill spacer. Light theme, logical px (~390 wide).

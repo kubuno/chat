@@ -2,7 +2,7 @@
 //
 // Its only job here is to keep the interface honest: a paperclip that always
 // fails, or a link preview the server will refuse, is worse than not offering
-// it. The policy itself is enforced server-side — this module never guards
+// it. The policy itself is enforced server-side - this module never guards
 // anything, it only decides what to show.
 
 import { chatApi, type ChatInstanceConfig } from './api'
@@ -43,7 +43,7 @@ export function refreshChatConfig(): Promise<ChatInstanceConfig> {
   return loadChatConfig()
 }
 
-/** The policy already known, without waiting — the permissive fallback until then. */
+/** The policy already known, without waiting - the permissive fallback until then. */
 export function chatConfigNow(): ChatInstanceConfig {
   return cached ?? FALLBACK
 }

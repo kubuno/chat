@@ -16,7 +16,7 @@ function previewOf(text: string | null, media: { kind: string; voice?: boolean }
   return text ?? '…'
 }
 
-// isOnChatPage: callback fourni par Shell — doit retourner l'état courant de la route
+// isOnChatPage: callback fourni par Shell - doit retourner l'état courant de la route
 export function useWsChat(isOnChatPage: () => boolean) {
   // Only sign-in/out matters: a socket ticket is minted per connect, so a
   // renewed access token no longer needs a reconnect.
@@ -72,7 +72,7 @@ export function useWsChat(isOnChatPage: () => boolean) {
 
     // One flag per effect run, not a shared ref: when the access token is
     // renewed the previous socket is closed by the cleanup below, but its
-    // `onclose` fires AFTER the next run has already re-armed a shared flag —
+    // `onclose` fires AFTER the next run has already re-armed a shared flag -
     // so it used to schedule a reconnect of its own, leaking one extra socket
     // per renewal (every event then arrived once per leaked socket).
     let alive = true
@@ -114,7 +114,7 @@ export function useWsChat(isOnChatPage: () => boolean) {
 
         const openedSuccessfully = Date.now() - connectTime > 2_000
         if (!openedSuccessfully) {
-          // Connection failed immediately — likely auth or module down; apply backoff
+          // Connection failed immediately - likely auth or module down; apply backoff
           reconnectDelayRef.current = Math.min(60_000, reconnectDelayRef.current * 2)
         }
 
@@ -145,7 +145,7 @@ export function useWsChat(isOnChatPage: () => boolean) {
             poll:      env.poll,
           }
           appendMessage(msg.conversation_id, msg)
-          // Reorder/badge locally — refetching the whole list on every incoming
+          // Reorder/badge locally - refetching the whole list on every incoming
           // message hammered the API for information we already have.
           bumpConversation(msg.conversation_id, msg.sender_id === currentUserRef.current?.id)
 

@@ -1,4 +1,4 @@
-// Chat module translations — ar.
+// Chat module translations - ar.
 export default {
   common_create: "إنشاء",
   chat_messages: "الرسائل",
@@ -68,7 +68,7 @@ export default {
   chat_call_fullscreen: "ملء الشاشة",
   chat_call_mic_error: "تعذّر الوصول إلى الميكروفون. تحقّق من الأذونات.",
   chat_call_title_group: "{{kind}} ({{count}} مشاركين)",
-  chat_call_title_peer: "{{kind}} — {{name}}",
+  chat_call_title_peer: "{{kind}} - {{name}}",
   chat_precall_title: "بدء مكالمة",
   chat_call_type_audio: "صوت",
   chat_call_type_video: "فيديو",

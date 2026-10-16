@@ -25,7 +25,7 @@ pub struct PaginationParams {
     pub before: Option<Uuid>,
 }
 
-/// GET /conversations/:id/messages — historique paginé (chiffré, opaque)
+/// GET /conversations/:id/messages - historique paginé (chiffré, opaque)
 pub async fn list_messages(
     State(st): State<AppState>,
     user: ChatUser,
@@ -110,7 +110,7 @@ pub async fn list_messages(
     Ok(Json(json!({ "messages": messages, "reactions": reactions })))
 }
 
-/// GET /conversations/:id/read-state — position de lecture de chaque membre
+/// GET /conversations/:id/read-state - position de lecture de chaque membre
 /// (pour l'indicateur « Vu par … » dans les groupes).
 pub async fn read_state(
     State(st): State<AppState>,
@@ -133,7 +133,7 @@ pub async fn read_state(
     Ok(Json(json!({ "members": members })))
 }
 
-/// POST /messages/:id/pin — épingler / désépingler un message (bascule).
+/// POST /messages/:id/pin - épingler / désépingler un message (bascule).
 pub async fn pin_message(
     State(st): State<AppState>,
     user: ChatUser,
@@ -177,7 +177,7 @@ pub async fn pin_message(
     Ok(Json(json!({ "message": updated })))
 }
 
-/// GET /conversations/:id/pinned — liste des messages épinglés (récents d'abord).
+/// GET /conversations/:id/pinned - liste des messages épinglés (récents d'abord).
 pub async fn list_pinned(
     State(st): State<AppState>,
     user: ChatUser,
@@ -196,7 +196,7 @@ pub async fn list_pinned(
     Ok(Json(json!({ "messages": pinned })))
 }
 
-/// POST /conversations/:id/messages — envoyer un message chiffré
+/// POST /conversations/:id/messages - envoyer un message chiffré
 pub async fn send_message(
     State(st): State<AppState>,
     user: ChatUser,
@@ -206,7 +206,7 @@ pub async fn send_message(
     message_service::assert_member(&st.db, conv_id, user.id).await?;
 
     // Chat moderation: in a moderated meeting, only a host writes. Checked on
-    // the SERVER — hiding the composer would stop a person, not a client.
+    // the SERVER - hiding the composer would stop a person, not a client.
     let room: Option<(bool, serde_json::Value, Option<String>)> = st
         .db
         .fetch_optional_as(
@@ -364,7 +364,7 @@ pub async fn send_message(
     Ok(Json(json!({ "message": msg })))
 }
 
-/// POST /messages/:id/vote — voter (ou changer son vote) sur un sondage.
+/// POST /messages/:id/vote - voter (ou changer son vote) sur un sondage.
 pub async fn vote_poll(
     State(st): State<AppState>,
     user: ChatUser,
@@ -409,7 +409,7 @@ pub async fn vote_poll(
     Ok(Json(json!({ "counts": counts, "my_vote": dto.option_index })))
 }
 
-/// GET /messages/:id/poll — résultats agrégés d'un sondage + mon vote.
+/// GET /messages/:id/poll - résultats agrégés d'un sondage + mon vote.
 pub async fn poll_results(
     State(st): State<AppState>,
     user: ChatUser,
@@ -445,7 +445,7 @@ async fn poll_counts(st: &AppState, msg_id: Uuid) -> ChatResult<Value> {
     Ok(Value::Object(map))
 }
 
-/// PATCH /messages/:id — éditer un message
+/// PATCH /messages/:id - éditer un message
 pub async fn edit_message(
     State(st): State<AppState>,
     user: ChatUser,
@@ -491,7 +491,7 @@ pub async fn edit_message(
     Ok(Json(json!({ "message": updated })))
 }
 
-/// DELETE /messages/:id — supprimer pour tous
+/// DELETE /messages/:id - supprimer pour tous
 pub async fn delete_message(
     State(st): State<AppState>,
     user: ChatUser,
@@ -545,7 +545,7 @@ pub async fn delete_message(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// POST /conversations/:id/read — marquer comme lu jusqu'à un message
+/// POST /conversations/:id/read - marquer comme lu jusqu'à un message
 pub async fn mark_read(
     State(st): State<AppState>,
     user: ChatUser,
@@ -581,7 +581,7 @@ pub async fn mark_read(
         )
         .await?;
 
-    // Tell the sender their messages were read — and the reader's OWN other
+    // Tell the sender their messages were read - and the reader's OWN other
     // devices, so a conversation read on one device clears on the others too.
     let members = message_service::get_member_ids(&st.db, conv_id).await?;
     st.ws_hub
@@ -602,7 +602,7 @@ pub async fn mark_read(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// POST /messages/:id/reactions — ajouter une réaction
+/// POST /messages/:id/reactions - ajouter une réaction
 pub async fn add_reaction(
     State(st): State<AppState>,
     user: ChatUser,
@@ -649,7 +649,7 @@ pub async fn add_reaction(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// DELETE /messages/:id/reactions/:emoji — retirer une réaction
+/// DELETE /messages/:id/reactions/:emoji - retirer une réaction
 pub async fn remove_reaction(
     State(st): State<AppState>,
     user: ChatUser,

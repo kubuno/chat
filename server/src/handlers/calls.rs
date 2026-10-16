@@ -18,7 +18,7 @@ pub struct RateCallDto {
     pub rating: i16,
 }
 
-/// POST /conversations/:id/call-rating — rate the quality of a call one has left.
+/// POST /conversations/:id/call-rating - rate the quality of a call one has left.
 ///
 /// Asked on the screen shown after leaving. Rating again replaces the previous
 /// answer, so a second click is a correction rather than a duplicate.
@@ -77,7 +77,7 @@ pub async fn rate_call(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// POST /conversations/:id/end-meeting — end a meeting for everyone.
+/// POST /conversations/:id/end-meeting - end a meeting for everyone.
 ///
 /// A peer-to-peer signal alone is not enough: a client that missed it would
 /// stay in a meeting that is over, and anyone could walk back in through the

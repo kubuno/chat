@@ -1,4 +1,4 @@
-// Chat module translations — he.
+// Chat module translations - he.
 export default {
   common_create: "יצירה",
   chat_messages: "הודעות",
@@ -68,7 +68,7 @@ export default {
   chat_call_fullscreen: "מסך מלא",
   chat_call_mic_error: "לא ניתן לגשת למיקרופון. בדוק את ההרשאות.",
   chat_call_title_group: "{{kind}} ({{count}} משתתפים)",
-  chat_call_title_peer: "{{kind}} — {{name}}",
+  chat_call_title_peer: "{{kind}} - {{name}}",
   chat_precall_title: "התחלת שיחה",
   chat_call_type_audio: "אודיו",
   chat_call_type_video: "וידאו",

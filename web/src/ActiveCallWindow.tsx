@@ -38,11 +38,11 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
   const screenStreamRef = useRef<MediaStream | null>(null)
   const fsContainerRef  = useRef<HTMLDivElement>(null)
   const membersRef      = useRef<string[]>([])         // other conv members (for broadcast)
-  // Profile pictures of the room, by user id — a tile with the camera off
+  // Profile pictures of the room, by user id - a tile with the camera off
   // shows the person, not just an initial.
   const [avatars, setAvatars] = useState<Record<string, string | null>>({})
   // Whether the call shows video: true from the start for a video call, and
-  // becomes true for an audio call as soon as anyone — us or a peer — turns
+  // becomes true for an audio call as soon as anyone - us or a peer - turns
   // a camera on. It never goes back: the layout stays, only the tiles change.
   const [isVideo, setIsVideo] = useState(call.type === 'video')
 
@@ -51,7 +51,7 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
   pc: RTCPeerConnection; name: string; stream: MediaStream | null; screen: MediaStream | null
   pendingIce: RTCIceCandidateInit[]; hand: boolean; muted: boolean; camOff: boolean; connected: boolean
   sharing: boolean
-  /** When this share started, on THIS machine's clock — the latest one takes
+  /** When this share started, on THIS machine's clock - the latest one takes
    *  the stage, and clocks are never compared across machines. */
   sharingAt: number
 }
@@ -81,7 +81,7 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
   // Right-hand panel opened from the "more" menu, like a meeting's side panels.
   const [sidePanel,   setSidePanel]    = useState<'settings' | 'effects' | null>(null)
   const [viewMode,    setViewMode]     = useState<'grid' | 'spotlight'>('grid')
-  // Recording. `recordedBy` names whoever is recording — everyone in the
+  // Recording. `recordedBy` names whoever is recording - everyone in the
   // meeting sees it, which is the point of the indicator.
   const recorderRef = useRef<MeetingRecording | null>(null)
   const [recordedBy,   setRecordedBy]   = useState<string | null>(null)
@@ -135,7 +135,7 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
   const mayReact   = !moderated || meetingSettings?.allow_reactions   !== false
 
   // People asking to be let into a restricted meeting. Only a host is shown
-  // them, and only while the room is restricted — there is nothing to wait for
+  // them, and only while the room is restricted - there is nothing to wait for
   // otherwise. Polled: the wait lasts a minute, a channel would be machinery.
   const restricted = Boolean(meetingSettings?.host_management)
     && meetingSettings?.access_type === 'trusted'
@@ -176,10 +176,10 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
     finally { setDeciding(null) }
   }
   // Read inside callbacks that must not be rebuilt when the room's nature is
-  // finally known — a meeting joined by its link starts before the list arrives.
+  // finally known - a meeting joined by its link starts before the list arrives.
   const isMeetingRef = useRef(isMeeting)
   isMeetingRef.current = isMeeting
-  // The room's own name, once the conversation list holds it — a meeting joined
+  // The room's own name, once the conversation list holds it - a meeting joined
   // straight from its link starts before that list has arrived.
   const roomName = useChatStore(
     s => s.conversations.find(c => c.conversation.id === call.room)?.conversation.name ?? '',
@@ -214,7 +214,7 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
     pc.ontrack = ev => {
       // A participant sends their camera and, while presenting, their screen as
       // a SECOND stream. The first stream is the person; any other one carrying
-      // video is their presentation — so the camera keeps showing throughout.
+      // video is their presentation - so the camera keeps showing throughout.
       const incoming = ev.streams[0] ?? new MediaStream([ev.track])
       if (!peer.stream || peer.stream.id === incoming.id) peer.stream = incoming
       else if (ev.track.kind === 'video') peer.screen = incoming
@@ -233,7 +233,7 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
   }, [send, syncTiles]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // A peer left (hung up, or its connection died). When nobody is left, the
-  // call is over and the window closes by itself — but only once someone was
+  // call is over and the window closes by itself - but only once someone was
   // actually part of it: the initiator of a meeting room may still be alone,
   // waiting, and a ring nobody has answered yet is not a finished call. A
   // rung participant who leaves (declines) counts as the call ending too.
@@ -357,7 +357,7 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
           break
         }
         case 'call_activity': {
-          // Announced like a reaction: a passing line, not a dialog — the
+          // Announced like a reaction: a passing line, not a dialog - the
           // thing itself is already in the room's conversation.
           const who = signal.from_name || t('chat_call_someone', { defaultValue: 'Quelqu’un' })
           setHostNotice(t('chat_call_activity_shared', { name: who, what: signal.activity ?? '',
@@ -402,7 +402,7 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
       // A peer connection built before the camera and microphone opened carries
       // no outgoing track, and nothing would ever add one: the others would
       // hear and see nothing from us for the whole meeting. Attach the tracks
-      // to every such connection and renegotiate — the side that changes its
+      // to every such connection and renegotiate - the side that changes its
       // media is the one that re-offers.
       peersRef.current.forEach((peer, uid) => {
         const sent = new Set(peer.pc.getSenders().map(sender => sender.track).filter(Boolean))
@@ -569,7 +569,7 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
     // Everyone is told, so the person starting is asked to make sure the others
     // agree before the recording begins. `preagreed` skips the question and
     // ONLY that: the host ticked "record this meeting" in its options, under
-    // the same warning, so the acknowledgement already happened — asking twice
+    // the same warning, so the acknowledgement already happened - asking twice
     // for one decision teaches people to dismiss the asking.
     if (!preagreed) {
       const ok = await confirm({
@@ -593,7 +593,7 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
   }, [broadcast, confirm, isHost, myName, recordSaving, recorderSources, stopRecording, t])
 
   // "Record this meeting", decided in the meeting's options: the room starts on
-  // its own as soon as a host who may record is in it. Once per room — a
+  // its own as soon as a host who may record is in it. Once per room - a
   // reconnection must not start a second recording, and a host who stopped it
   // on purpose must not see it start again under them.
   const autoRecordDone = useRef(false)
@@ -622,7 +622,7 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
     onEnd()
   }, [onEnd, stopRecording, call.room])
 
-  /** Ends the meeting for everyone — the host's own action, never a guest's. */
+  /** Ends the meeting for everyone - the host's own action, never a guest's. */
   const endForEveryone = useCallback(async () => {
     const ok = await confirm({
       title:        t('chat_call_end_all_title'),
@@ -670,7 +670,7 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
     const track = localStreamRef.current?.getVideoTracks()[0]
     if (track) { track.enabled = !track.enabled; setIsCamOff(!track.enabled); broadcast({ type: 'call_state', cam_off: !track.enabled }); return }
     // An audio call: no camera was opened at setup. Open it now, add the
-    // track to every peer connection and renegotiate — the side that changes
+    // track to every peer connection and renegotiate - the side that changes
     // its media is the one that re-offers, whatever the initial offerer rule.
     await turnCameraOn()
   }
@@ -755,7 +755,7 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
   }
 
   // Send a video track to every peer. When a connection has no video sender
-  // yet — an audio call never created one — the track is ADDED and the call
+  // yet - an audio call never created one - the track is ADDED and the call
   // renegotiated, which is what sharing a screen from an audio call needs. The
   // side that changes its media is the one that re-offers, whatever the
   // initial offerer rule.
@@ -804,8 +804,8 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
   async function startScreenShare() {
     let screen: MediaStream
     try {
-      // Offer to carry the shared window's sound as well — a shared video is
-      // useless silent — and never propose the meeting's own tab as a source.
+      // Offer to carry the shared window's sound as well - a shared video is
+      // useless silent - and never propose the meeting's own tab as a source.
       screen = await navigator.mediaDevices.getDisplayMedia({
         video: true,
         audio: true,
@@ -862,7 +862,7 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
   const [presentRatio, setPresentRatio] = useState(16 / 9)
   // While the window is being dragged the area changes many times a second:
   // animating each step would make everything shake, so movement is only
-  // animated for the discrete changes — a panel, a presentation, someone
+  // animated for the discrete changes - a panel, a presentation, someone
   // joining. Resizing simply follows the pointer.
   const [animateLayout, setAnimateLayout] = useState(true)
   const lastAreaChange = useRef(0)
@@ -908,7 +908,7 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
     groups.flatMap(g => [
       { type: 'label' as const, text: g.label },
       ...(g.items.length === 0
-        ? [{ type: 'action' as const, label: '—', disabled: true, onClick: () => {} }]
+        ? [{ type: 'action' as const, label: '-', disabled: true, onClick: () => {} }]
         : g.items.map(d => ({
             type: 'action' as const,
             label: d.label || d.deviceId.slice(0, 16),
@@ -930,7 +930,7 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
   }
 
   // Activities contributed by other modules. Absent entirely when nothing is
-  // registered — an empty "Activities" submenu would be a promise of nothing.
+  // registered - an empty "Activities" submenu would be a promise of nothing.
   // A guest may launch one unless the host reserved that for themselves.
   const activities = listMeetingActivities()
   const mayLaunch  = !moderated || meetingSettings?.allow_participant_activities !== false
@@ -1105,8 +1105,8 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
     <div ref={fsContainerRef} className="flex flex-col h-full bg-[#202124] text-white relative">
       {/* Meeting bar: elapsed time · title · people count */}
       <header className="flex items-center gap-3 px-4 py-2.5 flex-shrink-0 text-sm">
-        <span className="text-gray-300 tabular-nums">{anyConnected ? formatDuration(duration) : '—'}</span>
-        {/* Recording indicator: shown to everyone, never hidden — it is how a
+        <span className="text-gray-300 tabular-nums">{anyConnected ? formatDuration(duration) : '-'}</span>
+        {/* Recording indicator: shown to everyone, never hidden - it is how a
             meeting says out loud that it is being recorded. */}
         {(recordedBy || recordSaving) && (
           <button
@@ -1147,7 +1147,7 @@ export function ActiveCallWindow({ call, onEnd }: { call: ActiveCall; onEnd: (re
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 min-w-0 relative px-3 pb-1 min-h-0 flex flex-col">
           {/* Every object of the meeting is placed here by `meetingLayout`, and
-              moves by changing its coordinates — never by being re-flowed. */}
+              moves by changing its coordinates - never by being re-flowed. */}
           <div ref={areaRef} className="relative flex-1 min-h-0 overflow-hidden">
             {presenting && presenter && stageSlot && (
               <div

@@ -26,7 +26,7 @@ kubuno-desktop-account        = { git = "https://github.com/kubuno/core",    tag
 
 [package]
 name        = "kubuno-chat-desktop"
-description = "Kubuno desktop chat — Windows Forms-like views (.kbview forms, .kbcontrol user controls), two-pane messaging"
+description = "Kubuno desktop chat - Windows Forms-like views (.kbview forms, .kbcontrol user controls), two-pane messaging"
 version.workspace    = true
 edition.workspace    = true
 license.workspace    = true
@@ -45,7 +45,7 @@ path = "src/main.rs"
 
 [dependencies]
 # The Kubuno desktop programming model (Application::run, #[kubuno_desktop::view], custom and user
-# controls, resources) — it re-exports kubuno-desktop-views, kubuno-desktop-controls and kubuno-desktop-ui.
+# controls, resources) - it re-exports kubuno-desktop-views, kubuno-desktop-controls and kubuno-desktop-ui.
 kubuno-desktop.workspace = true
 # The title bar's waffle and avatar (`ShowWaffle` / `ShowAccount` place the shared `HeaderActions`), and their
 # data: the account's apps and favourites through the shell's token broker.
@@ -62,7 +62,7 @@ serde_json  = "1"
 base64      = "0.22"
 # The error type kubuno-sync's API returns, propagated through the fetch layer.
 anyhow      = "1"
-# The realtime WebSocket to /api/v1/chat/ws (blocking, rustls — same as the sync
+# The realtime WebSocket to /api/v1/chat/ws (blocking, rustls - same as the sync
 # engine's live channel), for live incoming messages.
 tungstenite = { version = "0.24", features = ["rustls-tls-webpki-roots"] }
 
@@ -78,7 +78,7 @@ features = [
 
 [target.'cfg(windows)'.dependencies]
 # Registers the `kubuno://` URL protocol under HKCU\Software\Classes, so the web
-# can hand a meeting off to this desktop app — the same crate the shell uses.
+# can hand a meeting off to this desktop app - the same crate the shell uses.
 winreg = "0.52"
 
 [build-dependencies]

@@ -1,4 +1,4 @@
-# Kubuno Chat — mobile app
+# Kubuno Chat - mobile app
 
 The Android and iOS app of Kubuno Chat, written in Rust with Kubuno views (`.kbview`), and laid out like the
 desktop app (`../desktop`): one Cargo workspace (`Cargo.toml`), one folder per role.
@@ -13,7 +13,7 @@ mobile/
 └── ios/kubuno-chat-mobile-ios/            the iOS app's entry point
 ```
 
-The screens are rendered by the **shared Kubuno mobile renderer** and run by the **shared Android / iOS shells** —
+The screens are rendered by the **shared Kubuno mobile renderer** and run by the **shared Android / iOS shells** -
 both in the core repository (`core/mobile`), common to every module's mobile app. This repository holds the
 Kubuno Chat app only.
 

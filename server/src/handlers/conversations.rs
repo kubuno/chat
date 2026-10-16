@@ -23,14 +23,14 @@ fn epoch_floor() -> chrono::DateTime<chrono::Utc> {
     chrono::DateTime::from_timestamp(0, 0).unwrap_or_else(chrono::Utc::now)
 }
 
-/// GET /conversations — liste des conversations de l'utilisateur
+/// GET /conversations - liste des conversations de l'utilisateur
 ///
 /// One aggregated query instead of ~5 per conversation: the list is refetched
 /// often (WebSocket events, actions), so the N+1 shape was the hot path.
 ///
 /// Provisional rooms are left out: a room that exists only because a form is
 /// open is not yet a meeting anyone has, and showing it would put a half-written
-/// event in the meetings list — where the only thing to do about it would be to
+/// event in the meetings list - where the only thing to do about it would be to
 /// delete something the person never knowingly created.
 pub async fn list_conversations(
     State(st): State<AppState>,
@@ -59,7 +59,7 @@ pub async fn list_conversations(
     }
 
     // NOTE: cross-schema join to core.users (PostgreSQL/MySQL only). The old
-    // `LEFT JOIN LATERAL (...)` — unsupported by MariaDB/SQLite — is replaced by a
+    // `LEFT JOIN LATERAL (...)` - unsupported by MariaDB/SQLite - is replaced by a
     // correlated scalar subquery that picks the last visible message id, joined
     // back to its row; `'-infinity'::timestamptz` becomes a bound floor. Every
     // reference of the caller id / now is a distinct, strictly increasing
@@ -179,7 +179,7 @@ async fn involves_a_guest(
     Ok(found)
 }
 
-/// POST /conversations — créer une conversation
+/// POST /conversations - créer une conversation
 pub async fn create_conversation(
     State(st): State<AppState>,
     user: ChatUser,
@@ -274,8 +274,8 @@ pub async fn create_conversation(
             Ok(Json(json!({ "conversation": conv })))
         }
         "group" | "channel" => {
-            // Instance policy on spaces. Direct conversations are never gated —
-            // they are the baseline use of a messenger — but an instance may
+            // Instance policy on spaces. Direct conversations are never gated -
+            // they are the baseline use of a messenger - but an instance may
             // reserve space creation to its administrators, and may forbid the
             // discoverable ("channel") kind altogether.
             let cfg = st.instance();
@@ -357,7 +357,7 @@ pub async fn create_conversation(
     }
 }
 
-/// POST /conversations/:id/join — rejoindre une SALLE DE RÉUNION par son lien
+/// POST /conversations/:id/join - rejoindre une SALLE DE RÉUNION par son lien
 /// ou un ESPACE public (canal) découvert via /channels/browse. Tout le reste
 /// reste sur invitation (403).
 /// What the join needs to know about the room: is it a meeting, what kind of
@@ -397,7 +397,7 @@ pub async fn join_meeting(
     // With discoverable spaces disabled, only a meeting link still lets someone
     // in without an invitation; existing channels stay open to their members.
     // "The host joins first": nobody waits in a lobby, they are simply refused
-    // until a host is a member and present. Checked on the SERVER — a rule that
+    // until a host is a member and present. Checked on the SERVER - a rule that
     // only the meeting page enforced would be a suggestion, not a rule.
     if let Some((true, _, _, created_by)) = &joinable {
         let settings: (serde_json::Value,) = st
@@ -427,7 +427,7 @@ pub async fn join_meeting(
 
     // Who the link lets in. `open` is what a link has always meant here;
     // `trusted` means the host put you in the room, or let you in after you
-    // asked. Checked on the SERVER — an access rule the page enforced would be
+    // asked. Checked on the SERVER - an access rule the page enforced would be
     // a suggestion.
     if let Some((true, _, _, created_by)) = &joinable {
         let row: (serde_json::Value,) = st
@@ -492,7 +492,7 @@ pub async fn join_meeting(
     }
 }
 
-/// GET /channels/browse?q= — public spaces (channels) the user has not joined,
+/// GET /channels/browse?q= - public spaces (channels) the user has not joined,
 /// with their member count. Powers the "browse spaces" page.
 pub async fn browse_channels(
     State(st): State<AppState>,
@@ -559,7 +559,7 @@ pub async fn browse_channels(
     Ok(Json(json!({ "channels": channels })))
 }
 
-/// GET /conversations/:id — détails
+/// GET /conversations/:id - détails
 pub async fn get_conversation(
     State(st): State<AppState>,
     user: ChatUser,
@@ -599,7 +599,7 @@ pub async fn get_conversation(
     Ok(Json(json!({ "conversation": conv, "members": members })))
 }
 
-/// PATCH /conversations/:id — modifier nom/avatar
+/// PATCH /conversations/:id - modifier nom/avatar
 pub async fn update_conversation(
     State(st): State<AppState>,
     user: ChatUser,
@@ -650,7 +650,7 @@ pub async fn update_conversation(
         .await?;
 
     // A meeting that belongs to something else carries ITS title. Renamed here,
-    // the thing it belongs to has to follow — otherwise the event says one name
+    // the thing it belongs to has to follow - otherwise the event says one name
     // and the meetings list another, an inch apart.
     if conv.is_meeting && conv.name != before {
         if let (Some(owner), Some(name)) = (conv.linked_ref.as_deref(), conv.name.as_deref()) {
@@ -661,7 +661,7 @@ pub async fn update_conversation(
     Ok(Json(json!({ "conversation": conv })))
 }
 
-/// DELETE /conversations/:id — quitter la conversation
+/// DELETE /conversations/:id - quitter la conversation
 pub async fn leave_conversation(
     State(st): State<AppState>,
     user: ChatUser,
@@ -684,7 +684,7 @@ pub async fn leave_conversation(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// POST /conversations/:id/members — ajouter des membres (groupe)
+/// POST /conversations/:id/members - ajouter des membres (groupe)
 pub async fn add_members(
     State(st): State<AppState>,
     user: ChatUser,
@@ -758,7 +758,7 @@ pub async fn add_members(
     Ok(Json(json!({ "ok": true, "added": dto.user_ids.len() })))
 }
 
-/// DELETE /conversations/:id/members/:uid — retirer un membre
+/// DELETE /conversations/:id/members/:uid - retirer un membre
 pub async fn remove_member(
     State(st): State<AppState>,
     user: ChatUser,
@@ -792,7 +792,7 @@ pub async fn remove_member(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// PATCH /conversations/:id/member-settings — pin, archive, favorite, mute, mark-unread
+/// PATCH /conversations/:id/member-settings - pin, archive, favorite, mute, mark-unread
 pub async fn update_member_settings(
     State(st): State<AppState>,
     user: ChatUser,
@@ -831,7 +831,7 @@ pub async fn update_member_settings(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// DELETE /conversations/:id/messages — effacer tous les messages (soft-delete)
+/// DELETE /conversations/:id/messages - effacer tous les messages (soft-delete)
 pub async fn clear_messages(
     State(st): State<AppState>,
     user: ChatUser,
@@ -849,12 +849,12 @@ pub async fn clear_messages(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// `PATCH /conversations/:id/meeting-settings` — what the host decided about
+/// `PATCH /conversations/:id/meeting-settings` - what the host decided about
 /// this room, ahead of the meeting.
 ///
 /// Reserved to the host, and checked here rather than hidden in the panel: a
 /// moderation setting a guest could POST would moderate nothing. The body is
-/// the whole set, because that is how the panel edits it — one Save, one state.
+/// the whole set, because that is how the panel edits it - one Save, one state.
 pub async fn update_meeting_settings(
     State(st): State<AppState>,
     user: ChatUser,
@@ -899,13 +899,13 @@ pub const PROVISIONAL_GRACE_MIN: i32 = 120;
 
 /// Has this room been used by anyone? A provisional room that somebody has
 /// already joined or written in is no longer a draft: the link was shared and
-/// answered, whatever became of the form. Nothing deletes one of those — not
+/// answered, whatever became of the form. Nothing deletes one of those - not
 /// the ✕, not the sweep.
 pub const UNUSED_ROOM: &str = "NOT EXISTS (SELECT 1 FROM chat.messages msg WHERE msg.conversation_id = conversations.id)
      AND (SELECT COUNT(*) FROM chat.conversation_members cm
            WHERE cm.conversation_id = conversations.id AND cm.left_at IS NULL) <= 1";
 
-/// `POST /conversations/:id/provisional/keep` — the form is still open.
+/// `POST /conversations/:id/provisional/keep` - the form is still open.
 ///
 /// The deadline only exists to catch a browser that went away without saying
 /// anything, so a browser that is plainly still there pushes it back. Someone
@@ -938,7 +938,7 @@ pub async fn keep_provisional(
     Ok(Json(json!({ "provisional_until": kept })))
 }
 
-/// `POST /conversations/:id/provisional/confirm` — the form was saved.
+/// `POST /conversations/:id/provisional/confirm` - the form was saved.
 ///
 /// The room stops being a draft and becomes an ordinary room. Idempotent: a
 /// room that was never provisional is already in the state being asked for.
@@ -961,15 +961,15 @@ pub async fn confirm_provisional(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// `DELETE /conversations/:id/provisional` — the form said no.
+/// `DELETE /conversations/:id/provisional` - the form said no.
 ///
 /// The call was taken off the event, or the event was closed without being
-/// saved. The room went with it, so it goes too — really deleted, not left
+/// saved. The room went with it, so it goes too - really deleted, not left
 /// behind emptied, because it was never anybody's.
 ///
 /// Only ever a PROVISIONAL and UNUSED room: a confirmed room is somebody's, and
 /// so is one that people have already joined. Both conditions are checked here
-/// rather than trusted from the caller — the browser knows what it created, the
+/// rather than trusted from the caller - the browser knows what it created, the
 /// server knows what became of it.
 pub async fn drop_provisional(
     State(st): State<AppState>,
@@ -978,7 +978,7 @@ pub async fn drop_provisional(
 ) -> ChatResult<Json<Value>> {
     assert_meeting_host(&st.db, conv_id, user.id).await?;
     // Audited: the only interpolation is UNUSED_ROOM, a const of this module (no
-    // alias — MySQL/SQLite reject an aliased DELETE target; the correlated
+    // alias - MySQL/SQLite reject an aliased DELETE target; the correlated
     // subqueries reference the table by name).
     let deleted = st
         .db
@@ -1022,10 +1022,10 @@ async fn assert_meeting_host(db: &DbPool, conv_id: Uuid, user_id: Uuid) -> ChatR
     }
 }
 
-/// After this many refusals, asking is over — the host must add the person.
+/// After this many refusals, asking is over - the host must add the person.
 const MAX_KNOCK_REFUSALS: i32 = 2;
 
-/// `POST /conversations/:id/knock` — "let me in".
+/// `POST /conversations/:id/knock` - "let me in".
 ///
 /// Idempotent by design: asking twice is asking once, so the host is never
 /// shown the same person twice. A previous refusal is cleared, because asking
@@ -1050,7 +1050,7 @@ pub async fn knock(
 
     // Refused twice is refused. A door that can be knocked on forever is a way
     // of knocking until someone gives in; past that, only a deliberate act by
-    // the host — adding the person to the room — opens it.
+    // the host - adding the person to the room - opens it.
     let refused: Option<(i32,)> = st
         .db
         .fetch_optional_as(
@@ -1097,7 +1097,7 @@ pub async fn knock(
     Ok(Json(json!({ "status": status })))
 }
 
-/// `GET /conversations/:id/knocks` — who is waiting. Host only.
+/// `GET /conversations/:id/knocks` - who is waiting. Host only.
 ///
 /// Also answers the ASKER about themselves, which is how a waiting page learns
 /// it was let in without a socket: `?me=true` returns just their own status.
@@ -1146,7 +1146,7 @@ pub struct KnockDecision {
     pub admit: bool,
 }
 
-/// `POST /conversations/:id/knocks/:uid` — the host decides.
+/// `POST /conversations/:id/knocks/:uid` - the host decides.
 ///
 /// Admitting puts the person in the room here and now: the answer to "let me
 /// in" is being in, not a promise the next request will honour.

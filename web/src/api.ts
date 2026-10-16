@@ -57,7 +57,7 @@ export interface Conversation {
   linked_ref?: string | null
 }
 
-/** What a host decided about a meeting, ahead of it. Every field is enforced —
+/** What a host decided about a meeting, ahead of it. Every field is enforced -
  *  the first two by the meeting page (the media is peer-to-peer), the last two
  *  by the server. See `MeetingSettingsDialog`. */
 export interface MeetingSettings {
@@ -67,7 +67,7 @@ export interface MeetingSettings {
   allow_messages:     boolean
   host_joins_first:   boolean
   /** `open`: whoever holds the link walks in. `trusted`: only people the host
-   *  put in the room — anyone else asks, when `allow_knocking` is on. */
+   *  put in the room - anyone else asks, when `allow_knocking` is on. */
   access_type:        'open' | 'trusted'
   allow_knocking:     boolean
   /** May a guest launch an in-meeting activity, or only the host? */
@@ -103,7 +103,7 @@ export interface ConvMember {
 export interface ConversationSummary {
   conversation:  Conversation
   unread_count:  number
-  /** Anything past last_read_at — true as well when the user marked it unread by hand. */
+  /** Anything past last_read_at - true as well when the user marked it unread by hand. */
   is_unread:     boolean
   member_count:  number
   is_pinned:     boolean
@@ -147,7 +147,7 @@ export interface ReactionLite {
 }
 
 // Media descriptor carried inside a message's encrypted envelope (never seen
-// by the server in clear — key/iv let the recipient decrypt the uploaded blob).
+// by the server in clear - key/iv let the recipient decrypt the uploaded blob).
 export interface MediaPayload {
   media_id:  string
   key:       string   // base64url AES-GCM key
@@ -243,7 +243,7 @@ export const chatApi = {
       ...(provisional ? { provisional: true } : {}),
     }).then(r => r.data.conversation),
 
-  /** The form holding this draft room is still open — push its deadline back. */
+  /** The form holding this draft room is still open - push its deadline back. */
   keepProvisional: (convId: string) =>
     api.post(`/chat/conversations/${convId}/provisional/keep`).then(() => undefined),
 
@@ -264,7 +264,7 @@ export const chatApi = {
   knock: (convId: string) =>
     api.post<{ status: string }>(`/chat/conversations/${convId}/knock`).then(r => r.data.status),
 
-  /** Who is waiting (host), or — with `me` — where my own request stands. */
+  /** Who is waiting (host), or - with `me` - where my own request stands. */
   listKnocks: (convId: string) =>
     api.get<{ knocks: MeetingKnock[] }>(`/chat/conversations/${convId}/knocks`).then(r => r.data.knocks),
 
@@ -328,7 +328,7 @@ export const chatApi = {
     api.get<{ counts: Record<string, number>; my_vote: number | null }>(`/chat/messages/${msgId}/poll`).then(r => r.data),
 
   // Instance policy, as the server lets the browser see it. Used only to hide
-  // what the server would refuse anyway — every flag is enforced server-side.
+  // what the server would refuse anyway - every flag is enforced server-side.
   getConfig: () =>
     api.get<ChatInstanceConfig>('/chat/config').then(r => r.data),
 
@@ -337,9 +337,9 @@ export const chatApi = {
       '/chat/unfurl', { params: { url } }
     ).then(r => r.data),
 
-  // GIF search — proxied by the module (GIPHY key stays server-side). `enabled`
+  // GIF search - proxied by the module (GIPHY key stays server-side). `enabled`
   // is false when no key is configured, in which case the GIF tab is hidden.
-  // Public spaces (channels) discovery — powers the "browse spaces" page.
+  // Public spaces (channels) discovery - powers the "browse spaces" page.
   browseChannels: (q = '', joined = false) =>
     api.get<{ channels: { id: string; name: string | null; description: string | null; created_at: string; member_count: number; is_member: boolean }[] }>(
       '/chat/channels/browse', { params: { q, joined } }
@@ -381,7 +381,7 @@ export const chatApi = {
     sender_ik_pub?:  string
     ratchet_header?: string
     used_opk_id?:    string
-    scheduled_at?:    string   // ISO — future send
+    scheduled_at?:    string   // ISO - future send
     expires_in_secs?: number   // ephemeral TTL
   }) =>
     api.post<{ message: Message }>(`/chat/conversations/${convId}/messages`, payload)
@@ -456,14 +456,14 @@ export const chatApi = {
  * Drop a draft room from a page that is on its way out.
  *
  * Not the usual client: on `pagehide` the browser cancels requests still in
- * flight, and this one has to outlive the page — which is what `keepalive` is
+ * flight, and this one has to outlive the page - which is what `keepalive` is
  * for. A same-origin keepalive fetch can carry headers, so the bearer is read
  * synchronously from the auth store (no cookie is involved any more); with no
  * token there is nothing to authenticate with and the call is skipped.
  *
  * Best effort, and deliberately so: a page can also be killed, lose the network
  * or crash, and none of those send anything. The room's own deadline is what
- * actually guarantees it goes away — this only makes it immediate in the common
+ * actually guarantees it goes away - this only makes it immediate in the common
  * case of a reload or a closed tab.
  */
 export function dropProvisionalOnUnload(convId: string): void {

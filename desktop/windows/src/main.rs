@@ -1,4 +1,4 @@
-//! Kubuno Chat — `Program.cs`: the splash screen, the single instance and the `kubuno://`
+//! Kubuno Chat - `Program.cs`: the splash screen, the single instance and the `kubuno://`
 //! protocol, then `Application::run(ChatWindow)`. Everything else is in the library (`lib.rs`).
 //!
 //! `kubuno-chat.exe [--sample] [--dark] [--culture fr|en] [--no-splash] [kubuno://chat/<id>]`
@@ -24,7 +24,7 @@ fn main() -> kubuno_desktop::Result {
     }
 
     // Single instance: a launch carrying a meeting link (from the web) forwards it to the running
-    // window and exits, so a hand-off raises the existing chat instead of opening a second one —
+    // window and exits, so a hand-off raises the existing chat instead of opening a second one -
     // exactly what Zoom does with `zoommtg://`. Checked before anything else, so a hand-off shows
     // no splash screen.
     if protocol::another_instance_runs() {

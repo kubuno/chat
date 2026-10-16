@@ -40,7 +40,7 @@ export default function CameraCapture({ onCapture, onClose }: Props) {
     streamRef.current = null
   }, [])
 
-  // (Re)open the stream whenever the camera or the mode changes — video mode
+  // (Re)open the stream whenever the camera or the mode changes - video mode
   // needs the microphone too.
   useEffect(() => {
     if (preview) return

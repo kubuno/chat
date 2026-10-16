@@ -1,12 +1,12 @@
 /**
- * "Let me in" — the page someone sees when a meeting's link is not enough.
+ * "Let me in" - the page someone sees when a meeting's link is not enough.
  *
  * A restricted meeting refuses the link and says so with its own code, which
  * is what brings the reader here rather than to a flat "access denied". They
  * ask once; the request is idempotent, so a reload or an impatient second
  * press does not put them in the host's list twice.
  *
- * Then they wait. The answer arrives by polling their own request — a socket
+ * Then they wait. The answer arrives by polling their own request - a socket
  * would be nicer, but this page exists for at most a minute or two and a poll
  * every three seconds costs one tiny query; a channel opened for that would be
  * more machinery than the moment deserves.
@@ -98,7 +98,7 @@ export default function MeetingKnockView({ roomId, title, onAdmitted, onCancel }
         </p>
       ) : phase === 'failed' ? (
         <p className="max-w-md text-sm text-danger">
-          {t('knock_failed', { defaultValue: 'La demande n’a pas pu être envoyée — réessayez.' })}
+          {t('knock_failed', { defaultValue: 'La demande n’a pas pu être envoyée - réessayez.' })}
         </p>
       ) : (
         <p className="max-w-md text-sm text-text-secondary">

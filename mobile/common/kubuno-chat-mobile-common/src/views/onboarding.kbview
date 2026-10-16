@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Chat · Onboarding — the login flow's server step (onboarding/OnboardingScreen.kt → ServerScreen): a centred
+  Chat · Onboarding - the login flow's server step (onboarding/OnboardingScreen.kt → ServerScreen): a centred
   column with the title, subtitle, the server address field and the continue button. Light theme, logical px.
 -->
 <Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"

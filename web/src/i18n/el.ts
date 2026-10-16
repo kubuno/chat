@@ -1,4 +1,4 @@
-// Chat module translations — el.
+// Chat module translations - el.
 export default {
   common_create: "Δημιουργία",
   chat_messages: "Μηνύματα",
@@ -68,7 +68,7 @@ export default {
   chat_call_fullscreen: "Πλήρης οθόνη",
   chat_call_mic_error: "Δεν είναι δυνατή η πρόσβαση στο μικρόφωνο. Ελέγξτε τις άδειες.",
   chat_call_title_group: "{{kind}} ({{count}} συμμετέχοντες)",
-  chat_call_title_peer: "{{kind}} — {{name}}",
+  chat_call_title_peer: "{{kind}} - {{name}}",
   chat_precall_title: "Έναρξη κλήσης",
   chat_call_type_audio: "Ήχος",
   chat_call_type_video: "Βίντεο",

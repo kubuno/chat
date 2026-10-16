@@ -1,5 +1,5 @@
 /**
- * The meeting's own audio and video, handed to another module — or refused.
+ * The meeting's own audio and video, handed to another module - or refused.
  *
  * ## Why this file exists at all
  *
@@ -18,7 +18,7 @@ import { useChatStore } from './chatStore'
 /** Set by the room while a call is live, cleared when it ends. */
 let liveStream: { room: string; stream: MediaStream } | null = null
 
-/** Called by the room. Not exported to other modules — only the getter is. */
+/** Called by the room. Not exported to other modules - only the getter is. */
 export function publishMeetingMedia(room: string, stream: MediaStream | null): void {
   liveStream = stream ? { room, stream } : null
 }

@@ -33,7 +33,7 @@ export interface SpeakingWatch {
 }
 
 /**
- * Watches who is speaking and reports the set whenever it changes — never on
+ * Watches who is speaking and reports the set whenever it changes - never on
  * every reading, so the meeting is not re-rendered a dozen times a second.
  */
 export function watchSpeaking(onChange: (ids: Set<string>) => void): SpeakingWatch {

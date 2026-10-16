@@ -12,8 +12,8 @@ use kubuno_db::params;
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-/// POST /media/upload — uploader un média chiffré (blob opaque)
-/// Le client envoie des bytes chiffrés — le serveur les stocke sans déchiffrer.
+/// POST /media/upload - uploader un média chiffré (blob opaque)
+/// Le client envoie des bytes chiffrés - le serveur les stocke sans déchiffrer.
 pub async fn upload_media(
     State(st): State<AppState>,
     user: ChatUser,
@@ -21,7 +21,7 @@ pub async fn upload_media(
 ) -> ChatResult<Json<Value>> {
     // Instance policy: attachments may be forbidden outright. The bytes are
     // ciphertext, so an all-or-nothing switch is the only file policy the
-    // encryption leaves possible — never a filter on the declared file type.
+    // encryption leaves possible - never a filter on the declared file type.
     if !st.instance().allow_file_sharing {
         return Err(ChatError::Forbidden);
     }
@@ -48,7 +48,7 @@ pub async fn upload_media(
                 .await
                 .map_err(|e| ChatError::Validation(e.to_string()))?;
 
-            // Instance cap on (encrypted) attachment size — a bound on the
+            // Instance cap on (encrypted) attachment size - a bound on the
             // bytes received, the one media policy E2E leaves possible.
             let max_mb = st.instance().max_media_mb;
             let max_bytes = max_mb as u64 * 1024 * 1024;
@@ -90,7 +90,7 @@ pub async fn upload_media(
     })))
 }
 
-/// GET /media/:media_id — télécharger un média chiffré
+/// GET /media/:media_id - télécharger un média chiffré
 pub async fn download_media(
     State(st): State<AppState>,
     user: ChatUser,

@@ -3,8 +3,8 @@
 //! The core POSTs every subscribed event here as the bare `AppEvent`
 //! (`{ "type": …, "payload": { … } }`), guarded by `X-Internal-Secret`.
 //!
-//! This module acts on one of them: a form elsewhere — a calendar event today,
-//! a task tomorrow — telling us that a meeting of ours belongs to it, and what
+//! This module acts on one of them: a form elsewhere - a calendar event today,
+//! a task tomorrow - telling us that a meeting of ours belongs to it, and what
 //! it is called. The title of an attached meeting is not its own: it is the
 //! title of the thing the meeting exists for, and a rename in one place has to
 //! be the name read in the other.
@@ -33,7 +33,7 @@ pub struct KubunoEvent {
 #[derive(Deserialize)]
 struct MeetingLink {
     /// The link as the owning form stores it. WE parse it, because we are the
-    /// ones who know the shape of our own room addresses — the other module
+    /// ones who know the shape of our own room addresses - the other module
     /// only ever handles an opaque string.
     url:   String,
     title: String,
@@ -88,7 +88,7 @@ pub async fn handle_event(
     // update that changes nothing touches no row, so nothing is announced back.
     //
     // Portable form of the old PostgreSQL version: no `RETURNING` (whether a row
-    // changed is `rows_affected > 0`), and `IS DISTINCT FROM` — absent on MySQL —
+    // changed is `rows_affected > 0`), and `IS DISTINCT FROM` - absent on MySQL -
     // is expanded into an explicit null-safe difference. Placeholders are strictly
     // increasing and never reused, so each reference of `title`/`owner` is bound
     // again (updated_at is bound too, NOW() has no portable literal).

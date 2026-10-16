@@ -1,5 +1,5 @@
 /**
- * Personal sticker pack — stored locally (IndexedDB), never on the server.
+ * Personal sticker pack - stored locally (IndexedDB), never on the server.
  *
  * A sticker is just a square PNG with transparency. Sending one re-encrypts it
  * with a fresh key and uploads it like any other media, so the server can never

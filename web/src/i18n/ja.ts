@@ -1,4 +1,4 @@
-// Chat module translations — ja.
+// Chat module translations - ja.
 export default {
   common_create: "作成",
   chat_messages: "メッセージ",
@@ -68,7 +68,7 @@ export default {
   chat_call_fullscreen: "全画面",
   chat_call_mic_error: "マイクにアクセスできません。権限を確認してください。",
   chat_call_title_group: "{{kind}}（{{count}} 人の参加者）",
-  chat_call_title_peer: "{{kind}} — {{name}}",
+  chat_call_title_peer: "{{kind}} - {{name}}",
   chat_precall_title: "通話を開始",
   chat_call_type_audio: "音声",
   chat_call_type_video: "ビデオ",

@@ -25,7 +25,7 @@ interface Props {
   // Side-panel mode (dual pane): expand to full width / close the panel.
   onExpand?:      () => void
   onClosePanel?:  () => void
-  /** Pop-up window: the window chrome already shows the title — drop our header. */
+  /** Pop-up window: the window chrome already shows the title - drop our header. */
   compact?:       boolean
 }
 
@@ -36,7 +36,7 @@ export default function ConversationView({ convId, onBack, sendTyping, onExpand,
   const conversations  = useChatStore(s => s.conversations)
   const messages       = useChatStore(s => s.messages[convId]) ?? []
   const typingUsers    = useChatStore(s => s.typingUsers[convId]) ?? []
-  // Thread view (replies grouped under their root) — shared with the home header toggle.
+  // Thread view (replies grouped under their root) - shared with the home header toggle.
   const threadMode     = useChatStore(s => s.threadMode)
   const setThreadMode  = useChatStore(s => s.setThreadMode)
   const { fetchMessages, appendMessage, markConvRead } = useChatStore()
@@ -47,7 +47,7 @@ export default function ConversationView({ convId, onBack, sendTyping, onExpand,
   const [pollOpen,      setPollOpen]     = useState(false)
   const [ephemeralSecs, setEphemeralSecs] = useState(0)   // 0 = off ; TTL en secondes
   const [members,       setMembers]      = useState<{ userId: string; name: string; username: string }[]>([])
-  // Every member, self included — used to label message groups with their author.
+  // Every member, self included - used to label message groups with their author.
   const [memberNames,   setMemberNames]  = useState<Record<string, string>>({})
   const [memberAvatars, setMemberAvatars] = useState<Record<string, string | null>>({})
   const [searchOpen,    setSearchOpen]   = useState(false)
@@ -86,7 +86,7 @@ export default function ConversationView({ convId, onBack, sendTyping, onExpand,
     if (task) await sendMessage(t('chat_task_created', { title: task.title, defaultValue: 'Tâche créée : {{title}}' }))
   }
 
-  // Header dropdown on the conversation name — same actions as the list rows.
+  // Header dropdown on the conversation name - same actions as the list rows.
   const headerMenu = useMenuDropdown()
   const {
     buildItems,
@@ -123,12 +123,12 @@ export default function ConversationView({ convId, onBack, sendTyping, onExpand,
     const list = listRef.current
 
     if (newestIdRef.current === null) {
-      // First paint of this conversation: land at the bottom instantly — a smooth
+      // First paint of this conversation: land at the bottom instantly - a smooth
       // animation across the whole history reads as flicker.
       bottomRef.current?.scrollIntoView({ behavior: 'instant' as ScrollBehavior })
     } else if (newest !== newestIdRef.current) {
       // A genuinely new message at the bottom. Only follow it if the user is
-      // already near the bottom (or it's their own) — never yank them out of
+      // already near the bottom (or it's their own) - never yank them out of
       // reading older history.
       const own = messages[messages.length - 1]?.sender_id === myId
       const nearBottom = list
@@ -136,7 +136,7 @@ export default function ConversationView({ convId, onBack, sendTyping, onExpand,
         : true
       if (own || nearBottom) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
-    // else: older messages were prepended (load previous) — leave the scroll alone.
+    // else: older messages were prepended (load previous) - leave the scroll alone.
     newestIdRef.current = newest
 
     // Acknowledge reads once per newest message, not on every render.
@@ -180,7 +180,7 @@ export default function ConversationView({ convId, onBack, sendTyping, onExpand,
         ...(ephemeralSecs ? { expires_in_secs: ephemeralSecs } : {}),
         ...(scheduledAt ? { scheduled_at: scheduledAt } : {}),
       })
-      // A scheduled message stays invisible until due — don't append it now
+      // A scheduled message stays invisible until due - don't append it now
       // (the list endpoint shows it back to its sender on the next load).
       if (!scheduledAt) appendMessage(convId, { ...msg, plaintext: text, ...(card ? { card } : {}) })
       setReplyTo(null)
@@ -224,7 +224,7 @@ export default function ConversationView({ convId, onBack, sendTyping, onExpand,
     if (info.height)   media_meta.height = info.height
     if (info.duration) media_meta.duration = info.duration
     const { encrypted_data, nonce } = encodeMediaMessage(media, caption)
-    // Stickers and GIFs are images as far as the server is concerned — the
+    // Stickers and GIFs are images as far as the server is concerned - the
     // message_type column only accepts the historical set. Their real kind
     // lives in the (encrypted) envelope and drives the bubble-less rendering.
     const messageType = info.kind === 'sticker' || info.kind === 'gif' ? 'image' : info.kind
@@ -260,7 +260,7 @@ export default function ConversationView({ convId, onBack, sendTyping, onExpand,
   }
 
   // A picked GIF is pulled back through the module (the browser never talks to
-  // GIPHY for the send), then encrypted and uploaded like any other media — so
+  // GIPHY for the send), then encrypted and uploaded like any other media - so
   // recipients fetch it from Kubuno, not from a third party.
   async function sendGif(gif: GifResult) {
     try {
@@ -315,7 +315,7 @@ export default function ConversationView({ convId, onBack, sendTyping, onExpand,
     : messages
 
   // Thread view: group replies under their root message. The root is derived by
-  // walking up reply_to_id — there is no thread_root_id in the schema, and none
+  // walking up reply_to_id - there is no thread_root_id in the schema, and none
   // is needed as long as the ancestors are in the loaded page (when one isn't,
   // the chain simply stops there and that message becomes a local root).
   const threadedMessages = useMemo(() => {
@@ -577,7 +577,7 @@ export default function ConversationView({ convId, onBack, sendTyping, onExpand,
           </div>
         )}
 
-        {/* Onboarding card of a space — only while it is still (nearly) empty. */}
+        {/* Onboarding card of a space - only while it is still (nearly) empty. */}
         {conv && isGroupConv && !compact && messages.length < 3 && (
           <div className="max-w-xl mx-auto my-4 flex flex-col items-center gap-3">
             <div className="w-full rounded-2xl bg-blue-50 px-5 py-4 text-center">
@@ -695,7 +695,7 @@ export default function ConversationView({ convId, onBack, sendTyping, onExpand,
                 } : undefined}
               />
 
-              {/* Persistent reply affordance at the end of a group — starts a thread. */}
+              {/* Persistent reply affordance at the end of a group - starts a thread. */}
               {endsGroup && !isOwn && replies.length === 0 && (
                 <button
                   onClick={() => setReplyTo(msg)}

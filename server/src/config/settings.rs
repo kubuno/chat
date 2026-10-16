@@ -109,7 +109,7 @@ impl Settings {
                     .separator("__")
                     .try_parsing(true),
             );
-        // Variables injectées par le superviseur core — priorité maximale
+        // Variables injectées par le superviseur core - priorité maximale
         if let Ok(v) = std::env::var("KUBUNO_CORE_URL")        { builder = builder.set_override("core.url",             v).map_err(|e| config::ConfigError::Message(e.to_string()))?; }
         if let Ok(v) = std::env::var("KUBUNO_INTERNAL_SECRET") { builder = builder.set_override("core.internal_secret", v).map_err(|e| config::ConfigError::Message(e.to_string()))?; }
         if let Ok(v) = std::env::var("KUBUNO_DB_HOST")         { builder = builder.set_override("database.host",     v).map_err(|e| config::ConfigError::Message(e.to_string()))?; }

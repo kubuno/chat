@@ -3,7 +3,7 @@
 //! The API key is an instance setting (`chat.giphy_api_key`, admin-only): it
 //! never reaches the browser. The client only ever talks to `/chat/gifs/*`.
 //! `fetch` additionally streams the GIF bytes back so the client can encrypt
-//! them and upload them like any other media — a sent GIF stays end-to-end
+//! them and upload them like any other media - a sent GIF stays end-to-end
 //! encrypted, and the recipient never hits GIPHY.
 
 use std::time::Duration;
@@ -46,7 +46,7 @@ pub struct FetchQuery {
 }
 
 /// Read the instance-wide GIPHY key seeded from `module.toml` into core.settings.
-/// Empty (or absent) means the feature is disabled — the client hides the tab.
+/// Empty (or absent) means the feature is disabled - the client hides the tab.
 async fn giphy_key(st: &AppState) -> ChatResult<String> {
     // NOTE: cross-schema read of core.settings (PostgreSQL/MySQL only).
     let raw: Option<Value> = st
@@ -82,13 +82,13 @@ fn http_client() -> ChatResult<reqwest::Client> {
         .map_err(|e| ChatError::Internal(anyhow::anyhow!(e)))
 }
 
-/// GET /gifs/status — whether GIF search is available on this instance.
+/// GET /gifs/status - whether GIF search is available on this instance.
 pub async fn status(State(st): State<AppState>, _user: ChatUser) -> ChatResult<Json<Value>> {
     let enabled = giphy_key(&st).await.is_ok();
     Ok(Json(json!({ "enabled": enabled, "provider": "giphy" })))
 }
 
-/// GET /gifs/search?q=&limit=&offset=&lang= — search GIPHY (empty q → trending).
+/// GET /gifs/search?q=&limit=&offset=&lang= - search GIPHY (empty q → trending).
 pub async fn search(
     State(st): State<AppState>,
     _user: ChatUser,
@@ -167,7 +167,7 @@ fn normalize_gif(item: &Value) -> Option<Value> {
     }))
 }
 
-/// GET /gifs/fetch?url=… — stream a GIPHY CDN asset back to the client, which
+/// GET /gifs/fetch?url=… - stream a GIPHY CDN asset back to the client, which
 /// encrypts it and uploads it as a regular (E2E) media. Restricted to the GIPHY
 /// CDN so this cannot be used as an open proxy.
 pub async fn fetch(

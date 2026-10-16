@@ -2,8 +2,8 @@
 //
 // The meeting is a peer-to-peer mesh: no server ever sees the media, so there
 // is no server-side mixer to record from. The recorder therefore paints what
-// the meeting shows onto a canvas — the presentation when someone is sharing,
-// the participants otherwise — mixes every audio track into one stream, and
+// the meeting shows onto a canvas - the presentation when someone is sharing,
+// the participants otherwise - mixes every audio track into one stream, and
 // hands the pair to `MediaRecorder`. The result is a single video file.
 //
 // It deliberately records the meeting, not the window: side panels, menus and
@@ -61,7 +61,7 @@ function drawContain(ctx: CanvasRenderingContext2D, video: HTMLVideoElement, x: 
   ctx.drawImage(video, Math.round(x + (w - dw) / 2), Math.round(y + (h - dh) / 2), Math.round(dw), Math.round(dh))
 }
 
-/** Draws `video` filling the box, cropping what does not fit — as a tile does. */
+/** Draws `video` filling the box, cropping what does not fit - as a tile does. */
 function drawCover(ctx: CanvasRenderingContext2D, video: HTMLVideoElement, x: number, y: number, w: number, h: number) {
   const vw = video.videoWidth, vh = video.videoHeight
   if (!vw || !vh) return

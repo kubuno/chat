@@ -67,7 +67,7 @@ pub async fn require_internal_secret(
     let expected = state.settings.core.internal_secret.as_str();
     if expected.is_empty() {
         tracing::error!(
-            "chat: core.internal_secret vide — route interne refusée. \
+            "chat: core.internal_secret vide - route interne refusée. \
              Renseignez KUBUNO_INTERNAL_SECRET."
         );
         return Err(ChatError::Forbidden);

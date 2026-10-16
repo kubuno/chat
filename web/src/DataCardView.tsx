@@ -19,7 +19,7 @@ export default function DataCardView({ envelope }: { envelope: KubunoDataEnvelop
   if (Renderer) return <Renderer envelope={envelope} />
 
   // Generic fallback: the producer module is not installed (or registered no
-  // renderer) — still show something useful, JSON included.
+  // renderer) - still show something useful, JSON included.
   return (
     <div className="w-72 max-w-full rounded-xl border border-gray-200 bg-white text-gray-900 overflow-hidden">
       <div className="px-3 py-2 flex items-start gap-2">

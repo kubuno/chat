@@ -1,7 +1,7 @@
 # Kubuno Chat for Windows
 
 `kubuno-chat.exe`: two-pane messaging for the chat module, a native Win32 application (Direct2D / DirectWrite) written
-with the Kubuno desktop programming model — Windows Forms-like views (`.kbview` forms, `.kbcontrol` user controls)
+with the Kubuno desktop programming model - Windows Forms-like views (`.kbview` forms, `.kbcontrol` user controls)
 that the Visual Studio designer of vskubuno opens and edits.
 
 ## Layout

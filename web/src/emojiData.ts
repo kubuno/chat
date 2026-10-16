@@ -1,5 +1,5 @@
 /**
- * Emoji catalogue — generated from the Unicode 15.1 keyboard ordering
+ * Emoji catalogue - generated from the Unicode 15.1 keyboard ordering
  * (emoji-test.txt), with display names and search keywords taken from the CLDR
  * annotations (fr + en). Loaded lazily (dynamic import) so it never weighs on
  * the module entry chunk.

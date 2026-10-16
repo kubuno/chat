@@ -110,7 +110,7 @@ export default function ChatStatusMenu({ dark = false }: { dark?: boolean }) {
         aria-haspopup="menu"
       >
         {/* Anneau clair autour de la pastille : sur un aplat de couleur, un point vert
-            posé à même le fond se lit mal — le liseré le détache. */}
+            posé à même le fond se lit mal - le liseré le détache. */}
         <span
           className={`w-2.5 h-2.5 rounded-full ${DOT[myStatus]} ${
             dark ? 'ring-2 ring-white/30' : ''}`}

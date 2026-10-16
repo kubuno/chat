@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 /// Publish an event to the core. On PostgreSQL this is `pg_notify`; on
 /// MySQL/SQLite (no LISTEN/NOTIFY) it is a durable row in the module's event
-/// outbox, which the core polls — both handled by `kubuno_db::events::notify`.
+/// outbox, which the core polls - both handled by `kubuno_db::events::notify`.
 pub async fn publish_to_core(st: &AppState, event_type: &str, payload: Value) {
     let event = json!({
         "type":    event_type,

@@ -71,7 +71,7 @@ export default function MeetingDetailPanel({ meetingId, title, at, lang, topOffs
       style={{ marginTop: topOffset, maxHeight: `calc(100% - ${topOffset + 16}px)` }}
       data-module="chat"
     >
-      {/* Header — title plus the meeting's actions (join / delete / close) */}
+      {/* Header - title plus the meeting's actions (join / delete / close) */}
       <div className="flex items-center gap-2 px-4 h-14 border-b border-border flex-shrink-0">
         <CalendarClock className="w-5 h-5 text-primary flex-shrink-0" />
         <p className="flex-1 min-w-0 truncate text-[15px] font-medium text-gray-900">{title}</p>

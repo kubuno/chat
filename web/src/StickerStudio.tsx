@@ -3,7 +3,7 @@
  * optionally with the (near-)white background knocked out.
  *
  * The result is stored in the device-local pack (stickers.ts) and can be sent
- * straight away. Nothing about the pack reaches the server — a sent sticker is
+ * straight away. Nothing about the pack reaches the server - a sent sticker is
  * encrypted per-message like any other media.
  */
 import { useState, useEffect, useRef, useCallback } from 'react'

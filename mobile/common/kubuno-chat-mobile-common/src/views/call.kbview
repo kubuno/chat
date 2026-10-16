@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Chat · Call — the full-screen call UI (CallScreen.kt), dark by construction: the callee avatar and status,
+  Chat · Call - the full-screen call UI (CallScreen.kt), dark by construction: the callee avatar and status,
   and the round call controls (mic / video / speaker / hand / chat + the red hang-up). Logical px (~390 wide).
 -->
 <Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"

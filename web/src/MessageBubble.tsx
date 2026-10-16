@@ -20,14 +20,14 @@ interface Props {
   onForward?:   (msg: DecodedMessage) => void
   replyParent?: DecodedMessage | null   // resolved parent for quote preview
   seenByCount?: number                  // group "seen by N" on own messages
-  /** The author line above the group already carries the time — don't repeat it. */
+  /** The author line above the group already carries the time - don't repeat it. */
   hideTime?:    boolean
-  /** Position within a same-author group — drives the corner continuity. */
+  /** Position within a same-author group - drives the corner continuity. */
   groupStart?:  boolean
   groupEnd?:    boolean
-  /** Thread mode hangs replies under their root — the in-bubble quote is redundant there. */
+  /** Thread mode hangs replies under their root - the in-bubble quote is redundant there. */
   showQuote?:   boolean
-  /** Author of the quoted message — avatar shown at the left of the quote. */
+  /** Author of the quoted message - avatar shown at the left of the quote. */
   quoteAuthor?: { name: string; avatarUrl: string | null }
 }
 
@@ -47,9 +47,9 @@ export default function MessageBubble({ msg, isOwn, onReply, onDelete, onForward
   // A sticker is shown as-is, floating on the conversation background.
   const bare      = media?.kind === 'sticker' && !caption
   // Reply rendering: the quoted parent is glued INSIDE the bubble, above the
-  // body — both spanning the full bubble width, each at least one line tall.
+  // body - both spanning the full bubble width, each at least one line tall.
   const hasQuote  = showQuote && !!msg.reply_to_id && !isDeleted && !bare
-  const ONE_LINE  = 37   // px — height of a single-line bubble (py-2 + line-height)
+  const ONE_LINE  = 37   // px - height of a single-line bubble (py-2 + line-height)
   const time      = new Date(msg.created_at).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' })
   const linkUrl   = !isDeleted && msg.plaintext && !media && !poll && !card ? firstUrl(msg.plaintext) : null
   const quoteText = replyParent
@@ -88,7 +88,7 @@ export default function MessageBubble({ msg, isOwn, onReply, onDelete, onForward
     if (msg.plaintext) navigator.clipboard?.writeText(msg.plaintext).catch(() => {})
   }
 
-  // Right-click context menu (MenuDropdown from @ui — never a hand-rolled div).
+  // Right-click context menu (MenuDropdown from @ui - never a hand-rolled div).
   const QUICK = ['👍', '❤️', '😂', '😮', '😢', '🙏']
   function menuItems(): MenuItem[] {
     const items: MenuItem[] = [
@@ -135,7 +135,7 @@ export default function MessageBubble({ msg, isOwn, onReply, onDelete, onForward
           </div>
         )}
 
-        {/* A bare sticker has no bubble to glue the quote onto — floating chip. */}
+        {/* A bare sticker has no bubble to glue the quote onto - floating chip. */}
         {showQuote && msg.reply_to_id && bare && (
           <div className={`text-xs px-2 py-1 mb-1 rounded-lg bg-blue-50 max-w-full ${isOwn ? 'self-end' : ''}`}>
             {quoteText ? <span className="text-gray-600 line-clamp-2 break-words">{quoteText}</span>

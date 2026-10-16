@@ -1,4 +1,4 @@
-// Chat module translations — ru.
+// Chat module translations - ru.
 export default {
   common_create: "Создать",
   chat_messages: "Сообщения",
@@ -68,7 +68,7 @@ export default {
   chat_call_fullscreen: "Полный экран",
   chat_call_mic_error: "Не удалось получить доступ к микрофону. Проверьте разрешения.",
   chat_call_title_group: "{{kind}} ({{count}} участников)",
-  chat_call_title_peer: "{{kind}} — {{name}}",
+  chat_call_title_peer: "{{kind}} - {{name}}",
   chat_precall_title: "Начать звонок",
   chat_call_type_audio: "Аудио",
   chat_call_type_video: "Видео",

@@ -58,7 +58,7 @@ pub fn build(state: AppState) -> Router {
         // Média
         .route("/media/upload",                        post(media::upload_media))
         .route("/media/:media_id",                     get(media::download_media))
-        // GIF (proxy GIPHY — la clé API reste côté serveur)
+        // GIF (proxy GIPHY - la clé API reste côté serveur)
         .route("/gifs/status",                         get(gifs::status))
         .route("/gifs/search",                         get(gifs::search))
         .route("/gifs/fetch",                          get(gifs::fetch))

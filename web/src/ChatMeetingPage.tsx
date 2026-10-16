@@ -28,7 +28,7 @@ export default function ChatMeetingPage() {
       .catch(e => {
         // A meeting that has been ended is closed: say so rather than open an
         // empty room. A restricted one sends the reader to ask. Any other
-        // refusal is harmless — being a member already is a success.
+        // refusal is harmless - being a member already is a success.
         if (isMeetingEnded(e)) throw e
         if (isKnockRequired(e)) { if (!cancelled) setKnockRoom(id); throw new Knocked() }
       })
@@ -40,7 +40,7 @@ export default function ChatMeetingPage() {
         // Name the meeting from the room itself when the list already holds it.
         const summary = st.conversations.find(c => c.conversation.id === id)
         const title = summary?.conversation.name ?? ''
-        // The lobby (camera/mic check) always precedes the call — even when the
+        // The lobby (camera/mic check) always precedes the call - even when the
         // meeting is opened from its shared link.
         if (!cancelled) st.setMeetingLobby({ room: id, title })
       })

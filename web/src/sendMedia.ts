@@ -2,7 +2,7 @@
 //
 // The server only ever stores the ciphertext: the blob is encrypted here, the
 // key and iv travel inside the message envelope, and `media_meta` carries only
-// what the server needs — chiefly the media id it checks access against.
+// what the server needs - chiefly the media id it checks access against.
 
 import { chatApi, type MediaPayload } from './api'
 import { encodeMediaMessage, useChatStore } from './chatStore'

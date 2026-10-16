@@ -1,5 +1,5 @@
 /**
- * Cross-module data sharing over the clipboard (JSON envelopes) — consumer side.
+ * Cross-module data sharing over the clipboard (JSON envelopes) - consumer side.
  *
  * VENDORED from core `@kubuno/sdk` (`DataTransferRegistry`): replace the local
  * copy with `import { … } from '@kubuno/sdk'` once `@kubuno/sdk >= 0.1.3` is
@@ -10,7 +10,7 @@
  * A producer (maps, paintsharp…) copies `text/plain` (human summary) plus
  * `text/html` containing `<span data-kubuno="<base64 JSON>">`. Chat detects
  * the marker in its paste handler and renders the envelope as a rich card,
- * resolving the renderer the producer registered on `core.data-card` —
+ * resolving the renderer the producer registered on `core.data-card` -
  * falling back to a generic JSON card when the producer is not installed.
  */
 import { ExtensionRegistry } from '@kubuno/sdk'

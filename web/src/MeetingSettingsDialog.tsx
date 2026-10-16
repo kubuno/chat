@@ -17,18 +17,18 @@
  * - who may WRITE and whether the host must arrive first are refused by the
  *   SERVER, so a modified client changes nothing;
  * - who may SHARE A SCREEN or SEND A REACTION is enforced by the meeting page,
- *   because the media never touches a server — it is peer-to-peer, and there
+ *   because the media never touches a server - it is peer-to-peer, and there
  *   is nothing in the path to refuse it. That is a real limit and it is
  *   written on screen rather than glossed over.
  *
  * Access is the third kind: `trusted` is refused by the server, and the people
- * it refuses may ASK — the host sees them waiting inside the meeting and lets
+ * it refuses may ASK - the host sees them waiting inside the meeting and lets
  * them in or not. Activities and media capture are the fourth: each governs a
- * door this module owns — the room's activity menu, and the single function
+ * door this module owns - the room's activity menu, and the single function
  * that hands the meeting's media to another module.
  *
- * The reference's other sections — activity add-ons, third-party capture,
- * automatic recording, a language for transcripts — are deliberately absent:
+ * The reference's other sections - activity add-ons, third-party capture,
+ * automatic recording, a language for transcripts - are deliberately absent:
  * this product has no add-ons, no transcripts, and its recording is started by
  * a person in the room after a consent dialog. A switch for any of them would
  * tell a host their meeting is governed when it is not.
@@ -73,7 +73,7 @@ export default function MeetingSettingsDialog({ conversationId, roomCode, initia
   const save = async () => {
     setSaving(true); setError(null)
     try { const saved = await chatApi.updateMeetingSettings(conversationId, s); onSaved?.(saved); onClose() }
-    catch { setError(t('meeting_settings_failed', { defaultValue: 'Les réglages n’ont pas pu être enregistrés — réessayez.' })) }
+    catch { setError(t('meeting_settings_failed', { defaultValue: 'Les réglages n’ont pas pu être enregistrés - réessayez.' })) }
     finally { setSaving(false) }
   }
 
@@ -128,7 +128,7 @@ export default function MeetingSettingsDialog({ conversationId, roomCode, initia
     >
       <div className="flex min-h-0 flex-1 overflow-hidden">
         {/* The rail. It names where you are, so it must still be there when you
-            have scrolled — it does not move; the settings beside it do. */}
+            have scrolled - it does not move; the settings beside it do. */}
         <div className="w-56 shrink-0 overflow-y-auto p-3">
           {([
             ['controls',   <ShieldCheck size={16} key="c" />, t('meeting_settings_host_controls', { defaultValue: 'Commandes de l’organisateur' })],
@@ -155,7 +155,7 @@ export default function MeetingSettingsDialog({ conversationId, roomCode, initia
             </p>
             {/* The legal warning belongs HERE, where the decision is made. It is
                 what lets the room start recording without asking again: the
-                acknowledgement has already happened, at scheduling time — the
+                acknowledgement has already happened, at scheduling time - the
                 same bargain the reference strikes. */}
             <p className="rounded-md bg-warning-light px-3 py-2 text-xs text-text-primary">
               <strong>{t('meeting_rec_important', { defaultValue: 'Important' })} : </strong>

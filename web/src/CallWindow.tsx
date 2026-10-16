@@ -1,7 +1,7 @@
 // Façade for the meeting/call feature. The window itself, the tiles, the
 // panels and the shared helpers live in their own files; this module keeps
 // the call manager (the app-level orchestrator) and the public entry points
-// the rest of chat imports — so those imports never had to change.
+// the rest of chat imports - so those imports never had to change.
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Video, X } from 'lucide-react'
@@ -14,7 +14,7 @@ import { ActiveCallWindow } from './ActiveCallWindow'
 
 // ── Root call manager ─────────────────────────────────────────────────────────
 /** The meeting this tab was in, remembered across a reload (F5) but not across
- *  closing the tab — which is exactly the lifetime a "come back" offer wants. */
+ *  closing the tab - which is exactly the lifetime a "come back" offer wants. */
 const MEETING_KEY = 'kubuno.chat.meeting'
 type RememberedMeeting = { room: string; title: string }
 
@@ -40,7 +40,7 @@ export default function CallManager() {
   const startCall = useInitiateCall()
   const { setIncomingCall, setActiveCall, sendCallSignal } = useChatStore()
   const { t } = useTranslation('chat')
-  // A meeting left behind by a reload: offered, never rejoined silently — the
+  // A meeting left behind by a reload: offered, never rejoined silently - the
   // camera and microphone only start when the person says so, in the lobby.
   const [resume, setResume] = useState<RememberedMeeting | null>(() => recallMeeting())
   // The meeting one has just left: the page that follows offers a way back in.

@@ -16,7 +16,7 @@ use uuid::Uuid;
 const VALID_STATUSES: [&str; 4] = ["online", "away", "dnd", "offline"];
 const MAX_CUSTOM_STATUS: usize = 100;
 
-/// GET /presence/:user_id — statut de présence d'un utilisateur
+/// GET /presence/:user_id - statut de présence d'un utilisateur
 pub async fn get_presence(
     State(st): State<AppState>,
     _user: ChatUser,
@@ -38,7 +38,7 @@ pub async fn get_presence(
     })))
 }
 
-/// PATCH /presence — mettre à jour son propre statut
+/// PATCH /presence - mettre à jour son propre statut
 pub async fn update_presence(
     State(st): State<AppState>,
     user: ChatUser,
@@ -46,7 +46,7 @@ pub async fn update_presence(
 ) -> ChatResult<Json<Value>> {
     let status = dto.status.as_deref().unwrap_or("online");
 
-    // Validate before touching the DB — the CHECK constraint would otherwise
+    // Validate before touching the DB - the CHECK constraint would otherwise
     // surface as an opaque 500.
     if !VALID_STATUSES.contains(&status) {
         return Err(ChatError::Validation(format!("Statut invalide: {status}")));
@@ -84,7 +84,7 @@ pub async fn update_presence(
             e
         })?;
 
-    // Tell the user's contacts about it — without this, a status picked by hand
+    // Tell the user's contacts about it - without this, a status picked by hand
     // would only show up after they reload.
     broadcast_presence(&st, user.id, status, custom).await;
 

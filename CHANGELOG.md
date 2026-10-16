@@ -16,11 +16,11 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 - **The mobile app moves to Kubuno views (Rust), laid out like the desktop app.** `mobile/` is now a Cargo
   workspace: `common/kubuno-chat-mobile-common` (the app's `.kbview` screens, edited in Visual Studio),
-  `android/kubuno-chat-mobile-android` (the APK — package `com.kubuno.chat`, launcher icon = the module's web logo)
+  `android/kubuno-chat-mobile-android` (the APK - package `com.kubuno.chat`, launcher icon = the module's web logo)
   and `ios/kubuno-chat-mobile-ios`, shown in the Visual Studio solution under `Mobile/Common`, `Mobile/Android` and
   `Mobile/iOS`. The screens used to live inside the core's mobile renderer; they are now the module's own, rendered
   and run by the shared Kubuno mobile renderer and Android / iOS shells of the core. The previous Chat
-  Kotlin/Jetpack Compose app is retired from `mobile/` — it stays in the git history as the functional reference for
+  Kotlin/Jetpack Compose app is retired from `mobile/` - it stays in the git history as the functional reference for
   migrating the app's behaviour (data, server calls), which is still to come. The `mobile` workflow builds the new
   APK with cargo-apk.
 - **Desktop framework updated to `desktop-v0.1.5-alpha`: the Chat desktop app uses less memory.** The framework
@@ -36,8 +36,8 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 - **The Windows desktop app joins this repository**: Kubuno Chat for Windows (`kubuno-chat.exe`) moved here from
   `kubuno/desktop` with its history, under `desktop/windows/` (with `desktop/linux` and `desktop/macos` reserved for
-  the other platforms). It builds on its own from this repository — the Kubuno desktop framework comes from
-  `kubuno/desktop` by the git tag `desktop-v0.1.0-alpha` and is linked statically — has its own CI workflow
+  the other platforms). It builds on its own from this repository - the Kubuno desktop framework comes from
+  `kubuno/desktop` by the git tag `desktop-v0.1.0-alpha` and is linked statically - has its own CI workflow
   (`desktop.yml`, Windows) and appears in `Kubuno.Chat.slnx` under **Desktop** (`Kubuno.Chat.Desktop`). The app
   itself is unchanged: same program, options, settings and `kubuno://` links.
 
@@ -54,7 +54,7 @@ number at release time, and CI publishes that section as the GitHub Release note
   PostgreSQL-only stack onto the runtime-dispatch kubuno-db 0.6.0 foundation:
   the same binary connects to whichever engine the administrator names in
   `[database] engine`, read at start-up. All queries were rewritten off the
-  driver-specific paths — `RETURNING` inserts became a Rust-minted id plus a
+  driver-specific paths - `RETURNING` inserts became a Rust-minted id plus a
   re-select (MySQL has no `RETURNING`), `ON CONFLICT` and case-insensitive
   matching go through the dialect layer, `= ANY(array)` becomes a portable
   `IN (...)`, `NOW()`/`make_interval`/`'-infinity'` are computed in Rust and
@@ -95,10 +95,10 @@ number at release time, and CI publishes that section as the GitHub Release note
   pulled in an RSA implementation vulnerable to a timing side-channel
   (RUSTSEC-2023-0071) for which no fix will ever exist. The new line does not
   depend on it at all, and it refuses any SQL string built at run time unless it
-  has been audited — the queries here were checked and marked.
+  has been audited - the queries here were checked and marked.
 - **Input validation library updated.** The version in use carried
   RUSTSEC-2024-0421 through its domain-name parser, which accepted Punycode
-  labels that decode to plain ASCII — a mismatch an attacker can use to make two
+  labels that decode to plain ASCII - a mismatch an attacker can use to make two
   different names look like one.
 
 ## [0.1.8] - 2026-09-18
@@ -128,7 +128,7 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 - **A meeting attached to an event carries that event's title.** Renaming it in
   the meetings list renames the event too, and renaming the event renames the
-  meeting — one title in two places instead of two that slowly disagree. Linked
+  meeting - one title in two places instead of two that slowly disagree. Linked
   meetings show a small link mark beside their name, so the consequence is
   visible before you type. A meeting whose event lets it go (the call was taken
   off it, or the event was deleted) keeps its name and becomes its own again;
@@ -148,14 +148,14 @@ number at release time, and CI publishes that section as the GitHub Release note
 ### Added
 
 - **A meeting room attached to an event you never save no longer survives it.**
-  Adding a video call to an event has to create its room straight away — the
+  Adding a video call to an event has to create its room straight away - the
   link is what gets saved, so it must already point somewhere. Until now that
   room stayed for good, even when the event was abandoned: closing the form
   without saving, or taking the call back off it, left an empty meeting in your
   list that you never knowingly created. A room created that way is now a draft
   and belongs to the form: taking the call off the event or closing the form
   deletes it, saving the event keeps it. Reloading the page, closing the tab,
-  losing the network or crashing needs no cooperation either — the room carries
+  losing the network or crashing needs no cooperation either - the room carries
   its own deadline and the server removes it on its own. A draft room never
   shows up in anyone's meeting list while it is one, and a room somebody has
   already joined or written in is never removed by any of this.
@@ -163,7 +163,7 @@ number at release time, and CI publishes that section as the GitHub Release note
 - **The Meetings page lets you review and manage each meeting without joining
   it.** Clicking a meeting used to drop you straight into its call. Now a plain
   click opens a details panel on the right instead: the day and time, the member
-  list, and a plain transcript of everything said in the meeting — so a past
+  list, and a plain transcript of everything said in the meeting - so a past
   meeting can be read back at a glance. Joining is now an explicit **Join**
   button, which appears on a row on hover and also sits at the bottom of the
   panel.
@@ -171,53 +171,53 @@ number at release time, and CI publishes that section as the GitHub Release note
 - **Meetings can be deleted from the Meetings page.** Each row now carries a
   delete button (and one in the details panel too), removing the meeting from
   your list after a confirmation. Every row also has a right-click / “⋮” context
-  menu — Join, details, copy link, delete — a starting set we will keep
+  menu - Join, details, copy link, delete - a starting set we will keep
   extending.
 
 - **Select several meetings and act on them at once.** A checkbox appears on
   each row (on hover, or once a selection is under way); Ctrl/Cmd-click toggles
   a row and Shift-click extends a range. A toolbar then shows how many are
-  selected, with **Select all**, **Copy links** and **Delete** — the deletion
+  selected, with **Select all**, **Copy links** and **Delete** - the deletion
   asks once for the whole set.
 
 - **A meeting's options no longer look forbidden to the person who owns
   them.** The settings that depend on host management were greyed out until it
-  was switched on — which reads as "you may not", and a host quite reasonably
+  was switched on - which reads as "you may not", and a host quite reasonably
   asked why they were refused their own meeting. Nothing is greyed now: the
   settings can be prepared at any time, and a line under the master switch says
   they take effect once it is on.
 
 - **A meeting can record itself.** Its options gained a second section,
-  **Meeting recordings**: the legal warning — recording without everyone's
-  permission may be illegal — and one choice, "Record this meeting". Ticked,
+  **Meeting recordings**: the legal warning - recording without everyone's
+  permission may be illegal - and one choice, "Record this meeting". Ticked,
   the room starts recording on its own as soon as someone allowed to record is
   in it, and everyone is told as they always were. It starts once per room: a
   reconnection does not start a second one, and a host who stopped it on
   purpose does not see it start again under them. The consent step did not
-  disappear — it moved to where the decision is made, under the same warning,
+  disappear - it moved to where the decision is made, under the same warning,
   because asking twice for one decision teaches people to dismiss the asking.
 
 - **A meeting can run ACTIVITIES, and its host decides who may start one.**
-  An activity is something one person launches and everyone gets — a file put
+  An activity is something one person launches and everyone gets - a file put
   in front of the room, and whatever other modules come to offer: any module
   may register one, and the room lists what it finds. Nothing is hard-wired;
   when nothing is registered there is no activities menu rather than an empty
   one. The host may reserve launching for themselves.
 
 - **The meeting's audio and video have exactly one door, and the host holds
-  the key.** The media never touches a server here — it is exchanged directly
-  between browsers — so there is one function through which anything else in
+  the key.** The media never touches a server here - it is exchanged directly
+  between browsers - so there is one function through which anything else in
   this product could obtain it, and the host's setting is checked at that
   function rather than by whoever calls it.
 
 - **A meeting can be closed to whoever merely holds its link.** Its access type
-  is now a choice: **Open** — the link is enough, as it has always been — or
+  is now a choice: **Open** - the link is enough, as it has always been - or
   **Open to trusted people**, where only those the host put in the room walk
   in. Everyone else is refused by the server, and may ask to join when the host
   allows it: they see a page that sends one request and waits, the host sees
   them queued inside the meeting and admits or refuses them in one press, and
   being admitted puts them in the room there and then. Asking twice is asking
-  once. **Refused twice, they may not ask again** — a door that can be knocked
+  once. **Refused twice, they may not ask again** - a door that can be knocked
   on forever is a way of knocking until someone gives in; from there only the
   host adding them opens it.
 
@@ -225,20 +225,20 @@ number at release time, and CI publishes that section as the GitHub Release note
   meeting card opens the video call options: host management, who may share a
   screen, who may send reactions, whether participants may write in the
   meeting's chat, and whether the host must arrive before anyone else. Off by
-  default — the master switch has to be turned on before any of the others
+  default - the master switch has to be turned on before any of the others
   apply, so a meeting stays open unless someone decides otherwise. Only the
   host sees the panel, and only the host may save it: the server checks, it
   does not merely hide the button. Chat moderation and "host joins first" are
   refused by the server; screen sharing and reactions are enforced by the room
   itself, because the media travels directly between participants and no
-  server stands in its path — each switch says which it is.
+  server stands in its path - each switch says which it is.
 
 - **A calendar event can carry a Kubuno video call, created in place.** When
   this module is installed, the video row of the calendar's event editor is
   its own, and the row's icon becomes this module's logo: one button creates
   the room and attaches its link; the event then
   shows a card naming the call, with its full address, a copy button and a ✕
-  that takes it away — an event holds one call at a time. A link pasted from
+  that takes it away - an event holds one call at a time. A link pasted from
   elsewhere gets the same card, without the pretence that we host it. The
   room is a conversation anyone holding the link may join; it is not deleted
   when the link is removed, since an edit may be abandoned and a link already
@@ -248,7 +248,7 @@ number at release time, and CI publishes that section as the GitHub Release note
   lines with no author: you could not tell who had written what. It now loads
   the history, so someone joining midway reads what was already said, groups
   messages by author with a picture, a name and a time, and renders them with
-  the same component as the rest of the app — attachments, images, polls,
+  the same component as the rest of the app - attachments, images, polls,
   replies, reactions and link previews all work. Files can be attached and
   emoji picked without leaving the meeting.
 
@@ -260,11 +260,11 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 - **Meetings can be recorded.** The person who holds the meeting can start a
   recording from the meeting menu. Everyone is told when it starts and stops,
-  and a red REC indicator with a running time stays visible throughout — a
+  and a red REC indicator with a running time stays visible throughout - a
   recording is never silent. The file captures the presentation when someone is
   sharing and the participants otherwise, with every voice mixed in, and it is
   filed in the recorder's own files when the recording stops, in a "Chat"
-  folder created on first use — it belongs to whoever made it. Without a files
+  folder created on first use - it belongs to whoever made it. Without a files
   module to write to, it is posted to the meeting's conversation instead so it
   is never lost. It is stopped automatically if the meeting ends, and after two
   hours.
@@ -275,8 +275,8 @@ number at release time, and CI publishes that section as the GitHub Release note
   home on its own after a minute. The rating is kept, one answer per person and
   per meeting, and a later answer replaces the earlier one.
 
-- **Ending a meeting is now distinct from leaving it.** The host of a meeting —
-  whoever owns or administers the room — is offered both when they hang up:
+- **Ending a meeting is now distinct from leaving it.** The host of a meeting -
+  whoever owns or administers the room - is offered both when they hang up:
   leaving lets the others carry on, ending closes the meeting for everyone at
   once and the page that follows says so and offers no way back in. Everyone
   else simply leaves.
@@ -292,7 +292,7 @@ number at release time, and CI publishes that section as the GitHub Release note
   browser to the others: a client that missed it stayed in a meeting that was
   over, and anyone could walk straight back in through the link. The room is
   now closed on the server, every member is told over their own connection, and
-  a meeting that has been ended can no longer be joined — opening its link says
+  a meeting that has been ended can no longer be joined - opening its link says
   so plainly instead of dropping you into an empty room. Its host reopens it
   simply by starting it again.
 
@@ -319,7 +319,7 @@ number at release time, and CI publishes that section as the GitHub Release note
   closes it for everyone. A plain call still ends when nobody is left.
 
 - **A late arrival now receives what is broadcast.** The room was read once, on
-  joining, so anyone who arrived afterwards never received changes of state —
+  joining, so anyone who arrived afterwards never received changes of state -
   a raised hand, a muted microphone, a recording starting. Anyone who signals
   is now known.
 
@@ -331,7 +331,7 @@ number at release time, and CI publishes that section as the GitHub Release note
 - **This module now installs as a Kubuno package (`.kbpkg`) only.** Its system
   packages (Debian/RPM and the Windows and macOS installers) are no longer
   built: the module is distributed as one `.kbpkg` per platform (Linux, Windows,
-  macOS) that the Kubuno server installs itself — from the admin console, or
+  macOS) that the Kubuno server installs itself - from the admin console, or
   offline with `kubuno modules:install <file>.kbpkg`.
 - **Meeting objects now move instead of jumping.** Tiles and the shared screen
   glide and resize to their new place whenever the layout changes: someone
@@ -340,8 +340,8 @@ number at release time, and CI publishes that section as the GitHub Release note
   window edge is not animated, so the meeting follows the pointer exactly
   rather than trailing behind it.
 
-- **The strip of participants wraps onto another row.** In a narrow meeting —
-  a portrait window, or one with a side panel open — the people above a
+- **The strip of participants wraps onto another row.** In a narrow meeting -
+  a portrait window, or one with a side panel open - the people above a
   presentation now continue on a second row instead of being squeezed into a
   single line. They keep a readable size, and only shrink if the rows would
   otherwise take more than half the meeting.
@@ -409,12 +409,12 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 - **The README now opens with the module's logo.** The public README on
   GitHub now shows the module's designer logo (the same PNG shown as the
-  browser tab icon and in the applications menu) at the top of the page — the
+  browser tab icon and in the applications menu) at the top of the page - the
   repository landing now matches the icon a signed-in user sees inside the
   platform. The image ships in-repo, under `.github/logo.png`, so it renders
   even when the repo is browsed offline.
 
-- **New Chat logo** — a sky-blue hexagon with a white speech bubble, used as
+- **New Chat logo** - a sky-blue hexagon with a white speech bubble, used as
   the browser-tab icon and in the applications menu. It is now raster (PNG)
   designer artwork.
 
@@ -423,12 +423,12 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 - **Calls no longer contact a third-party STUN service, and can use a self-hosted TURN relay.**
   The web client had two public STUN servers hard-coded, so every call handed
-  the participants' addresses to a third party — and, STUN alone not crossing
+  the participants' addresses to a third party - and, STUN alone not crossing
   symmetric NATs, calls from mobile networks failed anyway. The STUN/TURN
   servers are now an instance setting (new "Calls" page of the chat
-  administration): STUN URLs, TURN URLs, and either coturn's shared secret —
+  administration): STUN URLs, TURN URLs, and either coturn's shared secret -
   from which the server mints a per-user, 24-hour TURN credential, so the
-  secret never reaches a browser — or a static credential. `GET /chat/config`
+  secret never reaches a browser - or a static credential. `GET /chat/config`
   exposes them as `ice_servers`, which the web client (and any native client)
   reads when a call starts. With nothing configured, calls only connect between
   hosts that can reach each other directly; the page says so.
@@ -457,8 +457,8 @@ number at release time, and CI publishes that section as the GitHub Release note
   and dialogs use, and they appear over it as they should.
 
 - **Sharing your screen now actually reaches the others.** Sharing only swapped
-  an existing camera stream, so from an audio call — where there is no video
-  being sent at all — nothing was shared; and with the camera off, the others
+  an existing camera stream, so from an audio call - where there is no video
+  being sent at all - nothing was shared; and with the camera off, the others
   kept showing your avatar instead of your screen. The screen is now added to
   the call when needed, the call renegotiated, and a shared screen is never
   hidden by the camera-off state. Your own tile also shows what you are
@@ -480,7 +480,7 @@ number at release time, and CI publishes that section as the GitHub Release note
 - **A message you send from one device now appears live on your other
   devices.** The live connection groups all of a user's tabs and devices on one
   channel, and a new message was broadcast to the conversation while excluding
-  its sender — which silenced that whole channel, so the sender's other devices
+  its sender - which silenced that whole channel, so the sender's other devices
   learned of the message only on reload. New messages (and read receipts) now
   reach every device of every member, including the sender's own; the tab that
   sent the message still shows it once. Edits, deletions, reactions and pins
@@ -489,7 +489,7 @@ number at release time, and CI publishes that section as the GitHub Release note
 - **Shared photos and files showed "Media unavailable" to everyone but the
   sender.** Downloading an attachment ran an access check whose result was read
   back with the wrong integer type, so it failed with a database error for
-  anyone who was not the person who uploaded the file — that is, every
+  anyone who was not the person who uploaded the file - that is, every
   recipient, for every image, video, voice message and file. The sender always
   saw their own media, which is why it looked intermittent. The check is fixed;
   media now loads for all members of the conversation, and non-members are
@@ -502,7 +502,7 @@ number at release time, and CI publishes that section as the GitHub Release note
   release; the lockfile now takes the version that replaced it.
 - **The package could not be built where `zip` is absent.** The Windows job of
   the continuous integration has no `zip`, so the Windows package was simply lost
-  the first time it was attempted — a script failure, not a build failure. The
+  the first time it was attempted - a script failure, not a build failure. The
   builder now falls back to 7-Zip, then to PowerShell.
 ### Added
 
@@ -563,8 +563,8 @@ number at release time, and CI publishes that section as the GitHub Release note
 - **Joining a meeting now goes through a lobby.** Before a meeting's call
   starts, a preview screen shows your camera and microphone, lets you turn
   either off and pick your input and output devices, then a "Join the meeting"
-  button enters the call with those choices. Every way into a meeting — the
-  instant meeting, a meeting card, a shared meeting link — passes through it.
+  button enters the call with those choices. Every way into a meeting - the
+  instant meeting, a meeting card, a shared meeting link - passes through it.
 
 - **A "Meetings" page.** A new "Meetings" entry in the sidebar opens a
   full-width page with a day header and a navigable week strip, the day's
@@ -579,7 +579,7 @@ number at release time, and CI publishes that section as the GitHub Release note
   a shareable link, copied to the clipboard), and "Schedule a meeting" (opens
   the calendar), the last shown only when the calendar module is installed.
 
-- **This module now ships a `.kbpkg`** — the single package format a Kubuno
+- **This module now ships a `.kbpkg`** - the single package format a Kubuno
   server installs by itself, the same file on Linux, Windows and macOS. It
   carries the same binary, interface and manifest as the system packages,
   arranged the way the server expects to find a module on disk, plus a
@@ -593,7 +593,7 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 - **A built package could be thrown away instead of published.** The job that
   attaches a package to the release waited ten minutes for another workflow to
-  create that release, then gave up with "release never appeared — build.yml
+  create that release, then gave up with "release never appeared - build.yml
   likely failed". The diagnosis was wrong: on a repository whose `.deb` takes
   longer than ten minutes to build, the release simply did not exist yet, and a
   package that had built perfectly was discarded. Four modules reached v0.1.6
@@ -603,7 +603,7 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 - **Loading older messages could skip or repeat some.** The "load more" cursor
   compared message identifiers, which are random, while the history is ordered
-  by date — so a page boundary could land anywhere and a long history was
+  by date - so a page boundary could land anywhere and a long history was
   walked non-deterministically. The cursor now resolves to the pivot message's
   date and identifier, and pages are strictly older than it in the very order
   they are displayed. The API is unchanged for clients.
@@ -611,7 +611,7 @@ number at release time, and CI publishes that section as the GitHub Release note
   in the middle of a send and the client retried with the same nonce, the
   server answered "nonce already used" and the client showed an error for a
   message that had in fact been stored. A retry by the same author now returns
-  the existing message (flagged `duplicate`) — the nonce acts as an idempotency
+  the existing message (flagged `duplicate`) - the nonce acts as an idempotency
   key, which is also what an offline relay re-injecting the same envelope
   needs. A nonce reused by *another* user is still refused as a replay.
 - **A deleted message no longer vanishes from the thread on reload.** Live,
@@ -619,12 +619,12 @@ number at release time, and CI publishes that section as the GitHub Release note
   conversation it was simply gone, leaving the reader to wonder what had been
   there. Deleted messages now come back as empty placeholders (type `deleted`,
   no content), like every mainstream messenger. Messages removed automatically
-  — expired ephemeral ones, or those past the instance retention — stay
+  - expired ephemeral ones, or those past the instance retention - stay
   hidden, as before.
 - **Every event arrived once per hour the tab stayed open.** The chat's live
   connection was re-established each time the session token was renewed, but
   the previous connection's closing handler fired after the new one had
-  started and reconnected on its own — so a tab open for an hour held four
+  started and reconnected on its own - so a tab open for an hour held four
   connections and received four copies of every message, typing indicator and
   call signal. Duplicate call signals made the browser renegotiate the same
   call several times, which is why a call could show "Connecting…" forever
@@ -632,7 +632,7 @@ number at release time, and CI publishes that section as the GitHub Release note
   reconnects itself.
 - **The call window closes by itself when the last other participant hangs
   up.** It used to stay open on an empty call, leaving the user to hang up on
-  nobody. It now closes as soon as nobody else is left — also when the person
+  nobody. It now closes as soon as nobody else is left - also when the person
   you were ringing declines. The initiator of a meeting room who has not been
   joined yet keeps the window open, since that call has not started.
 - **Declining a call now tells the caller.** Tapping the red button on an
@@ -653,7 +653,7 @@ number at release time, and CI publishes that section as the GitHub Release note
 - **Push notifications for new messages and incoming calls.** When a message
   becomes visible to the other members of a conversation (sent now, or
   delivered by the scheduler), Chat now asks the core to notify their
-  registered devices (UnifiedPush) — so a phone with the app asleep still
+  registered devices (UnifiedPush) - so a phone with the app asleep still
   learns that something arrived. The notification carries *who* wrote, never
   *what*: the title is the sender's name (or the group's name, with the sender
   in the body), the body is generic, and it links to the conversation. Members
@@ -672,7 +672,7 @@ number at release time, and CI publishes that section as the GitHub Release note
 - **Chat now authenticates proxied requests from a signed token instead of
   trusting plain headers.** Requests must carry a valid `X-Kubuno-Auth` token
   minted by the core with this module's internal secret (see `kubuno-modauth`),
-  rather than reading `X-Kubuno-User-*` headers at face value — which any process
+  rather than reading `X-Kubuno-User-*` headers at face value - which any process
   reaching Chat's loopback port could otherwise forge to act as any user.
 
 ## [0.1.6] - 2026-08-19
@@ -681,14 +681,14 @@ number at release time, and CI publishes that section as the GitHub Release note
 
 - **Pill-shaped buttons are gone from the interface.** Filter chips, view
   segments, tab selectors and action buttons that were drawn as pills now use the
-  same 4 px corner radius as every other button — the shape set them apart for no
+  same 4 px corner radius as every other button - the shape set them apart for no
   reason other than habit. Round buttons that hold a lone icon, avatars, status
   dots and non-clickable badges keep their shape: a circle around a single glyph
   is not a pill.
 
 - Theme tokens: two colours for navigation labels (`--color-text-nav`,
   `--color-text-nav-active`). Every module carries the same token sheet, so the
-  values must match across them — whichever bundle loads last would otherwise
+  values must match across them - whichever bundle loads last would otherwise
   win. No visible change inside this module.
 
 ### Added

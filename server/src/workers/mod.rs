@@ -43,7 +43,7 @@ pub async fn run(state: Arc<AppState>) {
 
 /// Delete the rooms of drafts that were never finished.
 ///
-/// A room attached to an event has to be created before the event is saved —
+/// A room attached to an event has to be created before the event is saved -
 /// the link is what gets saved. Closing the form tells us to take it back, but
 /// a refreshed page, a closed tab, a crash or a lost network tell us nothing at
 /// all. So the room carries its own deadline and this is what reads it: no
@@ -57,8 +57,8 @@ async fn purge_provisional(st: &AppState) -> anyhow::Result<()> {
     // Portable form of the old aliased `DELETE ... c WHERE {UNUSED_ROOM}`: the
     // ids are collected first (a plain SELECT may correlate on the target table),
     // then deleted by an `IN (...)` (no alias, no correlation on the DELETE
-    // target — what MySQL/SQLite refuse). The only interpolation is the
-    // UNUSED_ROOM const; no request value is involved — this runs on a timer.
+    // target - what MySQL/SQLite refuse). The only interpolation is the
+    // UNUSED_ROOM const; no request value is involved - this runs on a timer.
     let now = chrono::Utc::now();
     let ids: Vec<Uuid> = st
         .db
@@ -91,14 +91,14 @@ async fn purge_provisional(st: &AppState) -> anyhow::Result<()> {
 }
 
 /// Tombstone messages older than the instance retention window (`0` = keep
-/// forever). The server never reads the ciphertext — it deletes it by age alone.
+/// forever). The server never reads the ciphertext - it deletes it by age alone.
 /// Bounded per run so a large backlog drains gradually.
 async fn purge_by_retention(st: &AppState) -> anyhow::Result<()> {
     let days = st.instance().retention_days;
     if days <= 0 {
         return Ok(());
     }
-    // Rows older than the retention window (cutoff computed in Rust — no
+    // Rows older than the retention window (cutoff computed in Rust - no
     // make_interval), collected then tombstoned by id. MySQL has no UPDATE ...
     // RETURNING, so the ids are taken by a bounded SELECT first.
     let now = chrono::Utc::now();

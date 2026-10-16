@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Chat · New chat — (NewChatScreen.kt): header, the "Nouveau groupe" / "Nouvelle réunion" shortcuts, a people
+  Chat · New chat - (NewChatScreen.kt): header, the "Nouveau groupe" / "Nouvelle réunion" shortcuts, a people
   search field and the contacts list (avatar + display name + username). Light theme, logical px (~390 wide).
 -->
 <Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"

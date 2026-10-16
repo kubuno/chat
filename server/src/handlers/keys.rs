@@ -12,7 +12,7 @@ use kubuno_db::{new_id, params};
 use serde_json::{json, Value};
 use uuid::Uuid;
 
-/// POST /keys/register — enregistrer les clés publiques (premier lancement)
+/// POST /keys/register - enregistrer les clés publiques (premier lancement)
 pub async fn register_keys(
     State(st): State<AppState>,
     user: ChatUser,
@@ -41,7 +41,7 @@ pub async fn register_keys(
         )
         .await?;
 
-    // Signed PreKey — inserted once, ignored if that (user, key_id) already exists.
+    // Signed PreKey - inserted once, ignored if that (user, key_id) already exists.
     let ignore_spk = backend.on_conflict_do_nothing(&["user_id", "key_id"]);
     st.db
         .execute(
@@ -82,7 +82,7 @@ pub async fn register_keys(
     Ok(Json(json!({ "ok": true })))
 }
 
-/// GET /keys/:user_id — bundle de prékeys pour X3DH
+/// GET /keys/:user_id - bundle de prékeys pour X3DH
 pub async fn get_prekey_bundle(
     State(st): State<AppState>,
     _user: ChatUser,
@@ -92,7 +92,7 @@ pub async fn get_prekey_bundle(
     Ok(Json(serde_json::to_value(bundle).map_err(anyhow::Error::from)?))
 }
 
-/// POST /keys/one-time — uploader de nouvelles OPK
+/// POST /keys/one-time - uploader de nouvelles OPK
 pub async fn upload_one_time_prekeys(
     State(st): State<AppState>,
     user: ChatUser,
@@ -139,7 +139,7 @@ pub async fn upload_one_time_prekeys(
     Ok(Json(json!({ "ok": true, "inserted": inserted, "remaining": remaining })))
 }
 
-/// GET /keys/status — niveau du pool OPK
+/// GET /keys/status - niveau du pool OPK
 pub async fn key_status(
     State(st): State<AppState>,
     user: ChatUser,

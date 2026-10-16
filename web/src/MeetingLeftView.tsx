@@ -7,7 +7,7 @@ interface Props {
   /** The meeting that was just left, so it can be rejoined in one click. */
   room:     string
   title:    string
-  /** Why the meeting closed — a host ending it is not the same as leaving. */
+  /** Why the meeting closed - a host ending it is not the same as leaving. */
   reason:   'left' | 'ended' | 'removed'
   onRejoin: () => void
   onHome:   () => void

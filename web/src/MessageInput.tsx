@@ -9,7 +9,7 @@ import { readKubunoData, type KubunoDataEnvelope } from './kubunoData'
 import type { Sticker } from './stickers'
 
 // Contract for a module able to hand us one of its records as a data card.
-// Discovered at runtime: no hard dependency on contacts or calendar — the menu
+// Discovered at runtime: no hard dependency on contacts or calendar - the menu
 // entry simply doesn't show up when the module isn't installed.
 type CardPicker = () => Promise<KubunoDataEnvelope | null>
 const cardPicker = (moduleId: string, service: string): CardPicker | undefined =>
@@ -92,13 +92,13 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
 
   // ── Undo / redo ──────────────────────────────────────────────────────────────
   // Programmatic rewrites (formatting, emoji, mentions) reset the DOM value and
-  // destroy the browser's native undo stack — so the composer keeps its own.
+  // destroy the browser's native undo stack - so the composer keeps its own.
   type Snapshot = { v: string; s: number; e: number }
   const undoRef = useRef<Snapshot[]>([])
   const redoRef = useRef<Snapshot[]>([])
   const lastPushRef = useRef(0)
   // Live mirror of `text`: pushHistory is called from memoized callbacks whose
-  // closures are stale — reading the state there would snapshot old values.
+  // closures are stale - reading the state there would snapshot old values.
   const textRef = useRef(text)
   useEffect(() => { textRef.current = text }, [text])
 
@@ -178,7 +178,7 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
   }, [])
 
   // The space onboarding card lives in the message list, but only the composer
-  // owns the file input — it asks for the chooser through a DOM event.
+  // owns the file input - it asks for the chooser through a DOM event.
   useEffect(() => {
     const open = () => pickFiles('')
     window.addEventListener('chat:attach-file', open)
@@ -248,7 +248,7 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
     ]
     const now = new Date()
     const fmtTime = (d: Date) => d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    // Today at 18:00 — only while it is still meaningfully in the future.
+    // Today at 18:00 - only while it is still meaningfully in the future.
     const today18 = new Date(now); today18.setHours(18, 0, 0, 0)
     if (today18.getTime() - now.getTime() > 10 * 60_000) {
       items.push({ type: 'action', label: t('chat_schedule_today', { time: fmtTime(today18), defaultValue: "Aujourd'hui à {{time}}" }), onClick: () => handleSend(today18.toISOString()) })
@@ -294,7 +294,7 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
       }
     }
     // Pasted images (screenshots, copied pictures) queue above the pill and
-    // leave with the message being typed — its text becomes their caption.
+    // leave with the message being typed - its text becomes their caption.
     if (onSendFiles && instanceCfg.allow_file_sharing) {
       const imgs = [...e.clipboardData.items]
         .filter(it => it.kind === 'file' && it.type.startsWith('image/'))
@@ -368,7 +368,7 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
   }
 
   // The picked record lands in the composer as a pending card: the user can add
-  // a message next to it, then send — same path as a pasted card.
+  // a message next to it, then send - same path as a pasted card.
   async function pickCard(pick: CardPicker) {
     try {
       const envelope = await pick()
@@ -421,7 +421,7 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
     })
   }
 
-  // Named link: [label](url) — the URL placeholder is selected so it can be
+  // Named link: [label](url) - the URL placeholder is selected so it can be
   // overwritten (or pasted over) right away.
   function insertLink() {
     pushHistory(true)
@@ -508,7 +508,7 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
       setElapsed(0)
       elapsedTimer.current = window.setInterval(() => setElapsed((Date.now() - startRef.current) / 1000), 200)
     } catch {
-      // Micro refusé / indisponible — on ignore silencieusement.
+      // Micro refusé / indisponible - on ignore silencieusement.
       streamRef.current?.getTracks().forEach(tr => tr.stop())
     }
   }
@@ -597,7 +597,7 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
         </div>
       ) : (
         <div className="relative px-3 py-2">
-          {/* Formatting bar — floats above the pill while text is selected. */}
+          {/* Formatting bar - floats above the pill while text is selected. */}
           {hasSelection && (
             <div className="absolute bottom-full left-4 mb-1 flex items-center gap-0.5 bg-white border border-gray-200 rounded-lg shadow-lg px-1 py-0.5 z-30">
               {FORMATS.map(f => (
@@ -682,7 +682,7 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
               className="flex-1 resize-none bg-transparent border-0 px-2 py-2 text-sm focus:outline-none placeholder-gray-400 overflow-y-auto"
             />
 
-            {/* Active ephemeral timer — visible state, click cycles/disables. */}
+            {/* Active ephemeral timer - visible state, click cycles/disables. */}
             {onCycleEphemeral && ephemeralSecs > 0 && (
               <button
                 onClick={onCycleEphemeral}
@@ -807,7 +807,7 @@ export default function MessageInput({ onSend, onSendFiles, onSendVoice, onSendG
   )
 }
 
-/** lucide v1 ships no sticker glyph — same peeled-corner square as the panel. */
+/** lucide v1 ships no sticker glyph - same peeled-corner square as the panel. */
 function StickerGlyph() {
   return (
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald-500">

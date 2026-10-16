@@ -44,7 +44,7 @@ pub struct SendMessageDto {
     pub media_meta:     Option<Value>,
     pub reply_to_id:    Option<Uuid>,
     pub nonce:          String,
-    /// Header du ratchet (métadonnées pour le destinataire — ne pas lire côté serveur)
+    /// Header du ratchet (métadonnées pour le destinataire - ne pas lire côté serveur)
     pub ratchet_header: Option<Value>,
     /// ID de la OPK utilisée (pour que le serveur la marque claimed)
     pub used_opk_id:    Option<Uuid>,
@@ -52,7 +52,7 @@ pub struct SendMessageDto {
     pub ephemeral_key:  Option<String>,
     /// ID clé d'identité publique de l'expéditeur
     pub sender_ik_pub:  Option<String>,
-    /// Envoi programmé (futur) — le message reste invisible aux autres jusqu'à l'échéance.
+    /// Envoi programmé (futur) - le message reste invisible aux autres jusqu'à l'échéance.
     pub scheduled_at:   Option<DateTime<Utc>>,
     /// Message éphémère : durée de vie en secondes (auto-suppression après).
     pub expires_in_secs: Option<i64>,

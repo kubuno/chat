@@ -54,7 +54,7 @@ export function useConvActions() {
   }
 
   const handleMarkUnread = (convId: string) => {
-    // An open conversation is re-read on every render — close it, or the flag
+    // An open conversation is re-read on every render - close it, or the flag
     // we just set would be wiped before the user ever sees it.
     if (useChatStore.getState().activeConvId === convId) setActiveConv(null)
     action(() => chatApi.updateMemberSettings(convId, { mark_unread: true }))
@@ -127,7 +127,7 @@ export function useConvActions() {
 
   /**
    * `onManageMembers` is only supplied by callers that can show the info panel
-   * (the conversation header) — the item is dropped elsewhere.
+   * (the conversation header) - the item is dropped elsewhere.
    * `deleteShortcut` is set only by the views that bind the Delete key to
    * `handleDelete` on their focused row, so the hint is never shown where the
    * key does nothing.

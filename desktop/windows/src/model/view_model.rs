@@ -1,6 +1,6 @@
 //! What the views show, computed from [`ChatState`]: the list's rows (filtered by the
 //! search and the rail's section), the open conversation's header and thread. Pure
-//! functions of the state (and the current culture's strings), unit-tested — the views
+//! functions of the state (and the current culture's strings), unit-tested - the views
 //! only bind to their results.
 
 use std::time::Instant;

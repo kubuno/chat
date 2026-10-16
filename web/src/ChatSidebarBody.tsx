@@ -3,12 +3,12 @@
  * <button>): navigation uses <Link>, and in-place actions use an href="#"
  * anchor with role="button". Views without a route of their own (shortcut
  * views, open conversation) are addressed through the module's query-string
- * scheme — see chatRoute.ts.
+ * scheme - see chatRoute.ts.
  *
  * Chat sidebar, organized in sections:
- *   Raccourcis        — Accueil / Mentions / Suivis (switch the main-area view)
- *   Messages privés   — direct conversations
- *   Espaces           — groups & public channels, plus "browse spaces"
+ *   Raccourcis        - Accueil / Mentions / Suivis (switch the main-area view)
+ *   Messages privés   - direct conversations
+ *   Espaces           - groups & public channels, plus "browse spaces"
  *
  * Each section header carries a ⋮ menu (sort by recency/alphabetical, quick
  * actions); each conversation row shows a ⋮ button on hover with the shared
@@ -49,7 +49,7 @@ interface UserSuggestion {
  * the layer race. Same approach as the core's SidebarNavItem / LeftRail.
  *
  * Clearing the inline value on mouse leave (empty string, not 'transparent')
- * hands the element back to whatever `rowStyle` set — an active row keeps its
+ * hands the element back to whatever `rowStyle` set - an active row keeps its
  * highlight.
  */
 const hoverBg = (color: string) => ({
@@ -59,7 +59,7 @@ const hoverBg = (color: string) => ({
 
 /**
  * Row hover tint. Same value as the core's SidebarNavItem so this module's rows
- * highlight exactly like mail's — the left panel must feel like ONE sidebar.
+ * highlight exactly like mail's - the left panel must feel like ONE sidebar.
  */
 const ROW_HOVER = 'var(--kb-sidebar-hover, #e8eaed)'  // host-owned token: one hover colour product-wide
 
@@ -118,7 +118,7 @@ export default function ChatSidebarBody({ collapsed = false }: { collapsed?: boo
   const newMenu = useMenuDropdown()
   const meeting = useMeetingActions()
 
-  // "Schedule a meeting": hand off to the calendar module if it is installed —
+  // "Schedule a meeting": hand off to the calendar module if it is installed -
   // no hard dependency, discovered at runtime like the tasks integration.
   const calendarOpenDate = ModuleServiceRegistry.get<(arg?: { date?: string } | string) => void>('calendar', 'openDate')
 

@@ -1,6 +1,6 @@
 // Placement of the objects of a meeting: participant tiles and the shared
 // screen. Kept apart from the meeting window so it can be exercised on its
-// own, and because it is pure geometry — no React, no DOM.
+// own, and because it is pure geometry - no React, no DOM.
 
 export interface Slot { x: number; y: number; size: number }
 export interface StageLayout {
@@ -12,7 +12,7 @@ export interface StageLayout {
 /**
  * Places every object of the meeting itself, rather than letting the browser
  * reflow them. Each tile gets a position and a size, so a change of layout is
- * a change of coordinates that the browser can interpolate smoothly — measuring
+ * a change of coordinates that the browser can interpolate smoothly - measuring
  * elements that are already moving is what made them shake.
  *
  * Without a presentation the tiles form the largest grid of equal squares that

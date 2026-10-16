@@ -1,4 +1,4 @@
-# ── Kubuno Chat — configuration exemple ─────────────────────────────────────
+# ── Kubuno Chat - configuration exemple ─────────────────────────────────────
 # Copier ce fichier vers config.toml et remplir les valeurs.
 # Variables d'environnement : préfixe KCHAT__
 # Ex: KCHAT__SERVER__PORT=3109
@@ -10,7 +10,7 @@ port = 3109
 [core]
 # URL du core Kubuno (pour l'enregistrement du module)
 url             = "http://127.0.0.1:8080"
-# Secret partagé — injecté automatiquement par le superviseur via KUBUNO_INTERNAL_SECRET
+# Secret partagé - injecté automatiquement par le superviseur via KUBUNO_INTERNAL_SECRET
 internal_secret = "change_me"
 
 # ── Base de données ───────────────────────────────────────────────────────────

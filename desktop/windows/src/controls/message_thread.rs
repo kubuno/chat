@@ -1,4 +1,4 @@
-//! `MessageThread` — the custom control that shows a conversation's messages.
+//! `MessageThread` - the custom control that shows a conversation's messages.
 //!
 //! Variable-height bubbles (own messages on the right in the accent colour, the other side's
 //! on the left on a card, the web's `MessageBubble`), date separators, delivery ticks
@@ -8,7 +8,7 @@
 //!
 //! The text is wrapped on words with DirectWrite measurements of each candidate line
 //! (`kubuno_desktop_ui::display::wrap_lines`) and painted line by line, so what is laid out is
-//! exactly what is drawn — the former window estimated the line count from one long line.
+//! exactly what is drawn - the former window estimated the line count from one long line.
 //! The geometry is the pure function [`layout`], unit-tested with a fake measure.
 //!
 //! The form feeds it through typed access (`#[control] thread: Custom<MessageThread>`,

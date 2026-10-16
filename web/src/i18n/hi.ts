@@ -1,4 +1,4 @@
-// Chat module translations — hi.
+// Chat module translations - hi.
 export default {
   common_create: "बनाएँ",
   chat_messages: "संदेश",
@@ -68,7 +68,7 @@ export default {
   chat_call_fullscreen: "फ़ुलस्क्रीन",
   chat_call_mic_error: "माइक्रोफ़ोन तक पहुँच नहीं हो पा रही। अनुमतियाँ जाँचें।",
   chat_call_title_group: "{{kind}} ({{count}} प्रतिभागी)",
-  chat_call_title_peer: "{{kind}} — {{name}}",
+  chat_call_title_peer: "{{kind}} - {{name}}",
   chat_precall_title: "कॉल शुरू करें",
   chat_call_type_audio: "ऑडियो",
   chat_call_type_video: "वीडियो",

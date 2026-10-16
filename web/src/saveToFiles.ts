@@ -1,7 +1,7 @@
 // Filing a meeting recording in the recorder's own space.
 //
 // The file is written with the person's own session, so it lands in their own
-// space with their own rights — nothing is done on their behalf with elevated
+// space with their own rights - nothing is done on their behalf with elevated
 // privileges. The files module is discovered at runtime: when it is not
 // installed the call simply fails, and the caller keeps the recording in the
 // meeting's conversation instead. Nothing here assumes it is present.

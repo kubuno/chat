@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Chat · Conversation list — the Discussions tab (ConversationListScreen.kt + ChatTabs.kt): the action row, the
+  Chat · Conversation list - the Discussions tab (ConversationListScreen.kt + ChatTabs.kt): the action row, the
   big "Discussions" title, a search field, filter chips, the conversation rows (avatar + name + preview + time +
   unread badge) and the 5-destination bottom tab bar. Shared vocabulary, light theme, logical px (~390 wide).
 -->

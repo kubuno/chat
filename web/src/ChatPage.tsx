@@ -1,11 +1,11 @@
 /**
  * Main chat area. The sidebar shortcuts pick a view:
- *   home     — centered conversation list ("Accueil"), unread filter, layout
+ *   home     - centered conversation list ("Accueil"), unread filter, layout
  *              switch (dual pane: conversation opens as a right side panel;
  *              single pane: it takes the full width)
- *   mentions — messages mentioning me across the loaded conversations
- *   starred  — followed (favorite) conversations
- *   browse   — public spaces discovery, with open join
+ *   mentions - messages mentioning me across the loaded conversations
+ *   starred  - followed (favorite) conversations
+ *   browse   - public spaces discovery, with open join
  */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -52,7 +52,7 @@ export default function ChatPage() {
   }
 
   useEffect(() => {
-    // Silent E2E key bootstrap — no user action required.
+    // Silent E2E key bootstrap - no user action required.
     async function initKeys() {
       try {
         const hasLocal = await hasIdentityKey()
@@ -104,7 +104,7 @@ export default function ChatPage() {
     fetchConversations()
 
     // Restore the conversation from the URL: a copied space link, a bookmark, or
-    // simply a page reload — /chat?conv=<id>&view=<home|mentions|starred|browse>.
+    // simply a page reload - /chat?conv=<id>&view=<home|mentions|starred|browse>.
     const params = new URLSearchParams(location.search)
     const convId = params.get('conv')
     const view   = params.get('view') as HomeView | null
@@ -115,7 +115,7 @@ export default function ChatPage() {
   // …and mirror the state back into the URL, so F5 lands where the user was.
   useEffect(() => {
     // First run happens before the restore effect has pushed the URL params into
-    // the store — mirroring then would blank the query string for one frame.
+    // the store - mirroring then would blank the query string for one frame.
     if (!restoredRef.current) { restoredRef.current = true; return }
     const params = new URLSearchParams(location.search)
     const wanted = new URLSearchParams()
@@ -127,7 +127,7 @@ export default function ChatPage() {
   }, [activeConvId, homeView]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Single pane: an open conversation replaces the list entirely. Dual pane: the
-  // list stays in a narrow left column and the conversation fills the rest —
+  // list stays in a narrow left column and the conversation fills the rest -
   // unless it was expanded, which makes it full width there too.
   const fullConv = activeConvId && homeView !== 'meetings' && (layout === 'single' || convDisplay === 'full')
   // The meetings view is a full-width standalone page (its own week strip and
@@ -294,7 +294,7 @@ function HomeList({ starred = false, layout, onLayout }: {
                 if (e.key === 'Enter') { setActiveConv(conv.id); return }
                 // Delete = the "Supprimer la conversation" menu entry, same
                 // handler (confirmation included) on the focused row. Only when
-                // the row itself holds the focus — never steal the key from an
+                // the row itself holds the focus - never steal the key from an
                 // input nested in the row.
                 if (e.key === 'Delete' && e.target === e.currentTarget) {
                   e.preventDefault()

@@ -1,10 +1,10 @@
 // Types, constants and small helpers shared across the meeting UI. No JSX,
-// no components — just what several call modules need in common.
+// no components - just what several call modules need in common.
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { chatConfigNow } from './chatConfig'
 
 // ICE servers come from the instance settings (STUN/TURN chosen by the
-// administrator, typically a self-hosted coturn) — never from a third party.
+// administrator, typically a self-hosted coturn) - never from a third party.
 export function iceServers(): RTCIceServer[] {
   return chatConfigNow().ice_servers ?? []
 }
@@ -25,7 +25,7 @@ export function tileHue(id: string): number {
 /**
  * Tracks the size of an element, so a layout can be computed from it. The ref
  * is a callback, so the observer follows the element across the mounts and
- * unmounts of the area it watches — a plain ref would keep measuring a node
+ * unmounts of the area it watches - a plain ref would keep measuring a node
  * that has been detached, and report zero for ever.
  */
 export function useMeasuredBox() {
@@ -75,7 +75,7 @@ export interface CallSignal {
   sharing?: boolean   // this participant is presenting their screen
   recording?: boolean // this participant started or stopped recording
   emoji?: string
-  /** What was shared, for `call_activity` — already a readable line. */
+  /** What was shared, for `call_activity` - already a readable line. */
   activity?: string
 }
 

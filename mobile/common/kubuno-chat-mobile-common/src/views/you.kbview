@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Chat · You — the profile tab (YouScreen.kt): the "Vous" title, a profile header (accent cover band + avatar +
+  Chat · You - the profile tab (YouScreen.kt): the "Vous" title, a profile header (accent cover band + avatar +
   name + handle) and the settings cards, with the bottom tab bar (Vous active). The cover gradient is shown as
   a solid accent band and the avatar sits below it. Light theme, logical px (~390 wide).
 -->

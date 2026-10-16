@@ -1,4 +1,4 @@
-# Kubuno Chat — desktop apps
+# Kubuno Chat - desktop apps
 
 The native desktop clients of the chat module, one folder per operating system:
 

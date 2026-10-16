@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Chat · Actus — the Updates tab (ActusScreen.kt): the "Actus" title, the Statut section, the Chaînes header
+  Chat · Actus - the Updates tab (ActusScreen.kt): the "Actus" title, the Statut section, the Chaînes header
   with Explorer, the channel rows and the bottom tab bar (Actus active). Light theme, logical px (~390 wide).
 -->
 <Panel xmlns="https://kubuno.com/views" xmlns:x="https://kubuno.com/views/x"
