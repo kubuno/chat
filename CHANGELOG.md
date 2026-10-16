@@ -618,8 +618,8 @@ number at release time, and CI publishes that section as the GitHub Release note
   a deleted message showed "Message deleted" in its place; after reopening the
   conversation it was simply gone, leaving the reader to wonder what had been
   there. Deleted messages now come back as empty placeholders (type `deleted`,
-  no content), like every mainstream messenger. Messages removed automatically
-  - expired ephemeral ones, or those past the instance retention - stay
+  no content), like every mainstream messenger. Messages removed automatically -
+  expired ephemeral ones, or those past the instance retention - stay
   hidden, as before.
 - **Every event arrived once per hour the tab stayed open.** The chat's live
   connection was re-established each time the session token was renewed, but
